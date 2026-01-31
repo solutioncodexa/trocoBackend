@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/gold-types/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/gold-types/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/gold-price-settings").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/gold-prices", "/gold-prices/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                         // Cart, wishlist
                         .requestMatchers("/cart/**").permitAll()
@@ -79,6 +80,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/product-types/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/gold-price-settings").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/upload").hasRole("ADMIN")
+                        // Notifications - admin only
+                        .requestMatchers("/notifications", "/notifications/**").hasRole("ADMIN")
                         // Tout le reste nécessite une authentification
                         .anyRequest().authenticated()
                 )

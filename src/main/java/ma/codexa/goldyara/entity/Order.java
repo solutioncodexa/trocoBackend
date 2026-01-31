@@ -68,7 +68,8 @@ public class Order {
 
     public void calculateTotal() {
         this.totalAmount = orderItems.stream()
-            .mapToDouble(OrderItem::getSubtotal)
+            .mapToDouble(item -> item.getSubtotal() != null ? item.getSubtotal() : 
+                    (item.getQuantity() != null && item.getUnitPrice() != null ? item.getQuantity() * item.getUnitPrice() : 0.0))
             .sum();
     }
 }

@@ -7,7 +7,7 @@ import ma.codexa.goldyara.entity.Customer;
 import ma.codexa.goldyara.entity.Image;
 import ma.codexa.goldyara.repository.CustomOrderRepository;
 import ma.codexa.goldyara.repository.CustomerRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -16,13 +16,12 @@ import java.util.ArrayList;
 
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class CustomOrderService {
 
-    @Autowired
-    private CustomOrderRepository customOrderRepository;
-
-    @Autowired
-    private CustomerRepository customerRepository;
+    private final CustomOrderRepository customOrderRepository;
+    private final CustomerRepository customerRepository;
+    private final NotificationService notificationService;
 
     public List<CustomOrder> getAllCustomOrders() {
         return customOrderRepository.findAll();
@@ -94,6 +93,8 @@ public class CustomOrderService {
             customOrder.setReferenceImages(images);
         }
         
-        return customOrderRepository.save(customOrder);
+        CustomOrder savedOrder = customOrderRepository.save(customOrder);
+        notificationService.notifyNewCustomOrder(savedOrder);
+        return savedOrder;
     }
 }

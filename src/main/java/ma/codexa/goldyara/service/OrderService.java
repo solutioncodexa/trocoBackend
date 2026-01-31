@@ -29,6 +29,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
@@ -100,6 +101,7 @@ public class OrderService {
             orderItem.setProduct(product);
             orderItem.setQuantity(cartItem.getQuantity());
             orderItem.setUnitPrice(product.getPrice());
+            orderItem.setSubtotal(cartItem.getQuantity() * product.getPrice());
             orderItem.setSelectedSize(cartItem.getSelectedSize());
             orderItem.setSelectedGoldType(cartItem.getSelectedGoldType());
             orderItem.setOrder(order);
@@ -110,6 +112,8 @@ public class OrderService {
         order.calculateTotal();
 
         log.info("Creating new order for customer: {}", customer.getFullName());
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+        notificationService.notifyNewOrder(savedOrder);
+        return savedOrder;
     }
 }
