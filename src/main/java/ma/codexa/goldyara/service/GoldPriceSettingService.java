@@ -1,21 +1,28 @@
 package ma.codexa.goldyara.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.codexa.goldyara.entity.GoldPriceSetting;
 import ma.codexa.goldyara.repository.GoldPriceSettingRepository;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
 @Transactional
-@RequiredArgsConstructor
 public class GoldPriceSettingService {
 
     private static final double DEFAULT_PRICE_PER_GRAM = 650.0;
 
     private final GoldPriceSettingRepository goldPriceSettingRepository;
+    private final ProductService productService;
+
+    public GoldPriceSettingService(
+            GoldPriceSettingRepository goldPriceSettingRepository,
+            @Lazy ProductService productService) {
+        this.goldPriceSettingRepository = goldPriceSettingRepository;
+        this.productService = productService;
+    }
 
     /**
      * Retourne les paramètres (prix au gramme uniquement). La marge est par produit.
@@ -37,7 +44,10 @@ public class GoldPriceSettingService {
     public GoldPriceSetting updateSettings(double pricePerGram) {
         GoldPriceSetting s = getSettings();
         s.setPricePerGram(pricePerGram);
-        return goldPriceSettingRepository.save(s);
+        GoldPriceSetting saved = goldPriceSettingRepository.save(s);
+        productService.updateAllPricesForNewGoldRate(pricePerGram);
+        log.info("Prix au gramme mis à jour à {} MAD - tous les produits recalculés", pricePerGram);
+        return saved;
     }
 
     private GoldPriceSetting createDefault() {

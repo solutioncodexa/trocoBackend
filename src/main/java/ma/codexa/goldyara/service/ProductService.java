@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import ma.codexa.goldyara.common.exception.ResourceNotFoundException;
 import ma.codexa.goldyara.entity.Image;
 import ma.codexa.goldyara.entity.Product;
+import ma.codexa.goldyara.mapper.MapperUtils;
 import ma.codexa.goldyara.repository.ProductRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,10 +57,15 @@ public class ProductService {
         product.setName(productDetails.getName());
         product.setDescription(productDetails.getDescription());
         double marginGain = productDetails.getMarginGain() != null ? productDetails.getMarginGain() : 500.0;
-        double calculatedPrice = goldPriceSettingService.calculatePrice(productDetails.getWeight(), marginGain);
-        product.setPrice(calculatedPrice);
         product.setMarginGain(marginGain);
-        product.setOriginalPrice(productDetails.getOriginalPrice());
+        boolean isPromo = hasPromoBadge(productDetails.getBadges()) && productDetails.getOriginalPrice() != null && productDetails.getOriginalPrice() > 0;
+        if (isPromo) {
+            product.setPrice(productDetails.getPrice());
+            product.setOriginalPrice(productDetails.getOriginalPrice());
+        } else {
+            product.setPrice(goldPriceSettingService.calculatePrice(productDetails.getWeight(), marginGain));
+            product.setOriginalPrice(null);
+        }
         product.setWeight(productDetails.getWeight());
         product.setStock(productDetails.getStock());
         product.setCategory(productDetails.getCategory());
@@ -119,7 +125,37 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<Product> filterProducts(String style, String goldType, String productType,
                                        Long categoryId, Double minPrice, Double maxPrice) {
-        return productRepository.findByFilters(style, goldType, productType, 
+        return productRepository.findByFilters(style, goldType, productType,
                                                categoryId, minPrice, maxPrice);
+    }
+
+    /**
+     * Recalcule et met à jour tous les prix des produits lorsque le prix au gramme change.
+     * Pour les promos (originalPrice non null) : préserve le pourcentage de réduction.
+     */
+    @Transactional
+    public void updateAllPricesForNewGoldRate(double newPricePerGram) {
+        List<Product> products = productRepository.findAll();
+        for (Product p : products) {
+            double marginGain = p.getMarginGain() != null ? p.getMarginGain() : 500.0;
+            double newBasePrice = p.getWeight() * newPricePerGram + marginGain;
+
+            if (p.getOriginalPrice() != null && p.getOriginalPrice() > 0 && p.getPrice() != null && p.getPrice() > 0) {
+                double discountRatio = p.getPrice() / p.getOriginalPrice();
+                p.setOriginalPrice(Math.round(newBasePrice * 100.0) / 100.0);
+                p.setPrice(Math.round(newBasePrice * discountRatio * 100.0) / 100.0);
+            } else {
+                p.setPrice(Math.round(newBasePrice * 100.0) / 100.0);
+                p.setOriginalPrice(null);
+            }
+        }
+        productRepository.saveAll(products);
+        log.info("{} produits mis à jour avec le nouveau prix au gramme {}", products.size(), newPricePerGram);
+    }
+
+    private boolean hasPromoBadge(String badges) {
+        if (badges == null || badges.isBlank()) return false;
+        List<String> list = MapperUtils.badgesToList(badges);
+        return list != null && list.stream().anyMatch(b -> "promo".equalsIgnoreCase(b.trim()));
     }
 }

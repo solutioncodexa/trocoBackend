@@ -33,6 +33,11 @@ public interface CustomOrderMapper {
         return MapperUtils.firstImageUrl(images);
     }
 
+    @Named("imagesToUrls")
+    default java.util.List<String> imagesToUrls(java.util.List<ma.codexa.goldyara.entity.Image> images) {
+        return MapperUtils.imagesToList(images);
+    }
+
     @Named("productTypeToLowercase")
     default String productTypeToLowercase(String productType) {
         return MapperUtils.productTypeToLowercase(productType);

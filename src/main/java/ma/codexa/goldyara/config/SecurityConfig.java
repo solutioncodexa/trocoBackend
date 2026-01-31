@@ -56,7 +56,7 @@ public class SecurityConfig {
                         .requestMatchers("/wishlist/**").permitAll()
                         // Création commandes (public - clients)
                         .requestMatchers(HttpMethod.POST, "/orders").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/custom-orders").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/custom-orders", "/custom-orders/submit").permitAll()
                         // Admin: liste et gestion des commandes (GET, PATCH, DELETE, etc.)
                         .requestMatchers("/orders", "/orders/**").hasRole("ADMIN")
                         .requestMatchers("/custom-orders", "/custom-orders/**").hasRole("ADMIN")

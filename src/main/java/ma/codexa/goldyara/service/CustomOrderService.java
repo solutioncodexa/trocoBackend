@@ -81,15 +81,24 @@ public class CustomOrderService {
         customOrder.setDescription(dto.getDescription());
         customOrder.setStatus("PENDING");
         
-        // Add image if provided
-        if (dto.getImageUrl() != null && !dto.getImageUrl().isEmpty()) {
-            Image image = new Image();
-            image.setUrl(dto.getImageUrl());
-            image.setCustomOrder(customOrder);
-            image.setIsPrimary(true);
-            image.setDisplayOrder(0);
+        // Add images if provided
+        List<String> urls = dto.getReferenceImageUrls();
+        if (urls == null || urls.isEmpty()) {
+            String singleUrl = dto.getImageUrl();
+            if (singleUrl != null && !singleUrl.isEmpty()) {
+                urls = List.of(singleUrl);
+            }
+        }
+        if (urls != null && !urls.isEmpty()) {
             List<Image> images = new ArrayList<>();
-            images.add(image);
+            for (int i = 0; i < urls.size(); i++) {
+                Image image = new Image();
+                image.setUrl(urls.get(i));
+                image.setCustomOrder(customOrder);
+                image.setIsPrimary(i == 0);
+                image.setDisplayOrder(i);
+                images.add(image);
+            }
             customOrder.setReferenceImages(images);
         }
         

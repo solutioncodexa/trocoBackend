@@ -1,13 +1,19 @@
 package ma.codexa.goldyara.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import ma.codexa.goldyara.dto.CustomOrderDTO;
 import ma.codexa.goldyara.entity.CustomOrder;
 import ma.codexa.goldyara.mapper.CustomOrderMapper;
 import ma.codexa.goldyara.service.CustomOrderService;
+import ma.codexa.goldyara.service.FileStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -21,6 +27,11 @@ public class CustomOrderController {
 
     @Autowired
     private CustomOrderMapper customOrderMapper;
+
+    @Autowired
+    private FileStorageService fileStorageService;
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @GetMapping
     public ResponseEntity<List<CustomOrderDTO>> getAllCustomOrders() {
@@ -44,12 +55,39 @@ public class CustomOrderController {
         return ResponseEntity.ok(customOrderMapper.toDTOList(customOrders));
     }
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<CustomOrderDTO> createCustomOrder(@RequestBody CustomOrderDTO customOrderDTO) {
-        // This would need proper mapping from DTO to Entity
-        // For now, returning the DTO as-is (would need proper implementation)
         CustomOrder customOrder = customOrderService.createCustomOrderFromDTO(customOrderDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(customOrderMapper.toDTO(customOrder));
+    }
+
+    @PostMapping(path = "/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CustomOrderDTO> createCustomOrderWithImages(
+            @RequestPart("order") String orderJson,
+            @RequestPart(value = "images", required = false) MultipartFile[] images) {
+        try {
+            CustomOrderDTO dto = OBJECT_MAPPER.readValue(orderJson, CustomOrderDTO.class);
+            if (images != null && images.length > 0) {
+                List<String> urls = new ArrayList<>();
+                for (MultipartFile f : images) {
+                    if (f != null && !f.isEmpty()) {
+                        try {
+                            urls.add(fileStorageService.storeFile(f));
+                        } catch (Exception ignored) {
+                        }
+                        if (urls.size() >= 5) break;
+                    }
+                }
+                if (!urls.isEmpty()) {
+                    dto.setImageUrl(urls.get(0));
+                    dto.setReferenceImageUrls(urls);
+                }
+            }
+            CustomOrder customOrder = customOrderService.createCustomOrderFromDTO(dto);
+            return ResponseEntity.status(HttpStatus.CREATED).body(customOrderMapper.toDTO(customOrder));
+        } catch (Exception e) {
+            throw new RuntimeException("Erreur création commande: " + e.getMessage());
+        }
     }
 
     @PatchMapping("/{id}/status")

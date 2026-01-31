@@ -19,15 +19,15 @@ import java.util.UUID;
 public class FileStorageService {
 
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
-            "image/jpeg", "image/png", "image/gif", "image/webp"
+            "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"
     );
-    private static final List<String> ALLOWED_EXTENSIONS = List.of(".jpg", ".jpeg", ".png", ".gif", ".webp");
+    private static final List<String> ALLOWED_EXTENSIONS = List.of(".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf");
 
     @Value("${app.upload.dir:uploads/}")
     private String uploadDir;
 
     /**
-     * Sauvegarde un fichier image et retourne l'URL relative (/uploads/xxx.jpg).
+     * Sauvegarde un fichier (image ou PDF) et retourne l'URL relative (/uploads/xxx.jpg).
      */
     public String storeFile(MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
@@ -35,7 +35,7 @@ public class FileStorageService {
         }
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            throw new IllegalArgumentException("Type de fichier non autorisé. Utilisez JPG, PNG, GIF ou WebP.");
+            throw new IllegalArgumentException("Type de fichier non autorisé. Utilisez JPG, PNG, GIF, WebP ou PDF.");
         }
         String originalFilename = file.getOriginalFilename();
         String ext = ".jpg";
