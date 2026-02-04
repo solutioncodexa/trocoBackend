@@ -36,7 +36,11 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -51,6 +55,7 @@ public class ProductController {
     private final ProductMapper productMapper;
     private final CategoryService categoryService;
     private final FileStorageService fileStorageService;
+    private final ma.codexa.goldyara.service.FeaturedProductService featuredProductService;
 
     @Operation(summary = "Récupérer tous les produits", description = "Récupère une liste paginée de tous les produits")
     @ApiResponses(value = {
@@ -138,6 +143,165 @@ public class ProductController {
     public ResponseEntity<ApiResponse<List<ProductDTO>>> searchProducts(@RequestParam String keyword) {
         List<Product> products = productService.searchProducts(keyword);
         return ResponseEntity.ok(ApiResponse.success(productMapper.toDTOList(products)));
+    }
+
+    @Operation(summary = "Rechercher des produits par mot-clé")
+    @GetMapping("/featured-test")
+    public ResponseEntity<Map<String, String>> featuredTest() {
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Featured test endpoint works!");
+        return ResponseEntity.ok(response);
+    }
+
+    // Endpoint simple pour les produits sélectionnés (compatibilité frontend)
+    @GetMapping("/featured-products-mock")
+    public ResponseEntity<List<Object>> getFeaturedProductsMock() {
+        log.info("📡 Featured products mock endpoint called in ProductController");
+        try {
+            List<ma.codexa.goldyara.dto.FeaturedProductDTO> products = featuredProductService.getAllFeaturedProducts();
+            log.info("✅ Returning {} featured products from database", products.size());
+            
+            // Enrichir avec les données complètes du produit
+            List<Object> enrichedProducts = products.stream().map(fp -> {
+                Map<String, Object> enrichedProduct = new HashMap<>();
+                
+                // Données du featured product
+                enrichedProduct.put("id", fp.getId());
+                enrichedProduct.put("productId", fp.getProductId());
+                enrichedProduct.put("section", fp.getSection());
+                enrichedProduct.put("displayOrder", fp.getDisplayOrder());
+                enrichedProduct.put("isActive", fp.getIsActive());
+                enrichedProduct.put("createdAt", fp.getCreatedAt());
+                enrichedProduct.put("updatedAt", fp.getUpdatedAt());
+                
+                // Utiliser les données personnalisées ou celles du produit par défaut
+                enrichedProduct.put("title", fp.getTitle() != null && !fp.getTitle().trim().isEmpty() 
+                    ? fp.getTitle() : null);
+                enrichedProduct.put("description", fp.getDescription() != null && !fp.getDescription().trim().isEmpty() 
+                    ? fp.getDescription() : null);
+                enrichedProduct.put("imageUrl", fp.getImageUrl() != null && !fp.getImageUrl().trim().isEmpty() 
+                    ? fp.getImageUrl() : null);
+                
+                // Récupérer les données du produit pour les fallbacks
+                try {
+                    Product product = productService.getProductById(fp.getProductId()).orElse(null);
+                    if (product != null) {
+                        Map<String, Object> productInfo = new HashMap<>();
+                        productInfo.put("id", product.getId());
+                        productInfo.put("name", product.getName());
+                        productInfo.put("description", product.getDescription());
+                        productInfo.put("price", product.getPrice());
+                        productInfo.put("productType", product.getProductType());
+                        productInfo.put("goldType", product.getGoldType());
+                        
+                        // Image du produit
+                        if (!product.getImages().isEmpty()) {
+                            String productImageUrl = product.getImages().get(0).getUrl();
+                            productInfo.put("imageUrl", productImageUrl);
+                            
+                            // Si pas d'image personnalisée, utiliser celle du produit
+                            if (fp.getImageUrl() == null || fp.getImageUrl().trim().isEmpty()) {
+                                enrichedProduct.put("imageUrl", productImageUrl);
+                            }
+                        }
+                        
+                        enrichedProduct.put("product", productInfo);
+                        
+                        // Si pas de titre personnalisé, utiliser le nom du produit
+                        if (fp.getTitle() == null || fp.getTitle().trim().isEmpty()) {
+                            enrichedProduct.put("title", product.getName());
+                        }
+                        
+                        // Si pas de description personnalisée, utiliser celle du produit
+                        if (fp.getDescription() == null || fp.getDescription().trim().isEmpty()) {
+                            enrichedProduct.put("description", product.getDescription());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("⚠️ Could not fetch product {} for featured product {}: {}", fp.getProductId(), fp.getId(), e.getMessage());
+                }
+                
+                return enrichedProduct;
+            }).collect(Collectors.toList());
+            
+            return ResponseEntity.ok(enrichedProducts);
+        } catch (Exception e) {
+            log.error("❌ Error fetching featured products from database, returning empty list", e);
+            return ResponseEntity.ok(List.of());
+        }
+    }
+
+    // Endpoint temporaire pour créer des produits sélectionnés (compatibilité frontend)
+    @PostMapping("/featured-products")
+    public ResponseEntity<Object> createFeaturedProduct(@RequestBody Object request) {
+        log.info("📝 Create featured product endpoint called in ProductController");
+        log.info("📝 Request data: {}", request);
+        
+        if (request instanceof Map) {
+            Map<String, Object> requestData = (Map<String, Object>) request;
+            
+            try {
+                // Convertir la requête en DTO
+                ma.codexa.goldyara.dto.request.CreateFeaturedProductRequest createRequest = new ma.codexa.goldyara.dto.request.CreateFeaturedProductRequest();
+                String productIdStr = (String) requestData.get("productId");
+                createRequest.setProductId(Long.parseLong(productIdStr)); // Conversion String → Long
+                createRequest.setSection((String) requestData.get("section"));
+                createRequest.setTitle((String) requestData.get("title"));
+                createRequest.setDescription((String) requestData.get("description"));
+                
+                // Récupérer l'image personnalisée ou utiliser celle du produit
+                String customImageUrl = (String) requestData.get("imageUrl");
+                if (customImageUrl == null || customImageUrl.trim().isEmpty()) {
+                    // Si aucune image personnalisée, utiliser l'image du produit
+                    Product product = productService.getProductById(Long.parseLong(productIdStr))
+                            .orElseThrow(() -> new RuntimeException("Produit non trouvé: " + productIdStr));
+                    
+                    if (!product.getImages().isEmpty()) {
+                        customImageUrl = product.getImages().get(0).getUrl();
+                        log.info("📸 Using product image as featured product image: {}", customImageUrl);
+                    } else {
+                        customImageUrl = "/api/uploads/placeholder.jpg";
+                        log.info("📸 Using placeholder image (product has no images)");
+                    }
+                }
+                createRequest.setImageUrl(customImageUrl);
+                
+                // Utiliser le titre personnalisé ou celui du produit
+                String customTitle = (String) requestData.get("title");
+                if (customTitle == null || customTitle.trim().isEmpty()) {
+                    Product product = productService.getProductById(Long.parseLong(productIdStr))
+                            .orElseThrow(() -> new RuntimeException("Produit non trouvé: " + productIdStr));
+                    customTitle = product.getName();
+                    log.info("📝 Using product name as featured product title: {}", customTitle);
+                }
+                createRequest.setTitle(customTitle);
+                
+                // Utiliser la description personnalisée ou celle du produit
+                String customDescription = (String) requestData.get("description");
+                if (customDescription == null || customDescription.trim().isEmpty()) {
+                    Product product = productService.getProductById(Long.parseLong(productIdStr))
+                            .orElseThrow(() -> new RuntimeException("Produit non trouvé: " + productIdStr));
+                    customDescription = product.getDescription();
+                    log.info("📝 Using product description as featured product description: {}", customDescription);
+                }
+                createRequest.setDescription(customDescription);
+                
+                createRequest.setDisplayOrder(1); // Sera ajusté par le service
+                createRequest.setIsActive(true);
+                
+                // Utiliser le vrai service pour créer en base de données
+                ma.codexa.goldyara.dto.FeaturedProductDTO createdProduct = featuredProductService.createFeaturedProduct(createRequest);
+                
+                log.info("✅ Featured product created in database with ID: {}", createdProduct.getId());
+                return ResponseEntity.status(HttpStatus.CREATED).body(createdProduct);
+                
+            } catch (Exception e) {
+                log.error("❌ Error creating featured product in database: {}", e.getMessage(), e);
+                return ResponseEntity.badRequest().body("Error creating featured product: " + e.getMessage());
+            }
+        }
+        
+        return ResponseEntity.badRequest().body("Invalid request data");
     }
 
     @Operation(summary = "Créer un nouveau produit avec images")

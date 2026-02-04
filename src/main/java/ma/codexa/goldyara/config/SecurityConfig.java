@@ -51,6 +51,24 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/gold-price-settings").permitAll()
                         .requestMatchers(HttpMethod.GET, "/gold-prices", "/gold-prices/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        // Featured products - lecture publique, écriture admin
+                        .requestMatchers(HttpMethod.GET, "/featured-products/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/featured-products-mock").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/featured-products-mock").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/featured-products-test").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/products/featured-products-mock").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/featured-products").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/products/featured-products").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/featured-products").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/featured-products/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/featured-products/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/featured-products/**").hasRole("ADMIN")
+                        // Ajouter les endpoints /api/featured-products pour le frontend
+                        .requestMatchers(HttpMethod.PUT, "/api/featured-products/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/featured-products/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/featured-products/**").hasRole("ADMIN")
+                        // Temporairement autoriser tous les GET /api/** pour le développement
+                        .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
                         // Cart, wishlist
                         .requestMatchers("/cart/**").permitAll()
                         .requestMatchers("/wishlist/**").permitAll()
@@ -69,6 +87,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/products").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/products/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/products/**").hasRole("ADMIN")
+                        // Top bar messages: public pour GET /public, admin pour le reste
+                        .requestMatchers("/top-bar-messages/public").permitAll()
+                        .requestMatchers("/top-bar-messages/**").hasRole("ADMIN")
+                        // Promo modals: public pour GET /public, admin pour le reste
+                        .requestMatchers("/promo-modals/public").permitAll()
+                        .requestMatchers("/promo-modals/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/categories").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/categories/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/categories/**").hasRole("ADMIN")

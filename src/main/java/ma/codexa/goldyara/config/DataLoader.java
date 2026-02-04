@@ -2,17 +2,10 @@ package ma.codexa.goldyara.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ma.codexa.goldyara.entity.Category;
-import ma.codexa.goldyara.entity.Collection;
-import ma.codexa.goldyara.entity.GoldPriceSetting;
-import ma.codexa.goldyara.entity.GoldType;
-import ma.codexa.goldyara.entity.ProductType;
-import ma.codexa.goldyara.entity.User;
-import ma.codexa.goldyara.repository.CategoryRepository;
-import ma.codexa.goldyara.repository.CollectionRepository;
-import ma.codexa.goldyara.repository.GoldPriceSettingRepository;
-import ma.codexa.goldyara.repository.GoldTypeRepository;
+import ma.codexa.goldyara.entity.*;
+import ma.codexa.goldyara.repository.*;
 import ma.codexa.goldyara.repository.ProductTypeRepository;
+import ma.codexa.goldyara.repository.TopBarMessageRepository;
 import ma.codexa.goldyara.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
@@ -32,6 +25,8 @@ public class DataLoader {
     private final ProductTypeRepository productTypeRepository;
     private final GoldPriceSettingRepository goldPriceSettingRepository;
     private final GoldTypeRepository goldTypeRepository;
+    private final TopBarMessageRepository topBarMessageRepository;
+    private final PromoModalRepository promoModalRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -51,6 +46,8 @@ public class DataLoader {
             initializeGoldPriceSetting();
             initializeGoldTypes();
             initializeProductTypes();
+            initializeTopBarMessages();
+            initializePromoModals();
             log.info("Initial data loading completed");
         };
     }
@@ -140,6 +137,34 @@ public class DataLoader {
                     new ProductType(null, "Parure", "SET", false, null, 5)
             ));
             log.info("Product types initialized");
+        }
+    }
+
+    private void initializeTopBarMessages() {
+        if (topBarMessageRepository.count() == 0) {
+            topBarMessageRepository.saveAll(List.of(
+                    new TopBarMessage("Livraison offerte dès 2000 DH d'achat", 1, true),
+                    new TopBarMessage("Retours gratuits sous 30 jours", 2, true)
+            ));
+            log.info("Top bar messages initialized");
+        }
+    }
+
+    private void initializePromoModals() {
+        if (promoModalRepository.count() == 0) {
+            promoModalRepository.saveAll(List.of(
+                    new PromoModal(
+                            "Offre Exclusive Beldi",
+                            "Profitez de la livraison offerte sur toute la collection Beldi ce week-end.",
+                            "https://picsum.photos/seed/goldyara-beldi/800/600.jpg",
+                            "Voir la Collection",
+                            "/boutique?category=beldi",
+                            5,
+                            true,
+                            1
+                    )
+            ));
+            log.info("Promo modals initialized");
         }
     }
 
