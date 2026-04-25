@@ -129,6 +129,35 @@ public class ProductService {
                                                categoryId, minPrice, maxPrice);
     }
 
+    @Transactional(readOnly = true)
+    public Page<Product> searchProductsWithFilters(
+            String keyword,
+            String style,
+            String goldType,
+            String productType,
+            Long categoryId,
+            Double minPrice,
+            Double maxPrice,
+            String collectionFilter,
+            Boolean inStock,
+            Pageable pageable) {
+        boolean applyKeywordFilter = keyword != null && !keyword.isBlank();
+        String keywordPattern = applyKeywordFilter ? "%" + keyword.toLowerCase() + "%" : "%";
+
+        return productRepository.searchProductsWithFilters(
+                applyKeywordFilter,
+                keywordPattern,
+                style,
+                goldType,
+                productType,
+                categoryId,
+                minPrice,
+                maxPrice,
+                collectionFilter,
+                inStock,
+                pageable);
+    }
+
     /**
      * Recalcule et met à jour tous les prix des produits lorsque le prix au gramme change.
      * Pour les promos (originalPrice non null) : préserve le pourcentage de réduction.

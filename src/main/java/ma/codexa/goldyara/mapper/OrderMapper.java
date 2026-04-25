@@ -34,7 +34,7 @@ public interface OrderMapper {
             List<CartItemDTO> cartItems = order.getOrderItems().stream()
                     .map(item -> {
                         CartItemDTO cartItemDTO = new CartItemDTO();
-                        cartItemDTO.setProduct(productMapper.toDTO(item.getProduct()));
+                        cartItemDTO.setProduct(productMapper.toDetailDTO(item.getProduct()));
                         cartItemDTO.setQuantity(item.getQuantity());
                         cartItemDTO.setSelectedSize(item.getSelectedSize());
                         cartItemDTO.setSelectedGoldType(item.getSelectedGoldType());

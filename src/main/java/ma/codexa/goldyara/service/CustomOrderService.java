@@ -77,6 +77,7 @@ public class CustomOrderService {
         customOrder.setCustomer(customer);
         customOrder.setProductType(dto.getType() != null ? dto.getType().toUpperCase() : null);
         customOrder.setStyle(dto.getStyle() != null ? dto.getStyle().toUpperCase() : null);
+        customOrder.setSize(dto.getSize());
         customOrder.setWeightEstimation(dto.getWeight());
         customOrder.setDescription(dto.getDescription());
         customOrder.setStatus("PENDING");

@@ -19,6 +19,7 @@ public interface CustomOrderMapper {
     @Mapping(target = "id", expression = "java(customOrder.getId() != null ? customOrder.getId().toString() : null)")
     @Mapping(target = "imageUrl", source = "referenceImages", qualifiedByName = "firstImageUrl")
     @Mapping(target = "type", source = "productType", qualifiedByName = "productTypeToLowercase")
+    @Mapping(target = "size", source = "size")
     @Mapping(target = "weight", source = "weightEstimation")
     @Mapping(target = "style", source = "style", qualifiedByName = "styleToCategory")
     @Mapping(target = "status", source = "status", qualifiedByName = "statusToFrontend")

@@ -32,6 +32,9 @@ public class CustomOrder {
     @Column(name = "weight_estimation")
     private Double weightEstimation; // en grammes
 
+    @Column(name = "size", length = 120)
+    private String size; // ex: "Bracelet 18 cm", "Tour 54", etc.
+
     @Column(columnDefinition = "TEXT", nullable = false)
     private String description;
 
