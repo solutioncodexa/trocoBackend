@@ -63,4 +63,30 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
         @Param("minPrice") Double minPrice,
         @Param("maxPrice") Double maxPrice
     );
+
+    /** Filtres + recherche texte, paginé (images chargées pour les DTO). */
+    @EntityGraph(attributePaths = {"images"})
+    @Query("SELECT p FROM Product p WHERE " +
+           "(:applyKeywordFilter = FALSE OR LOWER(p.name) LIKE :keywordPattern OR LOWER(COALESCE(p.description, '')) LIKE :keywordPattern) AND " +
+           "(:style IS NULL OR p.style = :style) AND " +
+           "(:goldType IS NULL OR p.goldType = :goldType) AND " +
+           "(:productType IS NULL OR p.productType = :productType) AND " +
+           "(:categoryId IS NULL OR p.category.id = :categoryId) AND " +
+           "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
+           "(:maxPrice IS NULL OR p.price <= :maxPrice) AND " +
+           "(:collectionFilter IS NULL OR p.collection = :collectionFilter) AND " +
+           "(:inStock IS NULL OR (:inStock = TRUE AND p.stock > 0) OR (:inStock = FALSE AND p.stock <= 0))")
+    Page<Product> searchProductsWithFilters(
+        @Param("applyKeywordFilter") boolean applyKeywordFilter,
+        @Param("keywordPattern") String keywordPattern,
+        @Param("style") String style,
+        @Param("goldType") String goldType,
+        @Param("productType") String productType,
+        @Param("categoryId") Long categoryId,
+        @Param("minPrice") Double minPrice,
+        @Param("maxPrice") Double maxPrice,
+        @Param("collectionFilter") String collectionFilter,
+        @Param("inStock") Boolean inStock,
+        Pageable pageable
+    );
 }

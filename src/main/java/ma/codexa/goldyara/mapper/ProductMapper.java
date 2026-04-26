@@ -1,20 +1,18 @@
 package ma.codexa.goldyara.mapper;
 
-import ma.codexa.goldyara.dto.ProductDTO;
+import ma.codexa.goldyara.dto.ProductDetailDTO;
+import ma.codexa.goldyara.dto.ProductListItemDTO;
 import ma.codexa.goldyara.entity.Product;
 import org.mapstruct.*;
 import org.mapstruct.factory.Mappers;
 
 import java.util.List;
 
-import static ma.codexa.goldyara.mapper.MapperUtils.*;
-
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface ProductMapper {
 
     ProductMapper INSTANCE = Mappers.getMapper(ProductMapper.class);
 
-    // Mapping automatique pour les champs avec le même nom : name, description, price, originalPrice, weight, collection
     @Mapping(target = "id", expression = "java(product.getId() != null ? product.getId().toString() : null)")
     @Mapping(target = "type", source = "productType", qualifiedByName = "productTypeToLowercase")
     @Mapping(target = "category", source = "style", qualifiedByName = "styleToCategory")
@@ -25,9 +23,21 @@ public interface ProductMapper {
     @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToList")
     @Mapping(target = "inStock", expression = "java(product.isInStock())")
     @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
-    ProductDTO toDTO(Product product);
+    ProductDetailDTO toDetailDTO(Product product);
 
-    // Mapping automatique pour les champs avec le même nom
+    @Mapping(target = "id", expression = "java(product.getId() != null ? product.getId().toString() : null)")
+    @Mapping(target = "type", source = "productType", qualifiedByName = "productTypeToLowercase")
+    @Mapping(target = "category", source = "style", qualifiedByName = "styleToCategory")
+    @Mapping(target = "goldType", source = "goldType", qualifiedByName = "goldTypeToFrontend")
+    @Mapping(target = "stockQuantity", source = "stock")
+    @Mapping(target = "images", source = "images", qualifiedByName = "imagesToList")
+    @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToList")
+    @Mapping(target = "inStock", expression = "java(product.isInStock())")
+    @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
+    ProductListItemDTO toListItemDTO(Product product);
+
+    List<ProductListItemDTO> toListItemDTOList(List<Product> products);
+
     @Mapping(target = "id", expression = "java(dto.getId() != null && !dto.getId().isEmpty() ? Long.parseLong(dto.getId()) : null)")
     @Mapping(target = "productType", source = "type", qualifiedByName = "typeToProductType")
     @Mapping(target = "style", source = "category", qualifiedByName = "categoryToStyle")
@@ -35,15 +45,14 @@ public interface ProductMapper {
     @Mapping(target = "stock", source = "stockQuantity")
     @Mapping(target = "availableSizes", source = "availableSizes", qualifiedByName = "listToString")
     @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToString")
-    @Mapping(target = "images", ignore = true) // Géré séparément
-    @Mapping(target = "category", ignore = true) // Relation JPA
-    @Mapping(target = "createdAt", ignore = true) // Auto-généré
-    @Mapping(target = "updatedAt", ignore = true) // Auto-généré
-    Product toEntity(ProductDTO dto);
+    @Mapping(target = "images", ignore = true)
+    @Mapping(target = "category", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    Product toEntity(ProductDetailDTO dto);
 
-    List<ProductDTO> toDTOList(List<Product> products);
+    List<ProductDetailDTO> toDetailDTOList(List<Product> products);
 
-    // Méthodes de conversion nommées utilisant MapperUtils
     @Named("productTypeToLowercase")
     default String productTypeToLowercase(String productType) {
         return MapperUtils.productTypeToLowercase(productType);

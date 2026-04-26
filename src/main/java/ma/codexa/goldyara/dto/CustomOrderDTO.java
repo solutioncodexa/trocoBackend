@@ -15,6 +15,7 @@ public class CustomOrderDTO {
     private List<String> referenceImageUrls;
     private String description;
     private String type; // ProductType
+    private String size;
     private Double weight;
     private String style; // ProductCategory
     private CustomerDTO customer;

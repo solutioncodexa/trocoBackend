@@ -1,6 +1,6 @@
 package ma.codexa.goldyara.controller;
 
-import ma.codexa.goldyara.dto.ProductDTO;
+import ma.codexa.goldyara.dto.ProductListItemDTO;
 import ma.codexa.goldyara.entity.Product;
 import ma.codexa.goldyara.mapper.ProductMapper;
 import ma.codexa.goldyara.service.WishlistService;
@@ -21,9 +21,9 @@ public class WishlistController {
     private ProductMapper productMapper;
 
     @GetMapping("/{customerId}")
-    public ResponseEntity<List<ProductDTO>> getWishlist(@PathVariable Long customerId) {
+    public ResponseEntity<List<ProductListItemDTO>> getWishlist(@PathVariable Long customerId) {
         List<Product> products = wishlistService.getWishlistProducts(customerId);
-        return ResponseEntity.ok(productMapper.toDTOList(products));
+        return ResponseEntity.ok(productMapper.toListItemDTOList(products));
     }
 
     @PostMapping("/{customerId}/products/{productId}")

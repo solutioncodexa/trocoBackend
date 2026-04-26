@@ -24,6 +24,9 @@ public class CreateCustomOrderRequest {
              message = "Le type doit être: bracelet, ring, necklace, earrings ou set")
     private String type;
 
+    @Size(max = 120, message = "La taille ne peut pas dépasser 120 caractères")
+    private String size;
+
     @DecimalMin(value = "0.0", inclusive = false, message = "Le poids estimé doit être supérieur à 0")
     private Double weight;
 

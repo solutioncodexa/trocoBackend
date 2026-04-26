@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CartItemDTO {
-    private ProductDTO product;
+    private ProductDetailDTO product;
     private Integer quantity;
     private String selectedSize;
     private String selectedGoldType;

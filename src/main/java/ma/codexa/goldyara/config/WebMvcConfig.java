@@ -17,9 +17,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // Mapping pour les fichiers uploadés (externe) - accessible via /uploads/**
         Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
         String location = "file:" + uploadPath + "/";
+        
+        // Servir les fichiers uploadés directement sans préfixe /api
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations(location);
+        
+        // Mapping pour les ressources statiques (placeholder)
+        registry.addResourceHandler("/api/uploads/**")
+                .addResourceLocations("classpath:/static/uploads/");
     }
 }
