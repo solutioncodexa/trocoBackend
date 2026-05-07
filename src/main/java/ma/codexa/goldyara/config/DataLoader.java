@@ -88,10 +88,15 @@ public class DataLoader {
 
     private void initializeCategories() {
         if (categoryRepository.count() == 0) {
-            categoryRepository.saveAll(List.of(
-                    new Category(null, "Beldi", "Bijoux traditionnels marocains", "beldi"),
-                    new Category(null, "Moderne", "Designs contemporains", "modern")
-            ));
+            Category beldi = new Category();
+            beldi.setName("Beldi");
+            beldi.setDescription("Bijoux traditionnels marocains");
+            beldi.setSlug("beldi");
+            Category moderne = new Category();
+            moderne.setName("Moderne");
+            moderne.setDescription("Designs contemporains");
+            moderne.setSlug("modern");
+            categoryRepository.saveAll(List.of(beldi, moderne));
             log.info("Categories initialized");
         }
     }

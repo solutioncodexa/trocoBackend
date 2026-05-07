@@ -20,6 +20,7 @@ public class CacheConfig {
             "goldTypes",
             "productTypes",
             "categories",
+            "heroCategories",
             "collections",
             "goldPriceSetting",
             "goldPriceHistory"

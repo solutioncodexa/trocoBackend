@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.goldyara.common.ApiResponse;
+import ma.codexa.goldyara.dto.request.HeroCategoryPatchRequest;
 import ma.codexa.goldyara.entity.Category;
 import ma.codexa.goldyara.service.CategoryService;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,12 @@ public class CategoryController {
     public ResponseEntity<ApiResponse<List<Category>>> getAllCategories() {
         List<Category> categories = categoryService.getAllCategories();
         return ResponseEntity.ok(ApiResponse.success(categories));
+    }
+
+    @Operation(summary = "Catégories affichées sur l’accueil (bandeau), triées")
+    @GetMapping("/hero")
+    public ResponseEntity<ApiResponse<List<Category>>> getHeroCategories() {
+        return ResponseEntity.ok(ApiResponse.success(categoryService.getHeroCategories()));
     }
 
     @Operation(summary = "Récupérer une catégorie par ID")
@@ -61,6 +68,15 @@ public class CategoryController {
             @RequestBody Category categoryDetails) {
         Category updatedCategory = categoryService.updateCategory(id, categoryDetails);
         return ResponseEntity.ok(ApiResponse.success(updatedCategory, "Catégorie modifiée"));
+    }
+
+    @Operation(summary = "Mettre à jour l’affichage hero (image, ordre, visible)")
+    @PatchMapping("/{id}/hero")
+    public ResponseEntity<ApiResponse<Category>> patchHeroCategory(
+            @PathVariable Long id,
+            @RequestBody HeroCategoryPatchRequest patch) {
+        Category updated = categoryService.patchHeroCategory(id, patch);
+        return ResponseEntity.ok(ApiResponse.success(updated, "Bandeau accueil mis à jour"));
     }
 
     @Operation(summary = "Supprimer une catégorie")

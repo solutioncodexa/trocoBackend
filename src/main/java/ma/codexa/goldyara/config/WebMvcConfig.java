@@ -2,7 +2,6 @@ package ma.codexa.goldyara.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.UrlResource;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -21,12 +20,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
         String location = "file:" + uploadPath + "/";
         
-        // Servir les fichiers uploadés directement sans préfixe /api
-        registry.addResourceHandler("/uploads/**")
-                .addResourceLocations(location);
-        
-        // Mapping pour les ressources statiques (placeholder)
-        registry.addResourceHandler("/api/uploads/**")
-                .addResourceLocations("classpath:/static/uploads/");
+        // Fichiers sur disque (context-path=/api → URLs souvent /api/uploads/…)
+        registry.addResourceHandler("/uploads/**", "/api/uploads/**")
+                .addResourceLocations(location, "classpath:/static/uploads/");
     }
 }
