@@ -95,6 +95,7 @@ public class SecurityConfig {
                         .requestMatchers("/promo-modals/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/categories").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/categories/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/categories/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/categories/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/collections").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/collections/**").hasRole("ADMIN")

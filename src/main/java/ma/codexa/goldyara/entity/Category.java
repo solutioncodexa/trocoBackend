@@ -24,4 +24,30 @@ public class Category {
 
     @Column(nullable = false, unique = true)
     private String slug;
+
+    /** Image ronde affichée sur l’accueil (URL relative type /uploads/… ou /api/uploads/…). */
+    @Column(name = "hero_image_url", length = 1024)
+    private String heroImageUrl;
+
+    /**
+     * Affichage sur le bandeau accueil. Colonne nullable en base pour que ddl-auto puisse l’ajouter
+     * sur une table déjà remplie (évite NOT NULL sans DEFAULT côté PostgreSQL).
+     */
+    @Column(name = "show_on_hero")
+    private Boolean showOnHero = Boolean.FALSE;
+
+    /**
+     * Ordre sur le hero (plus petit = plus à gauche). {@code null} = ordre automatique / aléatoire
+     * parmi les catégories sans position manuelle.
+     */
+    @Column(name = "hero_sort_order")
+    private Integer heroSortOrder;
+
+    @PrePersist
+    @PreUpdate
+    void normalizeHeroDefaults() {
+        if (showOnHero == null) {
+            showOnHero = Boolean.FALSE;
+        }
+    }
 }
