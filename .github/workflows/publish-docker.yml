@@ -1,5 +1,5 @@
 # Build & push image Docker backend — GHCR (tags sha-* + latest sur main/master)
-# Dans le VPS : GOLDYARA_BACK_IMAGE=ghcr.io/<owner_min>/goldyara-backend puis deploy.sh registry-up
+# Deploiement SSH : si VPS_HOST / user / cle manquent, job vert + warning (pas d'echec CI).
 
 name: Publish Docker image
 
@@ -66,7 +66,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref_name == 'main' || github.ref_name == 'master' }}
 
       - name: Run tests (Maven)
-        run: ./mvnw -B -ntp test
+        run: chmod +x mvnw && ./mvnw -B -ntp test
 
       - name: Build and push
         id: push
@@ -87,3 +87,70 @@ jobs:
             echo "- **Digest** \`${{ steps.push.outputs.digest }}\`"
             echo "- Rollback VPS : \`GOLDYARA_BACK_TAG=sha-xxxxxx\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # --- Deploiement automatique VPS (push main/master) ---
+  # Desactiver sans retirer les secrets : variable repo VPS_DEPLOY_DISABLED=true
+  deploy-vps:
+    name: Deploy backend on VPS
+    needs: docker-publish
+    runs-on: ubuntu-latest
+    if: |
+      success() &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      vars.VPS_DEPLOY_DISABLED != 'true'
+    steps:
+      - id: vps_deploy_ready
+        name: Deploiement SSH possible ?
+        env:
+          H: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+          U: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+          K: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -n "$H" ] && [ -n "$U" ] && [ -n "$K" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploiement SSH saute — config manquante
+        if: steps.vps_deploy_ready.outputs.ready != 'true'
+        run: |
+          echo "::warning::Variables/secrets VPS absents pour ${{ github.repository }} — image GHCR pousee mais pas de deploy SSH."
+          echo "Ajoute : Actions → Variables VPS_HOST (IP) + VPS_USER ; Secret VPS_SSH_PRIVATE_KEY."
+          echo "Repeter pour chaque depot (backend + frontend). Alias : VPS_IP, VPS_SSH_USER."
+
+      - name: SSH — pull GHCR + up backend
+        if: steps.vps_deploy_ready.outputs.ready == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ vars.VPS_SSH_PORT || '22' }}
+          envs: DEPLOY_PATH,GHCR_PULL_TOKEN,GITHUB_REPO_OWNER_LC,GITHUB_SHA_FULL
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${DEPLOY_PATH}"
+            SHA_TAG="sha-$(printf '%s' "${GITHUB_SHA_FULL}" | cut -c1-7)"
+            if [ -n "${GHCR_PULL_TOKEN:-}" ]; then
+              OWNER_LC=$(echo "${GITHUB_REPO_OWNER_LC}" | tr '[:upper:]' '[:lower:]')
+              echo "$GHCR_PULL_TOKEN" | docker login ghcr.io -u "${OWNER_LC}" --password-stdin
+            fi
+            if grep -q '^GOLDYARA_BACK_TAG=' .env 2>/dev/null; then
+              sed -i "s/^GOLDYARA_BACK_TAG=.*/GOLDYARA_BACK_TAG=${SHA_TAG}/" .env
+            else
+              echo "GOLDYARA_BACK_TAG=${SHA_TAG}" >> .env
+            fi
+            docker compose -f docker-compose.yml -f docker-compose.cd.yml pull backend
+            docker compose -f docker-compose.yml -f docker-compose.cd.yml up -d --no-deps backend
+            sleep 8
+            docker compose -f docker-compose.yml -f docker-compose.cd.yml ps backend
+            docker compose -f docker-compose.yml -f docker-compose.cd.yml exec -T nginx nginx -s reload || true
+        env:
+          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+          GITHUB_REPO_OWNER_LC: ${{ github.repository_owner }}
+          GITHUB_SHA_FULL: ${{ github.sha }}
+
