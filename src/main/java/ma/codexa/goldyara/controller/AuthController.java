@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "API d'authentification")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class AuthController {
 
     private final UserService userService;

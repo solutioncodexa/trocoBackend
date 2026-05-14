@@ -1,0 +1,34 @@
+# Build artifacts
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local data — ne pas embarquer dans l'image, monte par volume
+uploads/
+logs/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docs / fichiers personnels
+HELP.md
+README.md
+*.md
+
+# Tests / fichiers de dev
+src/test/

@@ -11,7 +11,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/wishlist")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class WishlistController {
 
     @Autowired

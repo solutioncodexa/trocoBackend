@@ -19,7 +19,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/custom-orders")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class CustomOrderController {
 
     @Autowired
@@ -57,8 +56,7 @@ public class CustomOrderController {
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<CustomOrderDTO> createCustomOrder(@RequestBody CustomOrderDTO customOrderDTO) {
-        CustomOrder customOrder = customOrderService.createCustomOrderFromDTO(customOrderDTO);
-        return ResponseEntity.status(HttpStatus.CREATED).body(customOrderMapper.toDTO(customOrder));
+        return ResponseEntity.status(HttpStatus.CREATED).body(customOrderService.createCustomOrderFromDTO(customOrderDTO));
     }
 
     @PostMapping(path = "/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -83,8 +81,8 @@ public class CustomOrderController {
                     dto.setReferenceImageUrls(urls);
                 }
             }
-            CustomOrder customOrder = customOrderService.createCustomOrderFromDTO(dto);
-            return ResponseEntity.status(HttpStatus.CREATED).body(customOrderMapper.toDTO(customOrder));
+            CustomOrderDTO created = customOrderService.createCustomOrderFromDTO(dto);
+            return ResponseEntity.status(HttpStatus.CREATED).body(created);
         } catch (Exception e) {
             throw new RuntimeException("Erreur création commande: " + e.getMessage());
         }
@@ -98,8 +96,8 @@ public class CustomOrderController {
             String status = statusUpdate.get("status");
             // Convert frontend status to backend status
             String backendStatus = status.toUpperCase();
-            CustomOrder updatedCustomOrder = customOrderService.updateCustomOrderStatus(id, backendStatus);
-            return ResponseEntity.ok(customOrderMapper.toDTO(updatedCustomOrder));
+            CustomOrderDTO updated = customOrderService.updateCustomOrderStatus(id, backendStatus);
+            return ResponseEntity.ok(updated);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
@@ -111,8 +109,8 @@ public class CustomOrderController {
             @RequestBody Map<String, Double> priceUpdate) {
         try {
             Double estimatedPrice = priceUpdate.get("estimatedPrice");
-            CustomOrder updatedCustomOrder = customOrderService.updateEstimatedPrice(id, estimatedPrice);
-            return ResponseEntity.ok(customOrderMapper.toDTO(updatedCustomOrder));
+            CustomOrderDTO updated = customOrderService.updateEstimatedPrice(id, estimatedPrice);
+            return ResponseEntity.ok(updated);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

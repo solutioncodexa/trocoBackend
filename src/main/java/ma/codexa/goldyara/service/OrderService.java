@@ -6,6 +6,8 @@ import ma.codexa.goldyara.common.exception.ResourceNotFoundException;
 import ma.codexa.goldyara.dto.CartItemDTO;
 import ma.codexa.goldyara.dto.CustomerDTO;
 import ma.codexa.goldyara.dto.OrderDTO;
+import ma.codexa.goldyara.mapper.OrderMapper;
+import ma.codexa.goldyara.mapper.ProductMapper;
 import ma.codexa.goldyara.entity.Customer;
 import ma.codexa.goldyara.entity.Order;
 import ma.codexa.goldyara.entity.OrderItem;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -30,28 +33,56 @@ public class OrderService {
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
     private final NotificationService notificationService;
+    private final OrderMapper orderMapper;
+    private final ProductMapper productMapper;
 
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         log.debug("Fetching all orders with details");
-        return orderRepository.findAllWithDetails();
+        List<Order> orders = orderRepository.findAllWithDetails();
+        hydrateProductImages(orders);
+        return orders;
     }
 
     @Transactional(readOnly = true)
     public Optional<Order> getOrderById(Long id) {
-        return orderRepository.findByIdWithDetails(id);
+        Optional<Order> opt = orderRepository.findByIdWithDetails(id);
+        opt.ifPresent(o -> hydrateProductImages(List.of(o)));
+        return opt;
     }
 
     @Transactional(readOnly = true)
     public Optional<Order> getOrderByOrderNumber(String orderNumber) {
-        return orderRepository.findByOrderNumber(orderNumber);
+        Optional<Order> opt = orderRepository.findByOrderNumber(orderNumber);
+        opt.ifPresent(o -> hydrateProductImages(List.of(o)));
+        return opt;
     }
 
     @Transactional(readOnly = true)
     public List<Order> getOrdersByStatus(String status) {
-        return orderRepository.findByStatus(status);
+        List<Order> orders = orderRepository.findByStatus(status);
+        hydrateProductImages(orders);
+        return orders;
     }
 
+    /** Sans graphe Hibernate sur deux bags : initialiser lazy images encore dans la session. */
+    private static void hydrateProductImages(Iterable<Order> orders) {
+        Objects.requireNonNull(orders);
+        for (Order order : orders) {
+            if (order == null || order.getOrderItems() == null) {
+                continue;
+            }
+            for (OrderItem item : order.getOrderItems()) {
+                if (item == null) {
+                    continue;
+                }
+                Product p = item.getProduct();
+                if (p != null && p.getImages() != null) {
+                    p.getImages().size(); // declenche FETCH SUBSELECT / chargement groupe
+                }
+            }
+        }
+    }
     public Order createOrder(Order order) {
         // Associate each OrderItem with Order
         for (OrderItem item : order.getOrderItems()) {
@@ -61,11 +92,13 @@ public class OrderService {
         return orderRepository.save(order);
     }
 
-    public Order updateOrderStatus(Long id, String status) {
-        Order order = orderRepository.findById(id)
+    public OrderDTO updateOrderStatus(Long id, String status) {
+        Order order = orderRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Commande", id));
         order.setStatus(status);
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+        hydrateProductImages(List.of(saved));
+        return orderMapper.toDTO(saved, productMapper);
     }
 
     public void deleteOrder(Long id) {
@@ -74,7 +107,11 @@ public class OrderService {
         orderRepository.delete(order);
     }
 
-    public Order createOrderFromDTO(OrderDTO orderDTO) {
+    /**
+     * Cree la commande et retourne un DTO deja materialise (chargement images produits
+     * encore dans la transaction — evite LazyInitializationException dans le controleur).
+     */
+    public OrderDTO createOrderFromDTO(OrderDTO orderDTO) {
         Order order = new Order();
 
         // Create customer
@@ -114,6 +151,7 @@ public class OrderService {
         log.info("Creating new order for customer: {}", customer.getFullName());
         Order savedOrder = orderRepository.save(order);
         notificationService.notifyNewOrder(savedOrder);
-        return savedOrder;
+        hydrateProductImages(List.of(savedOrder));
+        return orderMapper.toDTO(savedOrder, productMapper);
     }
 }

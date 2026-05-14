@@ -17,7 +17,6 @@ import java.util.List;
 @RequestMapping("/categories")
 @RequiredArgsConstructor
 @Tag(name = "Categories", description = "API des catégories de produits")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class CategoryController {
 
     private final CategoryService categoryService;

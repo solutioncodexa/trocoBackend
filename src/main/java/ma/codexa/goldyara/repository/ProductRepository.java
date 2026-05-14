@@ -74,7 +74,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
            "(:categoryId IS NULL OR p.category.id = :categoryId) AND " +
            "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
            "(:maxPrice IS NULL OR p.price <= :maxPrice) AND " +
-           "(:collectionFilter IS NULL OR p.collection = :collectionFilter) AND " +
+           "(:collectionFilter IS NULL OR (p.collection IS NOT NULL AND LOWER(TRIM(p.collection)) = LOWER(TRIM(:collectionFilter)))) AND " +
            "(:inStock IS NULL OR (:inStock = TRUE AND p.stock > 0) OR (:inStock = FALSE AND p.stock <= 0))")
     Page<Product> searchProductsWithFilters(
         @Param("applyKeywordFilter") boolean applyKeywordFilter,

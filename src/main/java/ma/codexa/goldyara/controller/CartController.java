@@ -9,7 +9,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/cart")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class CartController {
 
     @Autowired

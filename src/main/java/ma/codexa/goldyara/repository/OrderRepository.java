@@ -13,16 +13,21 @@ import java.util.Optional;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
-    /** Fetch all orders with customer and items eagerly loaded (prevents N+1). */
+    /**
+     * Un seul "bag" (orderItems) par requête : ne pas grapher product.images sous peine de
+     * MultipleBagFetchException (orderItems + images sont tous deux {@code List} sans {@code @OrderColumn}).
+     * Les images sont chargées en sous-requête grâce à {@code @Fetch(SUBSELECT)} sur {@link Product#images}.
+     */
     @EntityGraph(attributePaths = {"customer", "orderItems", "orderItems.product"})
     @Query("SELECT o FROM Order o ORDER BY o.createdAt DESC")
     List<Order> findAllWithDetails();
 
-    /** Fetch single order with all relations. */
-    @EntityGraph(attributePaths = {"customer", "orderItems", "orderItems.product", "orderItems.product.images"})
+    /** Idem {@link #findAllWithDetails()} — une seule collection bag graphee. */
+    @EntityGraph(attributePaths = {"customer", "orderItems", "orderItems.product"})
     @Query("SELECT o FROM Order o WHERE o.id = :id")
     Optional<Order> findByIdWithDetails(@Param("id") Long id);
 
+    @EntityGraph(attributePaths = {"customer", "orderItems", "orderItems.product"})
     Optional<Order> findByOrderNumber(String orderNumber);
 
     @EntityGraph(attributePaths = {"customer", "orderItems", "orderItems.product"})

@@ -29,7 +29,6 @@ import java.util.List;
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Featured Products", description = "API de gestion des produits sélectionnés")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class FeaturedProductController {
 
     private final FeaturedProductService featuredProductService;

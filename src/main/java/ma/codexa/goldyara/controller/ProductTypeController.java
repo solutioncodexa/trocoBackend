@@ -18,7 +18,6 @@ import java.util.List;
 @RequestMapping("/product-types")
 @RequiredArgsConstructor
 @Tag(name = "Product Types", description = "API des types de produits")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class ProductTypeController {
 
     private final ProductTypeService productTypeService;

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Configuration Logback Goldyara
+  ==============================
+  - Profil "dev"  : sortie console pretty + couleurs.
+  - Profil "prod" : sortie console JSON (consommée par Promtail/Loki) + fichier
+                    rotatif sur disque (sécurité au cas où Promtail soit down).
+  - Tous les logs incluent le MDC (requestId, userId, traceId, spanId).
+  - Un appender dédié "AUDIT" sépare les évènements business sensibles
+    (auth, admin actions, paiements) dans un fichier audit JSON.
+-->
+<configuration scan="true" scanPeriod="60 seconds">
+
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="goldyara"/>
+    <springProperty scope="context" name="appEnv" source="spring.profiles.active" defaultValue="dev"/>
+
+    <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
+    <property name="DEV_PATTERN"
+              value="%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} [req=%X{requestId:-} user=%X{userId:-} trace=%X{traceId:-}] - %msg%n"/>
+
+    <!--
+        ========================================
+        APPENDERS DEV : console couleur lisible
+        ========================================
+    -->
+    <springProfile name="dev | default">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>${DEV_PATTERN}</pattern>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+
+        <logger name="ma.codexa.goldyara" level="DEBUG"/>
+        <logger name="goldyara.audit" level="INFO"/>
+    </springProfile>
+
+    <!--
+        ============================================================
+        APPENDERS PROD : JSON sur stdout (Promtail) + fichier rotatif
+        ============================================================
+    -->
+    <springProfile name="prod">
+
+        <!-- Console JSON consommée par Promtail / agent de log -->
+        <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>userId</includeMdcKeyName>
+                <includeMdcKeyName>userRole</includeMdcKeyName>
+                <includeMdcKeyName>clientIp</includeMdcKeyName>
+                <includeMdcKeyName>traceId</includeMdcKeyName>
+                <includeMdcKeyName>spanId</includeMdcKeyName>
+                <customFields>{"app":"${appName}","env":"${appEnv}"}</customFields>
+                <fieldNames>
+                    <timestamp>@timestamp</timestamp>
+                    <message>message</message>
+                    <thread>thread</thread>
+                    <logger>logger</logger>
+                    <level>level</level>
+                    <levelValue>[ignore]</levelValue>
+                </fieldNames>
+                <timeZone>UTC</timeZone>
+            </encoder>
+        </appender>
+
+        <!-- Fichier rotatif (filet de sécurité) -->
+        <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_DIR}/goldyara.json</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_DIR}/goldyara-%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+                <maxFileSize>50MB</maxFileSize>
+                <maxHistory>14</maxHistory>
+                <totalSizeCap>2GB</totalSizeCap>
+            </rollingPolicy>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>userId</includeMdcKeyName>
+                <includeMdcKeyName>userRole</includeMdcKeyName>
+                <includeMdcKeyName>clientIp</includeMdcKeyName>
+                <includeMdcKeyName>traceId</includeMdcKeyName>
+                <includeMdcKeyName>spanId</includeMdcKeyName>
+                <customFields>{"app":"${appName}","env":"${appEnv}"}</customFields>
+                <timeZone>UTC</timeZone>
+            </encoder>
+        </appender>
+
+        <!-- Async pour ne pas bloquer les threads HTTP sur l'I/O disque -->
+        <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="FILE_JSON"/>
+            <queueSize>2048</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>true</neverBlock>
+        </appender>
+
+        <!-- Audit logger : évènements business critiques -->
+        <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_DIR}/audit.json</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_DIR}/audit-%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+                <maxFileSize>20MB</maxFileSize>
+                <!-- Conservation longue : 1 an pour traçabilité -->
+                <maxHistory>365</maxHistory>
+                <totalSizeCap>5GB</totalSizeCap>
+            </rollingPolicy>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>userId</includeMdcKeyName>
+                <includeMdcKeyName>userRole</includeMdcKeyName>
+                <includeMdcKeyName>clientIp</includeMdcKeyName>
+                <includeMdcKeyName>auditAction</includeMdcKeyName>
+                <includeMdcKeyName>auditTarget</includeMdcKeyName>
+                <includeMdcKeyName>auditOutcome</includeMdcKeyName>
+                <customFields>{"app":"${appName}","env":"${appEnv}","logType":"audit"}</customFields>
+                <timeZone>UTC</timeZone>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_JSON"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </root>
+
+        <!-- Logger dédié business audit : sortie console + fichier audit séparé -->
+        <logger name="goldyara.audit" level="INFO" additivity="false">
+            <appender-ref ref="CONSOLE_JSON"/>
+            <appender-ref ref="AUDIT_FILE"/>
+        </logger>
+
+        <logger name="ma.codexa.goldyara" level="INFO"/>
+        <logger name="org.springframework" level="WARN"/>
+        <logger name="org.hibernate" level="WARN"/>
+        <logger name="com.zaxxer.hikari" level="WARN"/>
+    </springProfile>
+
+</configuration>

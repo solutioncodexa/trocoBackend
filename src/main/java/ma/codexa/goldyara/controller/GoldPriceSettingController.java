@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/gold-price-settings")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class GoldPriceSettingController {
 
     private final GoldPriceSettingService goldPriceSettingService;

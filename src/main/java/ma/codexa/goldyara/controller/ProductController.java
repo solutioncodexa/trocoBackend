@@ -51,7 +51,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Products", description = "API de gestion des produits")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class ProductController {
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
             "createdAt", "updatedAt", "price", "weight", "name", "id"

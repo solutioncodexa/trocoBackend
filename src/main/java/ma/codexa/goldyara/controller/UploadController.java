@@ -1,92 +1,58 @@
 package ma.codexa.goldyara.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import ma.codexa.goldyara.common.ApiResponse;
-import org.springframework.beans.factory.annotation.Value;
+import ma.codexa.goldyara.service.storage.StorageService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 
+/**
+ * Endpoints d'upload — délèguent au {@link StorageService} actif (local/MinIO).
+ *
+ * <p>L'accès est restreint à ROLE_ADMIN par {@code SecurityConfig}.</p>
+ */
+@Slf4j
 @RestController
 @RequestMapping
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
+@RequiredArgsConstructor
+@Tag(name = "Upload", description = "Upload de fichiers (images, PDF)")
 public class UploadController {
 
-    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
-            "image/jpeg", "image/png", "image/gif", "image/webp"
-    );
-    private static final List<String> ALLOWED_EXTENSIONS = List.of(".jpg", ".jpeg", ".png", ".gif", ".webp");
+    private final StorageService storage;
 
-    @Value("${app.upload.dir:uploads/}")
-    private String uploadDir;
-
+    @Operation(summary = "Upload d'un fichier unique")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Map<String, String>>> uploadFile(
             @RequestParam("file") MultipartFile file) {
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Fichier vide", 400));
-        }
-        String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Type de fichier non autorisé. Utilisez JPG, PNG, GIF ou WebP.", 400));
-        }
-        String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null || originalFilename.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Nom de fichier invalide", 400));
-        }
-        String ext = originalFilename.contains(".")
-                ? originalFilename.substring(originalFilename.lastIndexOf('.'))
-                : ".jpg";
-        if (!ALLOWED_EXTENSIONS.contains(ext.toLowerCase())) {
-            ext = ".jpg";
-        }
-        String filename = UUID.randomUUID().toString() + ext;
         try {
-            Path dir = Paths.get(uploadDir).toAbsolutePath().normalize();
-            Files.createDirectories(dir);
-            Path target = dir.resolve(filename);
-            file.transferTo(target.toFile());
-            String url = "/uploads/" + filename;
+            String url = storage.store(file);
             return ResponseEntity.ok(ApiResponse.success(Map.of("url", url)));
-        } catch (IOException e) {
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getMessage(), 400));
+        } catch (RuntimeException e) {
+            log.error("Erreur upload: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("Erreur lors de l'enregistrement du fichier: " + e.getMessage(), 500));
+                    .body(ApiResponse.error("Erreur lors de l'enregistrement du fichier", 500));
         }
     }
 
+    @Operation(summary = "Upload multiple")
     @PostMapping(value = "/upload-multiple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<List<String>>> uploadMultiple(
             @RequestParam("files") MultipartFile[] files) {
-        List<String> urls = new ArrayList<>();
-        for (MultipartFile file : files) {
-            if (file.isEmpty()) continue;
-            String contentType = file.getContentType();
-            if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) continue;
-            String originalFilename = file.getOriginalFilename();
-            if (originalFilename == null || originalFilename.isBlank()) continue;
-            String ext = originalFilename.contains(".")
-                    ? originalFilename.substring(originalFilename.lastIndexOf('.'))
-                    : ".jpg";
-            if (!ALLOWED_EXTENSIONS.contains(ext.toLowerCase())) ext = ".jpg";
-            String filename = UUID.randomUUID().toString() + ext;
-            try {
-                Path dir = Paths.get(uploadDir).toAbsolutePath().normalize();
-                Files.createDirectories(dir);
-                Path target = dir.resolve(filename);
-                file.transferTo(target.toFile());
-                urls.add("/uploads/" + filename);
-            } catch (IOException ignored) {
-            }
-        }
+        List<String> urls = storage.storeAll(files);
         return ResponseEntity.ok(ApiResponse.success(urls));
     }
 }

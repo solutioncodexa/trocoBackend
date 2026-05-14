@@ -16,7 +16,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/gold-types")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 @RequiredArgsConstructor
 @Tag(name = "Gold Types", description = "API des types d'or (Or Jaune, Or Blanc, Or Rose)")
 public class GoldTypeController {

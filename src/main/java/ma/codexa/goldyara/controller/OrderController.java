@@ -21,7 +21,6 @@ import java.util.Map;
 @RequestMapping("/orders")
 @RequiredArgsConstructor
 @Tag(name = "Orders", description = "API de gestion des commandes")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class OrderController {
 
     private final OrderService orderService;
@@ -72,9 +71,9 @@ public class OrderController {
     @Operation(summary = "Créer une nouvelle commande")
     @PostMapping
     public ResponseEntity<ApiResponse<OrderDTO>> createOrder(@Valid @RequestBody OrderDTO orderDTO) {
-        Order createdOrder = orderService.createOrderFromDTO(orderDTO);
+        OrderDTO created = orderService.createOrderFromDTO(orderDTO);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(orderMapper.toDTO(createdOrder, productMapper), "Commande créée avec succès"));
+                .body(ApiResponse.success(created, "Commande créée avec succès"));
     }
 
     @Operation(summary = "Mettre à jour le statut d'une commande")
@@ -84,8 +83,8 @@ public class OrderController {
             @RequestBody Map<String, String> statusUpdate) {
         String status = statusUpdate.get("status");
         String backendStatus = status.toUpperCase();
-        Order updatedOrder = orderService.updateOrderStatus(id, backendStatus);
-        return ResponseEntity.ok(ApiResponse.success(orderMapper.toDTO(updatedOrder, productMapper), "Statut mis à jour"));
+        OrderDTO updatedOrder = orderService.updateOrderStatus(id, backendStatus);
+        return ResponseEntity.ok(ApiResponse.success(updatedOrder, "Statut mis à jour"));
     }
 
     @Operation(summary = "Supprimer une commande")

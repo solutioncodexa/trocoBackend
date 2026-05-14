@@ -17,7 +17,6 @@ import java.util.List;
 @RequestMapping("/collections")
 @RequiredArgsConstructor
 @Tag(name = "Collections", description = "API des collections")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class CollectionController {
 
     private final CollectionService collectionService;

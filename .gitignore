@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Secrets locaux Spring (voir .env.example)
+.env
+.env.local
+goldyara-dev-db.properties

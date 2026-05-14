@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/gold-prices")
 @RequiredArgsConstructor
 @Tag(name = "Gold Prices", description = "API des prix de l'or (XAU/MAD) depuis sources externes")
-@CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class GoldPriceController {
 
     private final GoldPriceService goldPriceService;
