@@ -115,10 +115,16 @@ jobs:
 
       - name: Deploiement SSH saute — config manquante
         if: steps.vps_deploy_ready.outputs.ready != 'true'
+        env:
+          H: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+          U: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+          K: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
         run: |
-          echo "::warning::Variables/secrets VPS absents pour ${{ github.repository }} — image GHCR pousee mais pas de deploy SSH."
-          echo "Ajoute : Actions → Variables VPS_HOST (IP) + VPS_USER ; Secret VPS_SSH_PRIVATE_KEY."
-          echo "Repeter pour chaque depot (backend + frontend). Alias : VPS_IP, VPS_SSH_USER."
+          echo "::warning::Deploy SSH non execute pour ${{ github.repository }}"
+          [ -z "$H" ] && echo "::warning::Manquant : variable ou secret VPS_HOST (ou VPS_IP)"
+          [ -z "$U" ] && echo "::warning::Manquant : VPS_USER"
+          [ -z "$K" ] && echo "::warning::Manquant : secret VPS_SSH_PRIVATE_KEY"
+          echo "Tant que ready=false, rien ne tourne sur le VPS (normal)."
 
       - name: SSH — pull GHCR + up backend
         if: steps.vps_deploy_ready.outputs.ready == 'true'
@@ -128,29 +134,52 @@ jobs:
           username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: ${{ vars.VPS_SSH_PORT || '22' }}
+          command_timeout: 20m
           envs: DEPLOY_PATH,GHCR_PULL_TOKEN,GITHUB_REPO_OWNER_LC,GITHUB_SHA_FULL
           script_stop: true
           script: |
             set -euo pipefail
-            cd "${DEPLOY_PATH}"
+            cd "${DEPLOY_PATH}" || { echo "ERREUR: cd ${DEPLOY_PATH}"; exit 1; }
             SHA_TAG="sha-$(printf '%s' "${GITHUB_SHA_FULL}" | cut -c1-7)"
+            OWNER_LC=$(echo "${GITHUB_REPO_OWNER_LC}" | tr '[:upper:]' '[:lower:]')
+            echo "==> Backend deploy  SHA=${SHA_TAG}  path=$(pwd)"
             if [ -n "${GHCR_PULL_TOKEN:-}" ]; then
-              OWNER_LC=$(echo "${GITHUB_REPO_OWNER_LC}" | tr '[:upper:]' '[:lower:]')
               echo "$GHCR_PULL_TOKEN" | docker login ghcr.io -u "${OWNER_LC}" --password-stdin
+            else
+              echo "(!) Pas de GHCR_PULL_TOKEN dans GitHub : obligatoire si les images GHCR sont privees."
+            fi
+            set -a
+            # shellcheck disable=SC1091
+            [ -f .env ] && . ./.env
+            set +a
+            if [ -z "${GOLDYARA_BACK_IMAGE:-}" ]; then
+              echo "ERREUR: sur le VPS, deployment/.env doit contenir GOLDYARA_BACK_IMAGE=ghcr.io/${OWNER_LC}/goldyara-backend (mode docker-compose.cd.yml)"
+              exit 1
             fi
             if grep -q '^GOLDYARA_BACK_TAG=' .env 2>/dev/null; then
               sed -i "s/^GOLDYARA_BACK_TAG=.*/GOLDYARA_BACK_TAG=${SHA_TAG}/" .env
             else
               echo "GOLDYARA_BACK_TAG=${SHA_TAG}" >> .env
             fi
+            echo "==> Image attendue : ${GOLDYARA_BACK_IMAGE}:${SHA_TAG}"
             docker compose -f docker-compose.yml -f docker-compose.cd.yml pull backend
             docker compose -f docker-compose.yml -f docker-compose.cd.yml up -d --no-deps backend
             sleep 8
             docker compose -f docker-compose.yml -f docker-compose.cd.yml ps backend
             docker compose -f docker-compose.yml -f docker-compose.cd.yml exec -T nginx nginx -s reload || true
+            echo "OK backend redeploye."
         env:
           DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
           GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
           GITHUB_REPO_OWNER_LC: ${{ github.repository_owner }}
           GITHUB_SHA_FULL: ${{ github.sha }}
+
+      - name: Resume deploy VPS
+        if: steps.vps_deploy_ready.outputs.ready == 'true'
+        run: |
+          {
+            echo "### Deploiement backend sur le VPS"
+            echo "Tag : sha-$(echo '${{ github.sha }}' | cut -c1-7)"
+            echo "Verifie les logs de l etape SSH ci-dessus (docker pull / up)."
+          } >> "$GITHUB_STEP_SUMMARY"
 
