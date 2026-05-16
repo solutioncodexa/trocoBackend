@@ -100,6 +100,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/gold-prices", "/gold-prices/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/uploads/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/featured-products/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/share/produit/**").permitAll();
 
                     // ─── Top-bar / promo : seuls les endpoints "/public" sont libres ──
                     auth.requestMatchers("/top-bar-messages/public").permitAll();
