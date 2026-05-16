@@ -1,5 +1,6 @@
-# Build & push image Docker backend — GHCR (tags sha-* + latest sur main/master)
-# Deploiement SSH : si VPS_HOST / user / cle manquent, job vert + warning (pas d'echec CI).
+# Build & push image Docker backend — GHCR (tags sha-* + branche ; pas de latest).
+# Push main/master : deploiement SSH VPS obligatoire si VPS_DEPLOY_DISABLED != true
+# (secrets manquants ou redeploy rate => workflow en echec).
 
 name: Publish Docker image
 
@@ -63,7 +64,6 @@ jobs:
           tags: |
             type=sha,prefix=sha-,format=short
             type=ref,event=branch
-            type=raw,value=latest,enable=${{ github.ref_name == 'main' || github.ref_name == 'master' }}
 
       - name: Run tests (Maven)
         run: chmod +x mvnw && ./mvnw -B -ntp test
@@ -85,11 +85,11 @@ jobs:
             echo ""
             echo "- **Image** \`${{ steps.names.outputs.image }}\`"
             echo "- **Digest** \`${{ steps.push.outputs.digest }}\`"
-            echo "- Rollback VPS : \`GOLDYARA_BACK_TAG=sha-xxxxxx\`"
+            echo "- Rollback VPS : éditer \`GOLDYARA_BACK_TAG=sha-xxxxxx\` dans deployment/.env puis \`compose up -d --force-recreate backend\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # --- Deploiement automatique VPS (push main/master) ---
-  # Desactiver sans retirer les secrets : variable repo VPS_DEPLOY_DISABLED=true
+  # Desactiver explicitement : variable repo VPS_DEPLOY_DISABLED=true
   deploy-vps:
     name: Deploy backend on VPS
     needs: docker-publish
@@ -99,43 +99,37 @@ jobs:
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
       vars.VPS_DEPLOY_DISABLED != 'true'
+    env:
+      VPS_HEALTHCHECK_URL: ${{ vars.VPS_HEALTHCHECK_URL || 'https://goldyara.ma/api/actuator/health' }}
     steps:
-      - id: vps_deploy_ready
-        name: Deploiement SSH possible ?
+      - name: Secrets VPS obligatoires
         env:
           H: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
           U: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
           K: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          G: ${{ secrets.GHCR_PULL_TOKEN }}
+          PUB: ${{ vars.VPS_PUBLIC_GHCR_PACKAGES }}
         run: |
-          if [ -n "$H" ] && [ -n "$U" ] && [ -n "$K" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+          set -e
+          rc=0
+          if [ -z "${H:-}" ]; then echo "::error::Manquant : VPS_HOST ou VPS_IP (secret ou variable repo)"; rc=1; fi
+          if [ -z "${U:-}" ]; then echo "::error::Manquant : VPS_USER (secret ou variable repo)"; rc=1; fi
+          if [ -z "${K:-}" ]; then echo "::error::Manquant : secret VPS_SSH_PRIVATE_KEY"; rc=1; fi
+          if [ -z "${G:-}" ] && [ "${PUB:-}" != "true" ]; then
+            echo "::error::Manquant : secret GHCR_PULL_TOKEN (ou variable repo VPS_PUBLIC_GHCR_PACKAGES=true si paquets publics sans login)"
+            rc=1
           fi
+          exit "$rc"
 
-      - name: Deploiement SSH saute — config manquante
-        if: steps.vps_deploy_ready.outputs.ready != 'true'
-        env:
-          H: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
-          U: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
-          K: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-        run: |
-          echo "::warning::Deploy SSH non execute pour ${{ github.repository }}"
-          [ -z "$H" ] && echo "::warning::Manquant : variable ou secret VPS_HOST (ou VPS_IP)"
-          [ -z "$U" ] && echo "::warning::Manquant : VPS_USER"
-          [ -z "$K" ] && echo "::warning::Manquant : secret VPS_SSH_PRIVATE_KEY"
-          echo "Tant que ready=false, rien ne tourne sur le VPS (normal)."
-
-      - name: SSH — pull GHCR + up backend
-        if: steps.vps_deploy_ready.outputs.ready == 'true'
+      - name: SSH — pull GHCR + force-recreate backend + verification
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
           username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: ${{ vars.VPS_SSH_PORT || '22' }}
-          command_timeout: 20m
-          envs: DEPLOY_PATH,GHCR_PULL_TOKEN,GITHUB_REPO_OWNER_LC,GITHUB_SHA_FULL
+          command_timeout: 25m
+          envs: DEPLOY_PATH,GHCR_PULL_TOKEN,GITHUB_REPO_OWNER_LC,GITHUB_SHA_FULL,DEPLOY_HEALTHCHECK_URL,PUBLIC_GHCR
           script_stop: true
           script: |
             set -euo pipefail
@@ -145,15 +139,18 @@ jobs:
             echo "==> Backend deploy  SHA=${SHA_TAG}  path=$(pwd)"
             if [ -n "${GHCR_PULL_TOKEN:-}" ]; then
               echo "$GHCR_PULL_TOKEN" | docker login ghcr.io -u "${OWNER_LC}" --password-stdin
+            elif [ "${PUBLIC_GHCR:-}" = "true" ]; then
+              echo "==> GHCR sans login (paquets publics)"
             else
-              echo "(!) Pas de GHCR_PULL_TOKEN dans GitHub : obligatoire si les images GHCR sont privees."
+              echo "::error::GHCR_PULL_TOKEN vide"
+              exit 1
             fi
             set -a
             # shellcheck disable=SC1091
             [ -f .env ] && . ./.env
             set +a
             if [ -z "${GOLDYARA_BACK_IMAGE:-}" ]; then
-              echo "ERREUR: sur le VPS, deployment/.env doit contenir GOLDYARA_BACK_IMAGE=ghcr.io/${OWNER_LC}/goldyara-backend (mode docker-compose.cd.yml)"
+              echo "ERREUR: deployment/.env doit contenir GOLDYARA_BACK_IMAGE=ghcr.io/${OWNER_LC}/goldyara-backend"
               exit 1
             fi
             if grep -q '^GOLDYARA_BACK_TAG=' .env 2>/dev/null; then
@@ -161,25 +158,43 @@ jobs:
             else
               echo "GOLDYARA_BACK_TAG=${SHA_TAG}" >> .env
             fi
-            echo "==> Image attendue : ${GOLDYARA_BACK_IMAGE}:${SHA_TAG}"
+            echo "==> Tags dans .env (back + front) :"
+            grep -n '^GOLDYARA_BACK_TAG=\|^GOLDYARA_FRONT_TAG=' .env || true
+            echo "==> Image : ${GOLDYARA_BACK_IMAGE}:${SHA_TAG}"
             docker compose -f docker-compose.yml -f docker-compose.cd.yml pull backend
-            docker compose -f docker-compose.yml -f docker-compose.cd.yml up -d --no-deps backend
-            sleep 8
-            docker compose -f docker-compose.yml -f docker-compose.cd.yml ps backend
+            docker compose -f docker-compose.yml -f docker-compose.cd.yml up -d --force-recreate --no-deps backend
+            echo "==> Etat des services"
+            docker compose -f docker-compose.yml -f docker-compose.cd.yml ps
+            echo "==> Attente health backend (goldyara-backend)..."
+            ok=""
+            for i in $(seq 1 45); do
+              st=$(docker inspect goldyara-backend --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' 2>/dev/null || echo missing)
+              echo "  tentative ${i}/45 health=${st}"
+              if [ "$st" = healthy ]; then ok=1; break; fi
+              sleep 4
+            done
+            if [ "${ok:-}" != 1 ]; then
+              echo "::error::backend pas healthy dans le delai"
+              docker compose -f docker-compose.yml -f docker-compose.cd.yml logs backend --tail 120 || true
+              exit 1
+            fi
             docker compose -f docker-compose.yml -f docker-compose.cd.yml exec -T nginx nginx -s reload || true
-            echo "OK backend redeploye."
+            echo "==> Healthcheck HTTP public : ${DEPLOY_HEALTHCHECK_URL}"
+            curl -fsS --max-time 45 "${DEPLOY_HEALTHCHECK_URL}"
+            echo "OK backend redeploye et verifie."
         env:
           DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
           GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
           GITHUB_REPO_OWNER_LC: ${{ github.repository_owner }}
           GITHUB_SHA_FULL: ${{ github.sha }}
+          DEPLOY_HEALTHCHECK_URL: ${{ vars.VPS_HEALTHCHECK_URL || 'https://goldyara.ma/api/actuator/health' }}
+          PUBLIC_GHCR: ${{ vars.VPS_PUBLIC_GHCR_PACKAGES || 'false' }}
 
       - name: Resume deploy VPS
-        if: steps.vps_deploy_ready.outputs.ready == 'true'
         run: |
           {
             echo "### Deploiement backend sur le VPS"
-            echo "Tag : sha-$(echo '${{ github.sha }}' | cut -c1-7)"
-            echo "Verifie les logs de l etape SSH ci-dessus (docker pull / up)."
+            echo ""
+            echo "- **Tag** \`sha-$(echo '${{ github.sha }}' | cut -c1-7)\`"
+            echo "- **Healthcheck HTTP** \`${{ vars.VPS_HEALTHCHECK_URL || 'https://goldyara.ma/api/actuator/health' }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
-
