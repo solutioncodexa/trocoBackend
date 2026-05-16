@@ -37,6 +37,11 @@ public class NotificationService {
         List<String> adminEmails = userRepository.findByRole("ADMIN").stream()
                 .map(User::getEmail)
                 .toList();
+        log.info("notification_recorded kind=ORDER orderId={} orderNumber={} adminRecipients={}",
+                order.getId(), order.getOrderNumber(), adminEmails.size());
+        if (adminEmails.isEmpty()) {
+            log.warn("notification_recorded_no_admin_emails kind=ORDER orderId={}", order.getId());
+        }
         emailService.sendNewOrderNotification(
                 adminEmails,
                 order.getCustomer() != null ? order.getCustomer().getFullName() : "N/A",
@@ -59,6 +64,11 @@ public class NotificationService {
         List<String> adminEmails = userRepository.findByRole("ADMIN").stream()
                 .map(User::getEmail)
                 .toList();
+        log.info("notification_recorded kind=CUSTOM_ORDER customOrderId={} adminRecipients={}",
+                customOrder.getId(), adminEmails.size());
+        if (adminEmails.isEmpty()) {
+            log.warn("notification_recorded_no_admin_emails kind=CUSTOM_ORDER customOrderId={}", customOrder.getId());
+        }
         emailService.sendNewCustomOrderNotification(
                 adminEmails,
                 customOrder.getCustomer() != null ? customOrder.getCustomer().getFullName() : "N/A",
@@ -86,15 +96,17 @@ public class NotificationService {
         notificationRepository.findById(id).ifPresent(n -> {
             n.setRead(true);
             notificationRepository.save(n);
+            log.info("notification_mark_read notificationId={}", id);
         });
     }
 
     @Transactional
     public void markAllAsRead() {
-        notificationRepository.findByReadFalseOrderByCreatedAtDesc()
-                .forEach(n -> {
-                    n.setRead(true);
-                    notificationRepository.save(n);
-                });
+        var unread = notificationRepository.findByReadFalseOrderByCreatedAtDesc();
+        unread.forEach(n -> {
+            n.setRead(true);
+            notificationRepository.save(n);
+        });
+        log.info("notification_mark_all_read count={}", unread.size());
     }
 }

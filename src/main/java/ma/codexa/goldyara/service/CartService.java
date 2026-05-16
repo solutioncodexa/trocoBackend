@@ -1,5 +1,6 @@
 package ma.codexa.goldyara.service;
 
+import lombok.extern.slf4j.Slf4j;
 import ma.codexa.goldyara.entity.Cart;
 import ma.codexa.goldyara.entity.CartItem;
 import ma.codexa.goldyara.entity.Product;
@@ -13,6 +14,7 @@ import java.util.Optional;
 
 @Service
 @Transactional
+@Slf4j
 public class CartService {
 
     @Autowired
@@ -94,10 +96,12 @@ public class CartService {
     public void clearCart(String sessionId) {
         Optional<Cart> cart = cartRepository.findBySessionId(sessionId);
         if (cart.isPresent()) {
+            int removed = cart.get().getItems().size();
             cartItemRepository.deleteAll(cart.get().getItems());
             cart.get().getItems().clear();
             cart.get().setTotalAmount(0.0);
             cartRepository.save(cart.get());
+            log.info("cart_cleared itemsRemoved={}", removed);
         }
     }
 }

@@ -21,7 +21,7 @@ public class TopBarMessageService {
     private final TopBarMessageRepository topBarMessageRepository;
     
     public List<TopBarMessageDTO> getAllActiveMessages() {
-        log.info("Récupération de tous les messages actifs de la top bar");
+        log.debug("topbar_messages_active_fetch");
         return topBarMessageRepository.findByIsActiveTrueOrderByDisplayOrderAsc()
                 .stream()
                 .map(this::convertToDTO)
@@ -29,7 +29,7 @@ public class TopBarMessageService {
     }
     
     public List<TopBarMessageDTO> getAllMessages() {
-        log.info("Récupération de tous les messages de la top bar");
+        log.debug("topbar_messages_admin_fetch");
         return topBarMessageRepository.findAllByOrderByDisplayOrderAsc()
                 .stream()
                 .map(this::convertToDTO)
@@ -37,7 +37,7 @@ public class TopBarMessageService {
     }
     
     public TopBarMessageDTO createMessage(TopBarMessageDTO messageDTO) {
-        log.info("Création d'un nouveau message de top bar: {}", messageDTO.getMessage());
+        log.info("topbar_message_create_request");
 
         if (messageDTO.getMessage() == null || messageDTO.getMessage().isBlank()) {
             throw new IllegalArgumentException("Le message est obligatoire.");
@@ -66,13 +66,14 @@ public class TopBarMessageService {
         message.setDisplayDurationSeconds(duration);
 
         TopBarMessage savedMessage = topBarMessageRepository.save(message);
-        log.info("Message créé avec l'ID: {}", savedMessage.getId());
+        log.info("topbar_message_created messageId={} displayOrder={} active={}",
+                savedMessage.getId(), savedMessage.getDisplayOrder(), savedMessage.getIsActive());
         
         return convertToDTO(savedMessage);
     }
     
     public TopBarMessageDTO updateMessage(Long id, TopBarMessageDTO messageDTO) {
-        log.info("Mise à jour du message de top bar avec l'ID: {}", id);
+        log.info("topbar_message_update messageId={}", id);
         
         TopBarMessage existingMessage = topBarMessageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Message de top bar", id));
@@ -104,19 +105,19 @@ public class TopBarMessageService {
         existingMessage.setDisplayDurationSeconds(duration);
         
         TopBarMessage updatedMessage = topBarMessageRepository.save(existingMessage);
-        log.info("Message mis à jour avec succès");
+        log.info("topbar_message_updated messageId={}", id);
         
         return convertToDTO(updatedMessage);
     }
     
     public void deleteMessage(Long id) {
-        log.info("Suppression du message de top bar avec l'ID: {}", id);
+        log.info("topbar_message_delete messageId={}", id);
         
         TopBarMessage message = topBarMessageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Message de top bar", id));
         
         topBarMessageRepository.delete(message);
-        log.info("Message supprimé avec succès");
+        log.info("topbar_message_deleted messageId={}", id);
     }
     
     public TopBarMessageDTO toggleActive(Long id, Boolean isActive) {

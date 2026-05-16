@@ -47,7 +47,10 @@ public class ProductService {
         if (product.getMarginGain() == null) {
             product.setMarginGain(500.0);
         }
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        log.info("product_created productId={} productType={} goldType={} style={}",
+                saved.getId(), saved.getProductType(), saved.getGoldType(), saved.getStyle());
+        return saved;
     }
 
     public Product updateProduct(Long id, Product productDetails) {
@@ -87,14 +90,16 @@ public class ProductService {
         }
 
         Product saved = productRepository.save(product);
-        // Recharger avec images pour que le DTO les inclue (évite LazyInitializationException)
-        return productRepository.findByIdWithImages(saved.getId()).orElse(saved);
+        Product result = productRepository.findByIdWithImages(saved.getId()).orElse(saved);
+        log.info("product_updated productId={}", id);
+        return result;
     }
 
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Produit", id));
         productRepository.delete(product);
+        log.info("product_deleted productId={}", id);
     }
 
     @Transactional(readOnly = true)
@@ -198,7 +203,7 @@ public class ProductService {
             }
         }
         productRepository.saveAll(products);
-        log.info("{} produits mis à jour avec le nouveau prix au gramme {}", products.size(), newPricePerGram);
+        log.info("gold_rate_repriced productCount={} pricePerGramMAD={}", products.size(), newPricePerGram);
     }
 
     private boolean hasPromoBadge(String badges) {

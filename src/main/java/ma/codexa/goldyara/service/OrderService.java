@@ -97,6 +97,7 @@ public class OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Commande", id));
         order.setStatus(status);
         Order saved = orderRepository.save(order);
+        log.info("Order status updated orderId={} orderNumber={} newStatus={}", id, saved.getOrderNumber(), status);
         hydrateProductImages(List.of(saved));
         return orderMapper.toDTO(saved, productMapper);
     }
@@ -148,8 +149,9 @@ public class OrderService {
         order.setOrderItems(orderItems);
         order.calculateTotal();
 
-        log.info("Creating new order for customer: {}", customer.getFullName());
         Order savedOrder = orderRepository.save(order);
+        log.info("Order created orderId={} orderNumber={} customerEmail={} totalAmount={}",
+                savedOrder.getId(), savedOrder.getOrderNumber(), customer.getEmail(), savedOrder.getTotalAmount());
         notificationService.notifyNewOrder(savedOrder);
         hydrateProductImages(List.of(savedOrder));
         return orderMapper.toDTO(savedOrder, productMapper);

@@ -1,5 +1,6 @@
 package ma.codexa.goldyara.service;
 
+import lombok.extern.slf4j.Slf4j;
 import ma.codexa.goldyara.entity.Wishlist;
 import ma.codexa.goldyara.entity.Product;
 import ma.codexa.goldyara.repository.WishlistRepository;
@@ -12,6 +13,7 @@ import java.util.Optional;
 
 @Service
 @Transactional
+@Slf4j
 public class WishlistService {
 
     @Autowired
@@ -71,5 +73,6 @@ public class WishlistService {
         
         wishlist.getProducts().clear();
         wishlistRepository.save(wishlist);
+        log.info("wishlist_cleared customerId={}", customerId);
     }
 }

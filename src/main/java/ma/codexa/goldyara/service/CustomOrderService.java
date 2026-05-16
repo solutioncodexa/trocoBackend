@@ -1,6 +1,7 @@
 package ma.codexa.goldyara.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import ma.codexa.goldyara.common.exception.ResourceNotFoundException;
 import ma.codexa.goldyara.dto.CustomOrderDTO;
 import ma.codexa.goldyara.dto.CustomerDTO;
@@ -20,6 +21,7 @@ import java.util.Optional;
 @Service
 @Transactional
 @RequiredArgsConstructor
+@Slf4j
 public class CustomOrderService {
 
     private final CustomOrderRepository customOrderRepository;
@@ -51,6 +53,7 @@ public class CustomOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Commande personnalisée", id));
         customOrder.setStatus(status);
         customOrderRepository.save(customOrder);
+        log.info("custom_order_status_updated customOrderId={} status={}", id, status);
         CustomOrder hydrated = customOrderRepository.findDetailedById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Commande personnalisée", id));
         return customOrderMapper.toDTO(hydrated);
@@ -61,6 +64,7 @@ public class CustomOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Commande personnalisée", id));
         customOrder.setEstimatedPrice(estimatedPrice);
         customOrderRepository.save(customOrder);
+        log.info("custom_order_price_updated customOrderId={} estimatedPrice={}", id, estimatedPrice);
         CustomOrder hydrated = customOrderRepository.findDetailedById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Commande personnalisée", id));
         return customOrderMapper.toDTO(hydrated);
@@ -70,6 +74,7 @@ public class CustomOrderService {
         CustomOrder customOrder = customOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Commande personnalisée", id));
         customOrderRepository.delete(customOrder);
+        log.info("custom_order_deleted customOrderId={}", id);
     }
 
     /** Cree la demande puis materialise le DTO dans la transaction (referenceImages/customer lazies). */
@@ -114,6 +119,8 @@ public class CustomOrderService {
         }
 
         CustomOrder savedOrder = customOrderRepository.save(customOrder);
+        log.info("custom_order_created customOrderId={} productType={} style={}",
+                savedOrder.getId(), savedOrder.getProductType(), savedOrder.getStyle());
         notificationService.notifyNewCustomOrder(savedOrder);
 
         CustomOrder hydrated = customOrderRepository.findDetailedById(savedOrder.getId())

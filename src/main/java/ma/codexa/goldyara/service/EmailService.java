@@ -79,7 +79,7 @@ public class EmailService {
             message.setSubject(subject);
             message.setText(text);
             mailSender.send(message);
-            log.info("Order notification email sent to {} admins (from={})", emails.size(), mailUsername);
+            log.info("notification_email_sent adminCount={} fromUser={}", emails.size(), mailUsername);
         } catch (Exception e) {
             log.error("Failed to send notification email: {}", e.getMessage());
         }

@@ -37,12 +37,14 @@ public class UploadController {
             @RequestParam("file") MultipartFile file) {
         try {
             String url = storage.store(file);
+            log.info("api_upload_single success sizeBytes={}", file.getSize());
             return ResponseEntity.ok(ApiResponse.success(Map.of("url", url)));
         } catch (IllegalArgumentException e) {
+            log.warn("api_upload_rejected reason=validation detail={}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(e.getMessage(), 400));
         } catch (RuntimeException e) {
-            log.error("Erreur upload: {}", e.getMessage(), e);
+            log.error("api_upload_failed detail={}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(ApiResponse.error("Erreur lors de l'enregistrement du fichier", 500));
         }
@@ -53,6 +55,7 @@ public class UploadController {
     public ResponseEntity<ApiResponse<List<String>>> uploadMultiple(
             @RequestParam("files") MultipartFile[] files) {
         List<String> urls = storage.storeAll(files);
+        log.info("api_upload_multiple success fileCount={}", urls.size());
         return ResponseEntity.ok(ApiResponse.success(urls));
     }
 

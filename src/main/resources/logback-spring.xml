@@ -5,7 +5,7 @@
   - Profil "dev"  : sortie console pretty + couleurs.
   - Profil "prod" : sortie console JSON (consommée par Promtail/Loki) + fichier
                     rotatif sur disque (sécurité au cas où Promtail soit down).
-  - Tous les logs incluent le MDC (requestId, userId, traceId, spanId).
+  - Tous les logs incluent le MDC utile observabilite (requestId, userId, HTTP, erreurs API, trace).
   - Un appender dédié "AUDIT" sépare les évènements business sensibles
     (auth, admin actions, paiements) dans un fichier audit JSON.
 -->
@@ -54,6 +54,13 @@
                 <includeMdcKeyName>clientIp</includeMdcKeyName>
                 <includeMdcKeyName>traceId</includeMdcKeyName>
                 <includeMdcKeyName>spanId</includeMdcKeyName>
+                <includeMdcKeyName>httpMethod</includeMdcKeyName>
+                <includeMdcKeyName>httpPath</includeMdcKeyName>
+                <includeMdcKeyName>httpStatus</includeMdcKeyName>
+                <includeMdcKeyName>httpDurationMs</includeMdcKeyName>
+                <includeMdcKeyName>problemStatus</includeMdcKeyName>
+                <includeMdcKeyName>errorCategory</includeMdcKeyName>
+                <includeMdcKeyName>problemPath</includeMdcKeyName>
                 <customFields>{"app":"${appName}","env":"${appEnv}"}</customFields>
                 <fieldNames>
                     <timestamp>@timestamp</timestamp>
@@ -83,6 +90,13 @@
                 <includeMdcKeyName>clientIp</includeMdcKeyName>
                 <includeMdcKeyName>traceId</includeMdcKeyName>
                 <includeMdcKeyName>spanId</includeMdcKeyName>
+                <includeMdcKeyName>httpMethod</includeMdcKeyName>
+                <includeMdcKeyName>httpPath</includeMdcKeyName>
+                <includeMdcKeyName>httpStatus</includeMdcKeyName>
+                <includeMdcKeyName>httpDurationMs</includeMdcKeyName>
+                <includeMdcKeyName>problemStatus</includeMdcKeyName>
+                <includeMdcKeyName>errorCategory</includeMdcKeyName>
+                <includeMdcKeyName>problemPath</includeMdcKeyName>
                 <customFields>{"app":"${appName}","env":"${appEnv}"}</customFields>
                 <timeZone>UTC</timeZone>
             </encoder>
@@ -111,6 +125,9 @@
                 <includeMdcKeyName>userId</includeMdcKeyName>
                 <includeMdcKeyName>userRole</includeMdcKeyName>
                 <includeMdcKeyName>clientIp</includeMdcKeyName>
+                <includeMdcKeyName>httpMethod</includeMdcKeyName>
+                <includeMdcKeyName>httpPath</includeMdcKeyName>
+                <includeMdcKeyName>httpStatus</includeMdcKeyName>
                 <includeMdcKeyName>auditAction</includeMdcKeyName>
                 <includeMdcKeyName>auditTarget</includeMdcKeyName>
                 <includeMdcKeyName>auditOutcome</includeMdcKeyName>

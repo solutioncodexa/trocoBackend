@@ -61,7 +61,7 @@ public class UserService {
 
             long expiresIn = jwtProperties.expirationMs() / 1000;
 
-            log.info("User logged in: {}", userDetails.getUsername());
+            log.info("auth_login_success email={} role={}", userDetails.getUsername(), role);
             auditLog.log(
                     ROLE_ADMIN.equals(role) ? AuditLogService.Action.ADMIN_LOGIN : AuditLogService.Action.LOGIN,
                     AuditLogService.Outcome.SUCCESS,
@@ -80,6 +80,7 @@ public class UserService {
             );
         } catch (org.springframework.security.core.AuthenticationException ex) {
             // Important : on n'expose pas le détail dans la réponse, mais on l'audite
+            log.warn("auth_login_failure email={} reason=bad_credentials", request.getEmail());
             auditLog.log(AuditLogService.Action.LOGIN, AuditLogService.Outcome.FAILURE,
                     request.getEmail(), "bad credentials");
             throw new BusinessException("Identifiants invalides", HttpStatus.UNAUTHORIZED);
@@ -112,7 +113,7 @@ public class UserService {
         String refreshToken = createRefreshToken(user);
         long expiresIn = jwtProperties.expirationMs() / 1000;
 
-        log.info("New user registered: {}", user.getEmail());
+        log.info("auth_register_success email={} role={}", user.getEmail(), user.getRole());
         auditLog.log(AuditLogService.Action.REGISTER, AuditLogService.Outcome.SUCCESS, user.getEmail());
 
         return new AuthResponse(accessToken, refreshToken, "Bearer", user.getId(), user.getEmail(), user.getRole(), expiresIn);
@@ -139,7 +140,7 @@ public class UserService {
         String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole());
         long expiresIn = jwtProperties.expirationMs() / 1000;
 
-        log.debug("Access token refreshed for user: {}", user.getEmail());
+        log.debug("auth_refresh_success email={}", user.getEmail());
         auditLog.log(AuditLogService.Action.REFRESH_TOKEN, AuditLogService.Outcome.SUCCESS, user.getEmail());
 
         return new AuthResponse(newAccessToken, requestRefreshToken, "Bearer", user.getId(), user.getEmail(), user.getRole(), expiresIn);
@@ -149,10 +150,11 @@ public class UserService {
         refreshTokenRepository.findByToken(refreshToken)
                 .ifPresent(t -> {
                     refreshTokenRepository.delete(t);
+                    log.info("auth_logout_success");
                     auditLog.log(AuditLogService.Action.LOGOUT, AuditLogService.Outcome.SUCCESS,
                             t.getUser().getEmail());
                 });
-        log.debug("User logged out, refresh token invalidated");
+        log.debug("auth_logout refresh token invalidated (if existed)");
     }
 
     @Transactional(readOnly = true)
