@@ -10,6 +10,9 @@ import java.util.List;
 public interface TopBarMessageRepository extends JpaRepository<TopBarMessage, Long> {
     
     List<TopBarMessage> findByIsActiveOrderByDisplayOrderAsc(Boolean isActive);
-    
+
     List<TopBarMessage> findByIsActiveTrueOrderByDisplayOrderAsc();
+
+    /** Tous les messages (admin), tri par ordre d’affichage */
+    List<TopBarMessage> findAllByOrderByDisplayOrderAsc();
 }

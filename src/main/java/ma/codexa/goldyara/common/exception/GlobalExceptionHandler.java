@@ -134,6 +134,41 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problemDetail);
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(
+            org.springframework.dao.DataIntegrityViolationException ex, WebRequest request) {
+        Throwable root = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause() : ex;
+        String detail = root.getMessage() != null ? root.getMessage() : ex.getMessage();
+        log.error("Contrainte / intégrité base: {}", detail, ex);
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Données refusées par la base. Vérifiez les champs obligatoires et le schéma (ex. colonne display_duration_seconds). Détail: "
+                        + detail);
+        problemDetail.setTitle("Data Integrity Violation");
+        problemDetail.setProperty("timestamp", LocalDateTime.now());
+        problemDetail.setProperty("path", request.getDescription(false).replace("uri=", ""));
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problemDetail);
+    }
+
+    @ExceptionHandler(org.springframework.dao.InvalidDataAccessResourceUsageException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidDataAccessResourceUsage(
+            org.springframework.dao.InvalidDataAccessResourceUsageException ex, WebRequest request) {
+        Throwable root = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause() : ex;
+        String detail = root.getMessage() != null ? root.getMessage() : ex.getMessage();
+        log.error("Erreur SQL / accès données: {}", detail, ex);
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Erreur d'accès aux données (souvent colonne ou table manquante). Détail: " + detail);
+        problemDetail.setTitle("Invalid Data Access");
+        problemDetail.setProperty("timestamp", LocalDateTime.now());
+        problemDetail.setProperty("path", request.getDescription(false).replace("uri=", ""));
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problemDetail);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleGlobalException(
             Exception ex, WebRequest request) {
