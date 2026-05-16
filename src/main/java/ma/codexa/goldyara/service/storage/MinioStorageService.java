@@ -107,7 +107,6 @@ public class MinioStorageService implements StorageService {
             log.info("Objet MinIO supprimé: {}", objectName);
             auditLog.log(AuditLogService.Action.FILE_DELETE, AuditLogService.Outcome.SUCCESS, objectName);
         } catch (ErrorResponseException notFound) {
-            // Idempotent : pas d'erreur si déjà supprimé
             log.debug("Objet MinIO déjà absent: {}", objectName);
         } catch (Exception e) {
             auditLog.log(AuditLogService.Action.FILE_DELETE, AuditLogService.Outcome.FAILURE,
