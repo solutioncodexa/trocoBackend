@@ -35,4 +35,4 @@ build/
 # Secrets locaux Spring (voir .env.example)
 .env
 .env.local
-goldyara-dev-db.properties
+#goldyara-dev-db.properties
