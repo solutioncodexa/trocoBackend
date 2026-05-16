@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -44,7 +46,8 @@ public class Product {
     @Column(nullable = false)
     private Integer stock = 0;
 
-    @Column(name = "collection")
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "collection", length = 255)
     private String collection; // ID de la collection (mariage, homme, femme, etc.)
 
     @Column(name = "available_sizes", columnDefinition = "TEXT")

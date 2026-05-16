@@ -144,6 +144,25 @@ public class ProductService {
         boolean applyKeywordFilter = keyword != null && !keyword.isBlank();
         String keywordPattern = applyKeywordFilter ? "%" + keyword.toLowerCase() + "%" : "%";
 
+        String collectionParam = collectionFilter != null ? collectionFilter.trim() : null;
+        if (collectionParam != null && collectionParam.isEmpty()) {
+            collectionParam = null;
+        }
+
+        if (collectionParam == null) {
+            return productRepository.searchProductsWithFiltersWithoutCollection(
+                    applyKeywordFilter,
+                    keywordPattern,
+                    style,
+                    goldType,
+                    productType,
+                    categoryId,
+                    minPrice,
+                    maxPrice,
+                    inStock,
+                    pageable);
+        }
+
         return productRepository.searchProductsWithFilters(
                 applyKeywordFilter,
                 keywordPattern,
@@ -153,7 +172,7 @@ public class ProductService {
                 categoryId,
                 minPrice,
                 maxPrice,
-                collectionFilter,
+                collectionParam,
                 inStock,
                 pageable);
     }

@@ -74,6 +74,33 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
            "(:categoryId IS NULL OR p.category.id = :categoryId) AND " +
            "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
            "(:maxPrice IS NULL OR p.price <= :maxPrice) AND " +
+           "(:inStock IS NULL OR (:inStock = TRUE AND p.stock > 0) OR (:inStock = FALSE AND p.stock <= 0))")
+    Page<Product> searchProductsWithFiltersWithoutCollection(
+        @Param("applyKeywordFilter") boolean applyKeywordFilter,
+        @Param("keywordPattern") String keywordPattern,
+        @Param("style") String style,
+        @Param("goldType") String goldType,
+        @Param("productType") String productType,
+        @Param("categoryId") Long categoryId,
+        @Param("minPrice") Double minPrice,
+        @Param("maxPrice") Double maxPrice,
+        @Param("inStock") Boolean inStock,
+        Pageable pageable
+    );
+
+    /**
+     * Même périmètre mais filtre {@code collection} actif ({@code TRIM} / compare texte).
+     * Si {@code collection} est en BYTEA en base, préférez corriger la colonne ({@code fix-products-collection-type.sql}).
+     */
+    @EntityGraph(attributePaths = {"images"})
+    @Query("SELECT p FROM Product p WHERE " +
+           "(:applyKeywordFilter = FALSE OR LOWER(p.name) LIKE :keywordPattern OR LOWER(COALESCE(p.description, '')) LIKE :keywordPattern) AND " +
+           "(:style IS NULL OR p.style = :style) AND " +
+           "(:goldType IS NULL OR p.goldType = :goldType) AND " +
+           "(:productType IS NULL OR p.productType = :productType) AND " +
+           "(:categoryId IS NULL OR p.category.id = :categoryId) AND " +
+           "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
+           "(:maxPrice IS NULL OR p.price <= :maxPrice) AND " +
            "(:collectionFilter IS NULL OR (p.collection IS NOT NULL AND LOWER(TRIM(p.collection)) = LOWER(TRIM(:collectionFilter)))) AND " +
            "(:inStock IS NULL OR (:inStock = TRUE AND p.stock > 0) OR (:inStock = FALSE AND p.stock <= 0))")
     Page<Product> searchProductsWithFilters(
