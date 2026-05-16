@@ -55,4 +55,5 @@ public class UploadController {
         List<String> urls = storage.storeAll(files);
         return ResponseEntity.ok(ApiResponse.success(urls));
     }
+
 }
