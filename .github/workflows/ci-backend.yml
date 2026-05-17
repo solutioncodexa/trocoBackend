@@ -1,0 +1,127 @@
+name: CI Backend (Artifacts)
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "src/**"
+      - "pom.xml"
+      - "mvnw"
+      - "mvnw.cmd"
+      - ".mvn/**"
+      - ".github/workflows/ci-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: goldyara-back-artifacts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build jar
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -ntp clean package -DskipTests
+
+      - name: Select artifact jar
+        run: |
+          JAR_PATH=$(find target -maxdepth 1 -type f -name "*.jar" ! -name "original-*.jar" | sed -n '1p')
+          if [ -z "${JAR_PATH:-}" ]; then
+            echo "ERROR: no jar produced in target/"
+            ls -la target || true
+            exit 1
+          fi
+          cp "${JAR_PATH}" goldyara-backend.jar
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: goldyara-backend-jar
+          path: goldyara-backend.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-backend:
+    name: Deploy backend on VPS
+    needs: build-backend
+    runs-on: ubuntu-latest
+    if: |
+      success() &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      vars.VPS_DEPLOY_DISABLED != 'true'
+    steps:
+      - name: Validate VPS deploy config
+        env:
+          H: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+          U: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+          K: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          rc=0
+          [ -z "${H:-}" ] && echo "::error::Missing VPS_HOST or VPS_IP" && rc=1
+          [ -z "${U:-}" ] && echo "::error::Missing VPS_USER" && rc=1
+          [ -z "${K:-}" ] && echo "::error::Missing VPS_SSH_PRIVATE_KEY" && rc=1
+          exit "$rc"
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: goldyara-backend-jar
+          path: deploy-download
+
+      - name: Upload jar to VPS
+        uses: appleboy/scp-action@v0.1.7
+        env:
+          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ vars.VPS_SSH_PORT || '22' }}
+          source: "deploy-download/goldyara-backend.jar"
+          target: "${{ env.DEPLOY_PATH }}/goldyara/backend/"
+
+      - name: Restart backend
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ vars.VPS_SSH_PORT || '22' }}
+          command_timeout: 20m
+          script_stop: true
+          envs: DEPLOY_PATH
+          script: |
+            set -euo pipefail
+            DEPLOY_PATH="${DEPLOY_PATH:-/opt/goldyara/deployment}"
+            BACK_DIR="${DEPLOY_PATH}/goldyara/backend"
+            mkdir -p "${BACK_DIR}"
+            test -f "${BACK_DIR}/goldyara-backend.jar"
+
+            cd "${DEPLOY_PATH}"
+            docker compose -f docker-compose.yml -f docker-compose.artifacts.yml up -d --force-recreate --no-deps backend
+
+      - name: Deploy summary
+        run: |
+          {
+            echo "### Backend artifact deployed"
+            echo ""
+            echo "- Path: \`${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}/goldyara/backend/goldyara-backend.jar\`"
+            echo "- Service: \`backend\`"
+          } >> "$GITHUB_STEP_SUMMARY"
