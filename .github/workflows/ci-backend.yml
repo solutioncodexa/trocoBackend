@@ -111,7 +111,29 @@ jobs:
             set -euo pipefail
             DEPLOY_PATH="${DEPLOY_PATH:-/opt/goldyara/deployment}"
             BACK_DIR="${DEPLOY_PATH}/goldyara/backend"
+            STAGING_DIR="${BACK_DIR}/jar-staging"
             mkdir -p "${BACK_DIR}"
+
+            # Normalize SCP output: appleboy/scp-action may create nested deploy-download folders.
+            rm -rf "${STAGING_DIR}"
+            mkdir -p "${STAGING_DIR}"
+
+            JAR_PATH=$(find "${BACK_DIR}" -maxdepth 5 -type f -name "goldyara-backend.jar" | sed -n '1p')
+            if [ -z "${JAR_PATH:-}" ]; then
+              JAR_PATH=$(find "${BACK_DIR}" -maxdepth 5 -type f -name "*.jar" | sed -n '1p')
+            fi
+
+            if [ -z "${JAR_PATH:-}" ]; then
+              echo "ERROR: no jar found under ${BACK_DIR}"
+              find "${BACK_DIR}" -maxdepth 5 -type f | sort || true
+              exit 1
+            fi
+
+            cp "${JAR_PATH}" "${STAGING_DIR}/goldyara-backend.jar"
+            mv -f "${STAGING_DIR}/goldyara-backend.jar" "${BACK_DIR}/goldyara-backend.jar"
+
+            # Cleanup known transient folders from artifact download/copy.
+            rm -rf "${BACK_DIR}/deploy-download" "${STAGING_DIR}"
             test -f "${BACK_DIR}/goldyara-backend.jar"
 
             cd "${DEPLOY_PATH}"
