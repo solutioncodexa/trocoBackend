@@ -58,3 +58,4 @@ public class CreateProductRequest {
     private List<@Pattern(regexp = "new|bestseller|promo", 
                          message = "Les badges valides sont: new, bestseller, promo") String> badges;
 }
+
