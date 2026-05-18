@@ -11,5 +11,6 @@ public class CartItemDTO {
     private ProductDetailDTO product;
     private Integer quantity;
     private String selectedSize;
+    private String selectedVariantId;
     private String selectedGoldType;
 }

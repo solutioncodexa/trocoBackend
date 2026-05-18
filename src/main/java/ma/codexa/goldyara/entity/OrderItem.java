@@ -33,6 +33,12 @@ public class OrderItem {
     @Column(name = "selected_size")
     private String selectedSize;
 
+    @Column(name = "selected_variant_id")
+    private Long selectedVariantId;
+
+    @Column(name = "selected_weight")
+    private Double selectedWeight;
+
     @Column(name = "selected_gold_type")
     private String selectedGoldType;
 

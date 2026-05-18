@@ -19,6 +19,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT p FROM Product p")
     Page<Product> findAllWithImages(Pageable pageable);
 
+    /** Variants sont chargés séparément dans le service (évite MultipleBagFetchException avec images). */
     @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.images WHERE p.id = :id")
     Optional<Product> findByIdWithImages(@Param("id") Long id);
 

@@ -27,9 +27,12 @@ public class CreateProductRequest {
     /** Prix avant réduction (optionnel, non utilisé par défaut). */
     private Double originalPrice;
 
-    @NotNull(message = "Le poids est obligatoire")
+    /** Poids de la variante par défaut (conservé pour compatibilité listing / filtres) */
     @DecimalMin(value = "0.0", inclusive = false, message = "Le poids doit être supérieur à 0")
     private Double weight;
+
+    /** Variantes poids/prix ; si vide, une variante est créée à partir de weight/price/marginGain */
+    private List<ProductVariantRequest> variants;
 
     @NotBlank(message = "La catégorie est obligatoire")
     private String category; // slug de la catégorie (ex: beldi, modern)

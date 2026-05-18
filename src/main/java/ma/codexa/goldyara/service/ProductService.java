@@ -3,10 +3,12 @@ package ma.codexa.goldyara.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.codexa.goldyara.common.exception.ResourceNotFoundException;
+import ma.codexa.goldyara.dto.request.ProductVariantRequest;
 import ma.codexa.goldyara.entity.Image;
 import ma.codexa.goldyara.entity.Product;
 import ma.codexa.goldyara.mapper.MapperUtils;
 import ma.codexa.goldyara.repository.ProductRepository;
+import org.hibernate.Hibernate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,11 +25,14 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final GoldPriceSettingService goldPriceSettingService;
+    private final ProductVariantService productVariantService;
 
     @Transactional(readOnly = true)
     public Page<Product> getAllProducts(Pageable pageable) {
         log.debug("Récupération de tous les produits avec pagination");
-        return productRepository.findAllWithImages(pageable);
+        Page<Product> page = productRepository.findAllWithImages(pageable);
+        page.getContent().forEach(this::initializeVariants);
+        return page;
     }
 
     @Transactional(readOnly = true)
@@ -37,39 +42,64 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Optional<Product> getProductById(Long id) {
-        return productRepository.findByIdWithImages(id);
+        return productRepository.findByIdWithImages(id).map(p -> {
+            initializeVariants(p);
+            return p;
+        });
     }
 
     public Product createProduct(Product product) {
-        double marginGain = product.getMarginGain() != null ? product.getMarginGain() : 500.0;
-        double calculatedPrice = goldPriceSettingService.calculatePrice(product.getWeight(), marginGain);
-        product.setPrice(calculatedPrice);
+        return createProduct(product, null);
+    }
+
+    public Product createProduct(Product product, List<ProductVariantRequest> variantRequests) {
         if (product.getMarginGain() == null) {
             product.setMarginGain(500.0);
         }
+        boolean isPromo = productVariantService.hasPromoBadge(product.getBadges());
+        if (variantRequests != null && !variantRequests.isEmpty()) {
+            productVariantService.applyVariants(product, variantRequests, isPromo);
+        } else {
+            double marginGain = product.getMarginGain() != null ? product.getMarginGain() : 500.0;
+            if (!isPromo) {
+                product.setPrice(goldPriceSettingService.calculatePrice(product.getWeight(), marginGain));
+            }
+            productVariantService.ensureVariantsFromProductFields(product);
+        }
         Product saved = productRepository.save(product);
-        log.info("product_created productId={} productType={} goldType={} style={}",
-                saved.getId(), saved.getProductType(), saved.getGoldType(), saved.getStyle());
-        return saved;
+        Product reloaded = productRepository.findByIdWithImages(saved.getId()).orElse(saved);
+        initializeVariants(reloaded);
+        return reloaded;
     }
 
     public Product updateProduct(Long id, Product productDetails) {
+        return updateProduct(id, productDetails, null);
+    }
+
+    public Product updateProduct(Long id, Product productDetails, List<ProductVariantRequest> variantRequests) {
         Product product = productRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Produit", id));
 
         product.setName(productDetails.getName());
         product.setDescription(productDetails.getDescription());
-        double marginGain = productDetails.getMarginGain() != null ? productDetails.getMarginGain() : 500.0;
-        product.setMarginGain(marginGain);
-        boolean isPromo = hasPromoBadge(productDetails.getBadges()) && productDetails.getOriginalPrice() != null && productDetails.getOriginalPrice() > 0;
-        if (isPromo) {
-            product.setPrice(productDetails.getPrice());
-            product.setOriginalPrice(productDetails.getOriginalPrice());
+        product.setMarginGain(productDetails.getMarginGain() != null ? productDetails.getMarginGain() : 500.0);
+        boolean isPromo = productVariantService.hasPromoBadge(productDetails.getBadges());
+
+        if (variantRequests != null && !variantRequests.isEmpty()) {
+            productVariantService.applyVariants(product, variantRequests, isPromo);
         } else {
-            product.setPrice(goldPriceSettingService.calculatePrice(productDetails.getWeight(), marginGain));
-            product.setOriginalPrice(null);
+            double marginGain = product.getMarginGain();
+            if (isPromo && productDetails.getOriginalPrice() != null && productDetails.getOriginalPrice() > 0) {
+                product.setPrice(productDetails.getPrice());
+                product.setOriginalPrice(productDetails.getOriginalPrice());
+            } else {
+                product.setPrice(goldPriceSettingService.calculatePrice(productDetails.getWeight(), marginGain));
+                product.setOriginalPrice(null);
+            }
+            product.setWeight(productDetails.getWeight());
+            productVariantService.applyVariants(product, null, isPromo);
         }
-        product.setWeight(productDetails.getWeight());
+
         product.setStock(productDetails.getStock());
         product.setCategory(productDetails.getCategory());
         product.setProductType(productDetails.getProductType());
@@ -90,9 +120,10 @@ public class ProductService {
         }
 
         Product saved = productRepository.save(product);
-        Product result = productRepository.findByIdWithImages(saved.getId()).orElse(saved);
-        log.info("product_updated productId={}", id);
-        return result;
+        // Recharger avec images pour que le DTO les inclue (évite LazyInitializationException)
+        Product reloaded = productRepository.findByIdWithImages(saved.getId()).orElse(saved);
+        initializeVariants(reloaded);
+        return reloaded;
     }
 
     public void deleteProduct(Long id) {
@@ -155,7 +186,7 @@ public class ProductService {
         }
 
         if (collectionParam == null) {
-            return productRepository.searchProductsWithFiltersWithoutCollection(
+            Page<Product> page = productRepository.searchProductsWithFiltersWithoutCollection(
                     applyKeywordFilter,
                     keywordPattern,
                     style,
@@ -166,9 +197,11 @@ public class ProductService {
                     maxPrice,
                     inStock,
                     pageable);
+            page.getContent().forEach(this::initializeVariants);
+            return page;
         }
 
-        return productRepository.searchProductsWithFilters(
+        Page<Product> page = productRepository.searchProductsWithFilters(
                 applyKeywordFilter,
                 keywordPattern,
                 style,
@@ -180,6 +213,14 @@ public class ProductService {
                 collectionParam,
                 inStock,
                 pageable);
+        page.getContent().forEach(this::initializeVariants);
+        return page;
+    }
+
+    private void initializeVariants(Product product) {
+        if (product != null) {
+            Hibernate.initialize(product.getVariants());
+        }
     }
 
     /**
@@ -190,25 +231,10 @@ public class ProductService {
     public void updateAllPricesForNewGoldRate(double newPricePerGram) {
         List<Product> products = productRepository.findAll();
         for (Product p : products) {
-            double marginGain = p.getMarginGain() != null ? p.getMarginGain() : 500.0;
-            double newBasePrice = p.getWeight() * newPricePerGram + marginGain;
-
-            if (p.getOriginalPrice() != null && p.getOriginalPrice() > 0 && p.getPrice() != null && p.getPrice() > 0) {
-                double discountRatio = p.getPrice() / p.getOriginalPrice();
-                p.setOriginalPrice(Math.round(newBasePrice * 100.0) / 100.0);
-                p.setPrice(Math.round(newBasePrice * discountRatio * 100.0) / 100.0);
-            } else {
-                p.setPrice(Math.round(newBasePrice * 100.0) / 100.0);
-                p.setOriginalPrice(null);
-            }
+            boolean isPromo = productVariantService.hasPromoBadge(p.getBadges());
+            productVariantService.recalculateAllVariantPrices(p, newPricePerGram, isPromo);
         }
         productRepository.saveAll(products);
         log.info("gold_rate_repriced productCount={} pricePerGramMAD={}", products.size(), newPricePerGram);
-    }
-
-    private boolean hasPromoBadge(String badges) {
-        if (badges == null || badges.isBlank()) return false;
-        List<String> list = MapperUtils.badgesToList(badges);
-        return list != null && list.stream().anyMatch(b -> "promo".equalsIgnoreCase(b.trim()));
     }
 }

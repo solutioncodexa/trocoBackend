@@ -138,10 +138,24 @@ public class OrderService {
                     .orElseThrow(() -> new ResourceNotFoundException("Produit", Long.parseLong(cartItem.getProduct().getId())));
             orderItem.setProduct(product);
             orderItem.setQuantity(cartItem.getQuantity());
-            orderItem.setUnitPrice(product.getPrice());
-            orderItem.setSubtotal(cartItem.getQuantity() * product.getPrice());
+            double unitPrice = cartItem.getProduct() != null && cartItem.getProduct().getPrice() != null
+                    && cartItem.getProduct().getPrice() > 0
+                    ? cartItem.getProduct().getPrice()
+                    : product.getPrice();
+            orderItem.setUnitPrice(unitPrice);
+            orderItem.setSubtotal(cartItem.getQuantity() * unitPrice);
             orderItem.setSelectedSize(cartItem.getSelectedSize());
             orderItem.setSelectedGoldType(cartItem.getSelectedGoldType());
+            if (cartItem.getSelectedVariantId() != null && !cartItem.getSelectedVariantId().isBlank()) {
+                try {
+                    orderItem.setSelectedVariantId(Long.parseLong(cartItem.getSelectedVariantId()));
+                } catch (NumberFormatException ignored) {
+                    orderItem.setSelectedVariantId(null);
+                }
+            }
+            if (cartItem.getProduct() != null && cartItem.getProduct().getWeight() != null) {
+                orderItem.setSelectedWeight(cartItem.getProduct().getWeight());
+            }
             orderItem.setOrder(order);
             orderItems.add(orderItem);
         }

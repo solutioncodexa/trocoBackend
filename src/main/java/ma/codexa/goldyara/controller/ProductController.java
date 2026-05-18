@@ -22,6 +22,7 @@ import ma.codexa.goldyara.entity.Category;
 import ma.codexa.goldyara.entity.Image;
 import ma.codexa.goldyara.entity.Product;
 import ma.codexa.goldyara.mapper.MapperUtils;
+import ma.codexa.goldyara.mapper.ProductDtoMapper;
 import ma.codexa.goldyara.mapper.ProductMapper;
 import ma.codexa.goldyara.service.CategoryService;
 import ma.codexa.goldyara.service.ProductService;
@@ -58,6 +59,7 @@ public class ProductController {
 
     private final ProductService productService;
     private final ProductMapper productMapper;
+    private final ProductDtoMapper productDtoMapper;
     private final CategoryService categoryService;
     private final FileStorageService fileStorageService;
     private final ma.codexa.goldyara.service.FeaturedProductService featuredProductService;
@@ -122,7 +124,7 @@ public class ProductController {
                 category, type, goldType, collection, minPrice, maxPrice, inStock, keyword);
 
         PageResponse<ProductDetailDTO> pageResponse = PageResponse.of(
-                productMapper.toDetailDTOList(productPage.getContent()),
+                productDtoMapper.toDetailDTOList(productPage.getContent()),
                 productPage.getNumber(),
                 productPage.getSize(),
                 productPage.getTotalElements()
@@ -143,7 +145,7 @@ public class ProductController {
         log.debug("Récupération du produit avec l'id: {}", id);
         Product product = productService.getProductById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produit", id));
-        return ResponseEntity.ok(ApiResponse.success(productMapper.toDetailDTO(product)));
+        return ResponseEntity.ok(ApiResponse.success(productDtoMapper.toDetailDTO(product)));
     }
 
     @Operation(summary = "Filtrer les produits")
@@ -374,12 +376,12 @@ public class ProductController {
                 .orElseThrow(() -> new IllegalArgumentException("Catégorie non trouvée: " + request.getCategory())));
         product.setStyle(product.getCategory().getSlug().equalsIgnoreCase("beldi") ? "BELDI" : "MODERNE");
         setProductImages(product, imageUrls);
-        Product createdProduct = productService.createProduct(product);
+        Product createdProduct = productService.createProduct(product, request.getVariants());
 
         log.info("Produit créé avec succès - ID: {}", createdProduct.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(
-                        productMapper.toDetailDTO(createdProduct),
+                        productDtoMapper.toDetailDTO(createdProduct),
                         ApiConstants.PRODUCT_CREATED));
     }
 
@@ -418,11 +420,11 @@ public class ProductController {
                 .orElseThrow(() -> new IllegalArgumentException("Catégorie non trouvée: " + request.getCategory())));
         updatedProduct.setStyle(updatedProduct.getCategory().getSlug().equalsIgnoreCase("beldi") ? "BELDI" : "MODERNE");
         setProductImages(updatedProduct, imageUrls);
-        Product savedProduct = productService.updateProduct(id, updatedProduct);
+        Product savedProduct = productService.updateProduct(id, updatedProduct, request.getVariants());
 
         log.info("Produit mis à jour avec succès - ID: {}", savedProduct.getId());
         return ResponseEntity.ok(ApiResponse.success(
-                productMapper.toDetailDTO(savedProduct),
+                productDtoMapper.toDetailDTO(savedProduct),
                 ApiConstants.PRODUCT_UPDATED));
     }
 
@@ -528,6 +530,30 @@ public class ProductController {
         dto.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 1);
         dto.setMarginGain(request.getMarginGain());
         dto.setBadges(request.getBadges());
+        if (request.getVariants() != null && !request.getVariants().isEmpty()) {
+            dto.setVariants(request.getVariants().stream().map(v -> {
+                ma.codexa.goldyara.dto.ProductVariantDTO vd = new ma.codexa.goldyara.dto.ProductVariantDTO();
+                vd.setId(v.getId());
+                vd.setLabel(v.getLabel());
+                vd.setWeight(v.getWeight());
+                vd.setPrice(v.getPrice());
+                vd.setOriginalPrice(v.getOriginalPrice());
+                vd.setMarginGain(v.getMarginGain());
+                vd.setDisplayOrder(v.getDisplayOrder());
+                vd.setIsDefault(v.getIsDefault());
+                return vd;
+            }).toList());
+            request.getVariants().stream()
+                    .filter(v -> Boolean.TRUE.equals(v.getIsDefault()))
+                    .findFirst()
+                    .or(() -> request.getVariants().stream().findFirst())
+                    .ifPresent(def -> {
+                        dto.setWeight(def.getWeight());
+                        if (def.getPrice() != null) {
+                            dto.setPrice(def.getPrice());
+                        }
+                    });
+        }
         return dto;
     }
 

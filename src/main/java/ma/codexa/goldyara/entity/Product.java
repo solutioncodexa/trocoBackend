@@ -73,6 +73,11 @@ public class Product {
     @Fetch(FetchMode.SUBSELECT)
     private List<Image> images = new ArrayList<>();
 
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Fetch(FetchMode.SUBSELECT)
+    @OrderBy("displayOrder ASC")
+    private List<ProductVariant> variants = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
