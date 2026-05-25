@@ -106,6 +106,11 @@ public class SecurityConfig {
                     auth.requestMatchers("/top-bar-messages/public").permitAll();
                     auth.requestMatchers("/promo-modals/public").permitAll();
 
+                    // ─── Promo codes : validation publique, le reste ADMIN ────
+                    auth.requestMatchers(HttpMethod.GET, "/promo-codes/validate").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/promo-codes/suggestions").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/promo-codes/public").permitAll();
+
                     // ─── Cart / wishlist : sessions client anonymes acceptées ─
                     auth.requestMatchers("/cart/**").permitAll();
                     auth.requestMatchers("/wishlist/**").permitAll();
@@ -165,6 +170,9 @@ public class SecurityConfig {
                     // ─── Top-bar / promo : reste = ADMIN ─────────────────────
                     auth.requestMatchers("/top-bar-messages/**").hasRole("ADMIN");
                     auth.requestMatchers("/promo-modals/**").hasRole("ADMIN");
+
+                    // ─── Promo codes : reste = ADMIN ──────────────────────────
+                    auth.requestMatchers("/promo-codes/**").hasRole("ADMIN");
 
                     // ─── Upload : ADMIN ──────────────────────────────────────
                     auth.requestMatchers(HttpMethod.POST, "/upload", "/upload/**", "/upload-multiple").hasRole("ADMIN");

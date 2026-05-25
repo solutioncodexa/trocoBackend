@@ -22,6 +22,8 @@ public interface OrderMapper {
     @Mapping(target = "total", source = "totalAmount")
     @Mapping(target = "status", source = "status", qualifiedByName = "statusToLowercase")
     @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
+    @Mapping(target = "promoCode", source = "promoCode")
+    @Mapping(target = "discount", source = "discountAmount")
     OrderDTO toDTO(Order order, @Context ProductMapper productMapper);
 
     default OrderDTO toDTO(Order order) {

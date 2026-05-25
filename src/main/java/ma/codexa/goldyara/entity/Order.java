@@ -38,6 +38,12 @@ public class Order {
     @Column(name = "payment_method")
     private String paymentMethod = "cash_on_delivery"; // cash_on_delivery, online
 
+    @Column(name = "promo_code", length = 20)
+    private String promoCode;
+
+    @Column(name = "discount_amount")
+    private Double discountAmount;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 

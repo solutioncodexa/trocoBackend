@@ -12,8 +12,10 @@ import ma.codexa.goldyara.entity.Customer;
 import ma.codexa.goldyara.entity.Order;
 import ma.codexa.goldyara.entity.OrderItem;
 import ma.codexa.goldyara.entity.Product;
+import ma.codexa.goldyara.entity.PromoCode;
 import ma.codexa.goldyara.repository.CustomerRepository;
 import ma.codexa.goldyara.repository.OrderRepository;
+import ma.codexa.goldyara.repository.PromoCodeRepository;
 import ma.codexa.goldyara.repository.ProductRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +35,7 @@ public class OrderService {
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
     private final NotificationService notificationService;
+    private final PromoCodeRepository promoCodeRepository;
     private final OrderMapper orderMapper;
     private final ProductMapper productMapper;
 
@@ -65,7 +68,7 @@ public class OrderService {
         return orders;
     }
 
-    /** Sans graphe Hibernate sur deux bags : initialiser lazy images encore dans la session. */
+    /** Sans graphe Hibernate sur deux bags : initialiser lazy images + variants encore dans la session. */
     private static void hydrateProductImages(Iterable<Order> orders) {
         Objects.requireNonNull(orders);
         for (Order order : orders) {
@@ -77,8 +80,13 @@ public class OrderService {
                     continue;
                 }
                 Product p = item.getProduct();
-                if (p != null && p.getImages() != null) {
-                    p.getImages().size(); // declenche FETCH SUBSELECT / chargement groupe
+                if (p != null) {
+                    if (p.getImages() != null) {
+                        p.getImages().size();
+                    }
+                    if (p.getVariants() != null) {
+                        p.getVariants().size();
+                    }
                 }
             }
         }
@@ -162,6 +170,22 @@ public class OrderService {
 
         order.setOrderItems(orderItems);
         order.calculateTotal();
+
+        // Apply promo code discount if provided
+        if (orderDTO.getPromoCode() != null && !orderDTO.getPromoCode().isBlank()) {
+            order.setPromoCode(orderDTO.getPromoCode());
+            Double discount = orderDTO.getDiscount();
+            if (discount != null && discount > 0) {
+                order.setDiscountAmount(discount);
+                order.setTotalAmount(order.getTotalAmount() - discount);
+            }
+            // Increment promo code usage
+            promoCodeRepository.findByCodeIgnoreCase(orderDTO.getPromoCode().trim()).ifPresent(pc -> {
+                pc.incrementUses();
+                promoCodeRepository.save(pc);
+                log.info("Promo code used: {} (uses={})", pc.getCode(), pc.getCurrentUses());
+            });
+        }
 
         Order savedOrder = orderRepository.save(order);
         log.info("Order created orderId={} orderNumber={} customerEmail={} totalAmount={}",

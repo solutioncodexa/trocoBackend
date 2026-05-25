@@ -16,4 +16,6 @@ public class OrderDTO {
     private String paymentMethod; // 'cash_on_delivery' or 'online'
     private String status; // 'new', 'confirmed', 'delivered', 'cancelled'
     private String createdAt;
+    private String promoCode;
+    private Double discount;
 }
