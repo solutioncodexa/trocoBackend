@@ -1,15 +1,16 @@
 package ma.codexa.goldyara.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Entity
 @Table(name = "images")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString(exclude = {"product", "customOrder"})
+@EqualsAndHashCode(of = "id")
 public class Image {
 
     @Id

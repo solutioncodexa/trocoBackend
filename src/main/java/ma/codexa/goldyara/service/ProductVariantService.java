@@ -63,7 +63,6 @@ public class ProductVariantService {
                     variant.setId(null);
                 }
             }
-            variant.setProduct(product);
             double margin = req.getMarginGain() != null ? req.getMarginGain() : 500.0;
             variant.setMarginGain(margin);
             variant.setWeight(req.getWeight());
@@ -82,7 +81,7 @@ public class ProductVariantService {
 
             boolean isDefault = hasDefault ? Boolean.TRUE.equals(req.getIsDefault()) : (order == 0);
             variant.setIsDefault(isDefault);
-            product.getVariants().add(variant);
+            product.addVariant(variant);
             order++;
         }
 
@@ -142,7 +141,6 @@ public class ProductVariantService {
             return;
         }
         ProductVariant variant = new ProductVariant();
-        variant.setProduct(product);
         variant.setWeight(product.getWeight());
         variant.setMarginGain(product.getMarginGain() != null ? product.getMarginGain() : 500.0);
         variant.setPrice(product.getPrice());
@@ -150,7 +148,7 @@ public class ProductVariantService {
         variant.setLabel(formatWeightLabel(product.getWeight()));
         variant.setDisplayOrder(0);
         variant.setIsDefault(true);
-        product.getVariants().add(variant);
+        product.addVariant(variant);
     }
 
     private List<ProductVariantRequest> buildSingleRequestFromProduct(Product product, boolean isPromo) {
