@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.codexa.goldyara.common.exception.ResourceNotFoundException;
 import ma.codexa.goldyara.dto.CustomOrderDTO;
+import ma.codexa.goldyara.dto.CustomOrderStatsDTO;
 import ma.codexa.goldyara.dto.CustomerDTO;
 import ma.codexa.goldyara.entity.CustomOrder;
 import ma.codexa.goldyara.entity.Customer;
@@ -13,6 +14,9 @@ import ma.codexa.goldyara.repository.CustomOrderRepository;
 import ma.codexa.goldyara.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +36,29 @@ public class CustomOrderService {
     @Transactional(readOnly = true)
     public List<CustomOrder> getAllCustomOrders() {
         return customOrderRepository.findAllWithDetails();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CustomOrder> getCustomOrdersPage(String status, String keyword, Pageable pageable) {
+        String s = (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) ? status.toUpperCase() : null;
+        boolean applyKeywordFilter = keyword != null && !keyword.isBlank();
+        String keywordPattern = applyKeywordFilter ? "%" + keyword.trim().toLowerCase() + "%" : "%";
+        return customOrderRepository.findWithFilters(s, applyKeywordFilter, keywordPattern, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public long countByStatus(String status) {
+        return customOrderRepository.countByStatus(status.toUpperCase());
+    }
+
+    @Transactional(readOnly = true)
+    public CustomOrderStatsDTO getCustomOrderStats() {
+        return new CustomOrderStatsDTO(
+                customOrderRepository.count(),
+                customOrderRepository.countByStatus("PENDING"),
+                customOrderRepository.countByStatus("CONTACTED"),
+                customOrderRepository.countByStatus("COMPLETED")
+        );
     }
 
     @Transactional(readOnly = true)

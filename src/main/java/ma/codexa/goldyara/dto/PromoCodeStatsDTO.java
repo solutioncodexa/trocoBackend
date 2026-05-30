@@ -1,0 +1,15 @@
+package ma.codexa.goldyara.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class PromoCodeStatsDTO {
+    private long total;
+    private long active;
+    private long singleUse;
+    private long reusable;
+}

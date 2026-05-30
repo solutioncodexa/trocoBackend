@@ -20,6 +20,9 @@ import ma.codexa.goldyara.repository.ProductRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -45,6 +48,21 @@ public class OrderService {
         List<Order> orders = orderRepository.findAllWithDetails();
         hydrateProductImages(orders);
         return orders;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Order> getOrdersPage(String status, String keyword, Pageable pageable) {
+        String s = (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) ? status.toUpperCase() : null;
+        boolean applyKeywordFilter = keyword != null && !keyword.isBlank();
+        String keywordPattern = applyKeywordFilter ? "%" + keyword.trim().toLowerCase() + "%" : "%";
+        Page<Order> page = orderRepository.findWithFilters(s, applyKeywordFilter, keywordPattern, pageable);
+        hydrateProductImages(page.getContent());
+        return page;
+    }
+
+    @Transactional(readOnly = true)
+    public long countByStatus(String status) {
+        return orderRepository.countByStatus(status.toUpperCase());
     }
 
     @Transactional(readOnly = true)

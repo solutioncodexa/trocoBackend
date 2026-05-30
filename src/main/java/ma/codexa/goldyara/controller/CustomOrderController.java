@@ -1,15 +1,24 @@
 package ma.codexa.goldyara.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import ma.codexa.goldyara.common.ApiResponse;
+import ma.codexa.goldyara.common.PageResponse;
 import ma.codexa.goldyara.dto.CustomOrderDTO;
+import ma.codexa.goldyara.dto.CustomOrderStatsDTO;
 import ma.codexa.goldyara.entity.CustomOrder;
 import ma.codexa.goldyara.mapper.CustomOrderMapper;
 import ma.codexa.goldyara.service.CustomOrderService;
 import ma.codexa.goldyara.service.FileStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -19,6 +28,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/custom-orders")
+@Validated
 public class CustomOrderController {
 
     @Autowired
@@ -33,9 +43,27 @@ public class CustomOrderController {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @GetMapping
-    public ResponseEntity<List<CustomOrderDTO>> getAllCustomOrders() {
-        List<CustomOrder> customOrders = customOrderService.getAllCustomOrders();
-        return ResponseEntity.ok(customOrderMapper.toDTOList(customOrders));
+    public ResponseEntity<ApiResponse<PageResponse<CustomOrderDTO>>> getAllCustomOrders(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword) {
+        Sort sort = "ASC".equalsIgnoreCase(sortDir)
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Page<CustomOrder> customOrderPage = customOrderService.getCustomOrdersPage(
+                status, keyword, PageRequest.of(page, size, sort));
+        List<CustomOrderDTO> dtos = customOrderMapper.toDTOList(customOrderPage.getContent());
+        PageResponse<CustomOrderDTO> pageResponse = PageResponse.of(
+                dtos, customOrderPage.getNumber(), customOrderPage.getSize(), customOrderPage.getTotalElements());
+        return ResponseEntity.ok(ApiResponse.success(pageResponse));
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<ApiResponse<CustomOrderStatsDTO>> getStats() {
+        return ResponseEntity.ok(ApiResponse.success(customOrderService.getCustomOrderStats()));
     }
 
     @GetMapping("/{id}")

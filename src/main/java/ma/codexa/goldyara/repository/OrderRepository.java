@@ -1,6 +1,8 @@
 package ma.codexa.goldyara.repository;
 
 import ma.codexa.goldyara.entity.Order;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -22,6 +24,24 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("SELECT o FROM Order o ORDER BY o.createdAt DESC")
     List<Order> findAllWithDetails();
 
+    @EntityGraph(attributePaths = {"customer", "orderItems", "orderItems.product"})
+    @Query(value = "SELECT o FROM Order o",
+           countQuery = "SELECT COUNT(o) FROM Order o")
+    Page<Order> findAllWithDetails(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"customer", "orderItems", "orderItems.product"})
+    @Query(value = "SELECT o FROM Order o WHERE " +
+           "(:status IS NULL OR o.status = :status) AND " +
+           "(:applyKeywordFilter = FALSE OR LOWER(o.customer.fullName) LIKE :keywordPattern OR o.customer.phone LIKE :keywordPattern OR LOWER(o.orderNumber) LIKE :keywordPattern)",
+           countQuery = "SELECT COUNT(o) FROM Order o WHERE " +
+           "(:status IS NULL OR o.status = :status) AND " +
+           "(:applyKeywordFilter = FALSE OR LOWER(o.customer.fullName) LIKE :keywordPattern OR o.customer.phone LIKE :keywordPattern OR LOWER(o.orderNumber) LIKE :keywordPattern)")
+    Page<Order> findWithFilters(
+            @Param("status") String status,
+            @Param("applyKeywordFilter") boolean applyKeywordFilter,
+            @Param("keywordPattern") String keywordPattern,
+            Pageable pageable);
+
     /** Idem {@link #findAllWithDetails()} — une seule collection bag graphee. */
     @EntityGraph(attributePaths = {"customer", "orderItems", "orderItems.product"})
     @Query("SELECT o FROM Order o WHERE o.id = :id")
@@ -35,4 +55,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @EntityGraph(attributePaths = {"customer", "orderItems"})
     List<Order> findByCustomerId(Long customerId);
+
+    long countByStatus(String status);
 }

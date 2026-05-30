@@ -3,15 +3,22 @@ package ma.codexa.goldyara.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.goldyara.common.ApiResponse;
+import ma.codexa.goldyara.common.PageResponse;
 import ma.codexa.goldyara.dto.OrderDTO;
 import ma.codexa.goldyara.entity.Order;
 import ma.codexa.goldyara.mapper.OrderMapper;
 import ma.codexa.goldyara.mapper.ProductMapper;
 import ma.codexa.goldyara.service.OrderService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,6 +27,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/orders")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "Orders", description = "API de gestion des commandes")
 public class OrderController {
 
@@ -27,14 +35,25 @@ public class OrderController {
     private final OrderMapper orderMapper;
     private final ProductMapper productMapper;
 
-    @Operation(summary = "Récupérer toutes les commandes")
+    @Operation(summary = "Récupérer les commandes (paginé)")
     @GetMapping
-    public ResponseEntity<ApiResponse<List<OrderDTO>>> getAllOrders() {
-        List<Order> orders = orderService.getAllOrders();
-        List<OrderDTO> orderDTOs = orders.stream()
+    public ResponseEntity<ApiResponse<PageResponse<OrderDTO>>> getAllOrders(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword) {
+        Sort sort = "ASC".equalsIgnoreCase(sortDir)
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Page<Order> orderPage = orderService.getOrdersPage(status, keyword, PageRequest.of(page, size, sort));
+        List<OrderDTO> orderDTOs = orderPage.getContent().stream()
                 .map(order -> orderMapper.toDTO(order, productMapper))
                 .toList();
-        return ResponseEntity.ok(ApiResponse.success(orderDTOs));
+        PageResponse<OrderDTO> pageResponse = PageResponse.of(
+                orderDTOs, orderPage.getNumber(), orderPage.getSize(), orderPage.getTotalElements());
+        return ResponseEntity.ok(ApiResponse.success(pageResponse));
     }
 
     @Operation(summary = "Récupérer une commande par ID")

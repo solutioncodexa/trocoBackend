@@ -8,6 +8,8 @@ import ma.codexa.goldyara.entity.AutoPromoRule;
 import ma.codexa.goldyara.entity.PromoCode;
 import ma.codexa.goldyara.repository.AutoPromoRuleRepository;
 import ma.codexa.goldyara.repository.PromoCodeRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,24 @@ public class PromoCodeService {
     @Transactional(readOnly = true)
     public List<PromoCodeDTO> getAllPromoCodes() {
         return promoCodeRepository.findAll().stream().map(this::toDTO).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PromoCodeDTO> getPromoCodesPage(String keyword, Pageable pageable) {
+        boolean applyKeywordFilter = keyword != null && !keyword.isBlank();
+        String keywordPattern = applyKeywordFilter ? "%" + keyword.trim().toLowerCase() + "%" : "%";
+        return promoCodeRepository.findWithFilters(applyKeywordFilter, keywordPattern, pageable)
+                .map(this::toDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public PromoCodeStatsDTO getPromoCodeStats() {
+        return new PromoCodeStatsDTO(
+                promoCodeRepository.count(),
+                promoCodeRepository.countByIsActiveTrue(),
+                promoCodeRepository.countByType("single_use"),
+                promoCodeRepository.countByType("reusable")
+        );
     }
 
     @Transactional(readOnly = true)

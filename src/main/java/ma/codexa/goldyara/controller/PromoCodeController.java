@@ -3,12 +3,19 @@ package ma.codexa.goldyara.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.goldyara.common.ApiResponse;
+import ma.codexa.goldyara.common.PageResponse;
 import ma.codexa.goldyara.dto.*;
 import ma.codexa.goldyara.service.PromoCodeService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,6 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/promo-codes")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "Promo Codes", description = "Gestion des codes promo et règles automatiques")
 public class PromoCodeController {
 
@@ -25,10 +33,30 @@ public class PromoCodeController {
     // Admin: Promo Codes CRUD
     // ═══════════════════════════════════════════════════════════
 
-    @Operation(summary = "Lister tous les codes promo")
+    @Operation(summary = "Lister les codes promo (paginé)")
     @GetMapping
-    public ResponseEntity<ApiResponse<List<PromoCodeDTO>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(promoCodeService.getAllPromoCodes()));
+    public ResponseEntity<ApiResponse<PageResponse<PromoCodeDTO>>> getAll(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir,
+            @RequestParam(required = false) String keyword) {
+        Sort sort = "ASC".equalsIgnoreCase(sortDir)
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Page<PromoCodeDTO> promoPage = promoCodeService.getPromoCodesPage(keyword, PageRequest.of(page, size, sort));
+        PageResponse<PromoCodeDTO> pageResponse = PageResponse.of(
+                promoPage.getContent(),
+                promoPage.getNumber(),
+                promoPage.getSize(),
+                promoPage.getTotalElements());
+        return ResponseEntity.ok(ApiResponse.success(pageResponse));
+    }
+
+    @Operation(summary = "Statistiques des codes promo")
+    @GetMapping("/stats")
+    public ResponseEntity<ApiResponse<PromoCodeStatsDTO>> getStats() {
+        return ResponseEntity.ok(ApiResponse.success(promoCodeService.getPromoCodeStats()));
     }
 
     @Operation(summary = "Récupérer un code promo par ID")
