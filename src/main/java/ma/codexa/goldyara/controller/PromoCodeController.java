@@ -35,7 +35,7 @@ public class PromoCodeController {
 
     @Operation(summary = "Lister les codes promo (paginé)")
     @GetMapping
-    public ResponseEntity<ApiResponse<PageResponse<PromoCodeDTO>>> getAll(
+    public ResponseEntity<ApiResponse<PageResponse<PromoCodeListItemDTO>>> getAll(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -44,8 +44,8 @@ public class PromoCodeController {
         Sort sort = "ASC".equalsIgnoreCase(sortDir)
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
-        Page<PromoCodeDTO> promoPage = promoCodeService.getPromoCodesPage(keyword, PageRequest.of(page, size, sort));
-        PageResponse<PromoCodeDTO> pageResponse = PageResponse.of(
+        Page<PromoCodeListItemDTO> promoPage = promoCodeService.getPromoCodesPage(keyword, PageRequest.of(page, size, sort));
+        PageResponse<PromoCodeListItemDTO> pageResponse = PageResponse.of(
                 promoPage.getContent(),
                 promoPage.getNumber(),
                 promoPage.getSize(),
@@ -59,8 +59,14 @@ public class PromoCodeController {
         return ResponseEntity.ok(ApiResponse.success(promoCodeService.getPromoCodeStats()));
     }
 
+    @Operation(summary = "Générer un code aléatoire unique")
+    @GetMapping("/generate")
+    public ResponseEntity<ApiResponse<String>> generateCode() {
+        return ResponseEntity.ok(ApiResponse.success(promoCodeService.generateCode()));
+    }
+
     @Operation(summary = "Récupérer un code promo par ID")
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public ResponseEntity<ApiResponse<PromoCodeDTO>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(promoCodeService.getPromoCodeById(id)));
     }
@@ -74,7 +80,7 @@ public class PromoCodeController {
     }
 
     @Operation(summary = "Modifier un code promo")
-    @PutMapping("/{id}")
+    @PutMapping("/{id:\\d+}")
     public ResponseEntity<ApiResponse<PromoCodeDTO>> update(
             @PathVariable Long id,
             @Valid @RequestBody CreatePromoCodeRequest req) {
@@ -82,24 +88,18 @@ public class PromoCodeController {
     }
 
     @Operation(summary = "Supprimer un code promo")
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         promoCodeService.deletePromoCode(id);
         return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Activer/désactiver un code promo")
-    @PatchMapping("/{id}/toggle")
+    @PatchMapping("/{id:\\d+}/toggle")
     public ResponseEntity<ApiResponse<PromoCodeDTO>> toggleActive(
             @PathVariable Long id,
             @RequestParam boolean isActive) {
         return ResponseEntity.ok(ApiResponse.success(promoCodeService.toggleActive(id, isActive)));
-    }
-
-    @Operation(summary = "Générer un code aléatoire unique")
-    @GetMapping("/generate")
-    public ResponseEntity<ApiResponse<String>> generateCode() {
-        return ResponseEntity.ok(ApiResponse.success(promoCodeService.generateCode()));
     }
 
     // ═══════════════════════════════════════════════════════════

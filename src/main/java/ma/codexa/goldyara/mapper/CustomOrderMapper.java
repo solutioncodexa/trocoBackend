@@ -1,6 +1,7 @@
 package ma.codexa.goldyara.mapper;
 
 import ma.codexa.goldyara.dto.CustomOrderDTO;
+import ma.codexa.goldyara.dto.CustomOrderListItemDTO;
 import ma.codexa.goldyara.entity.CustomOrder;
 import org.mapstruct.*;
 import org.mapstruct.factory.Mappers;
@@ -27,6 +28,19 @@ public interface CustomOrderMapper {
     CustomOrderDTO toDTO(CustomOrder customOrder);
 
     List<CustomOrderDTO> toDTOList(List<CustomOrder> customOrders);
+
+    @Mapping(target = "id", expression = "java(customOrder.getId() != null ? customOrder.getId().toString() : null)")
+    @Mapping(target = "imageUrl", source = "referenceImages", qualifiedByName = "firstImageUrl")
+    @Mapping(target = "type", source = "productType", qualifiedByName = "productTypeToLowercase")
+    @Mapping(target = "weight", source = "weightEstimation")
+    @Mapping(target = "style", source = "style", qualifiedByName = "styleToCategory")
+    @Mapping(target = "status", source = "status", qualifiedByName = "statusToFrontend")
+    @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
+    @Mapping(target = "description", source = "description", qualifiedByName = "truncateDescription")
+    @Mapping(target = "customer", source = "customer", qualifiedByName = "customerSummaryForList")
+    CustomOrderListItemDTO toListItemDTO(CustomOrder customOrder);
+
+    List<CustomOrderListItemDTO> toListItemDTOList(List<CustomOrder> customOrders);
 
     // Méthodes de conversion nommées utilisant MapperUtils
     @Named("firstImageUrl")
@@ -57,5 +71,29 @@ public interface CustomOrderMapper {
     @Named("dateToString")
     default String dateToString(java.time.LocalDateTime dateTime) {
         return MapperUtils.dateToString(dateTime);
+    }
+
+    @Named("truncateDescription")
+    default String truncateDescription(String description) {
+        if (description == null) {
+            return "";
+        }
+        if (description.length() <= 160) {
+            return description;
+        }
+        return description.substring(0, 160).trim() + "…";
+    }
+
+    @Named("customerSummaryForList")
+    default ma.codexa.goldyara.dto.CustomerSummaryDTO customerSummaryForList(
+            ma.codexa.goldyara.entity.Customer customer) {
+        if (customer == null) {
+            return null;
+        }
+        return new ma.codexa.goldyara.dto.CustomerSummaryDTO(
+                customer.getFullName(),
+                customer.getPhone(),
+                null
+        );
     }
 }

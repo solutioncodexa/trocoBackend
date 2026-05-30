@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import ma.codexa.goldyara.common.ApiResponse;
 import ma.codexa.goldyara.common.PageResponse;
 import ma.codexa.goldyara.dto.OrderDTO;
+import ma.codexa.goldyara.dto.OrderListItemDTO;
 import ma.codexa.goldyara.entity.Order;
 import ma.codexa.goldyara.mapper.OrderMapper;
 import ma.codexa.goldyara.mapper.ProductMapper;
@@ -37,7 +38,7 @@ public class OrderController {
 
     @Operation(summary = "Récupérer les commandes (paginé)")
     @GetMapping
-    public ResponseEntity<ApiResponse<PageResponse<OrderDTO>>> getAllOrders(
+    public ResponseEntity<ApiResponse<PageResponse<OrderListItemDTO>>> getAllOrders(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -48,16 +49,16 @@ public class OrderController {
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
         Page<Order> orderPage = orderService.getOrdersPage(status, keyword, PageRequest.of(page, size, sort));
-        List<OrderDTO> orderDTOs = orderPage.getContent().stream()
-                .map(order -> orderMapper.toDTO(order, productMapper))
+        List<OrderListItemDTO> orderDTOs = orderPage.getContent().stream()
+                .map(orderMapper::toListItemDTO)
                 .toList();
-        PageResponse<OrderDTO> pageResponse = PageResponse.of(
+        PageResponse<OrderListItemDTO> pageResponse = PageResponse.of(
                 orderDTOs, orderPage.getNumber(), orderPage.getSize(), orderPage.getTotalElements());
         return ResponseEntity.ok(ApiResponse.success(pageResponse));
     }
 
     @Operation(summary = "Récupérer une commande par ID")
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public ResponseEntity<ApiResponse<OrderDTO>> getOrderById(@PathVariable Long id) {
         return orderService.getOrderById(id)
                 .map(order -> orderMapper.toDTO(order, productMapper))
@@ -78,11 +79,11 @@ public class OrderController {
 
     @Operation(summary = "Récupérer les commandes par statut")
     @GetMapping("/status/{status}")
-    public ResponseEntity<ApiResponse<List<OrderDTO>>> getOrdersByStatus(@PathVariable String status) {
+    public ResponseEntity<ApiResponse<List<OrderListItemDTO>>> getOrdersByStatus(@PathVariable String status) {
         String backendStatus = status.toUpperCase();
         List<Order> orders = orderService.getOrdersByStatus(backendStatus);
-        List<OrderDTO> orderDTOs = orders.stream()
-                .map(order -> orderMapper.toDTO(order, productMapper))
+        List<OrderListItemDTO> orderDTOs = orders.stream()
+                .map(orderMapper::toListItemDTO)
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(orderDTOs));
     }
@@ -96,7 +97,7 @@ public class OrderController {
     }
 
     @Operation(summary = "Mettre à jour le statut d'une commande")
-    @PatchMapping("/{id}/status")
+    @PatchMapping("/{id:\\d+}/status")
     public ResponseEntity<ApiResponse<OrderDTO>> updateOrderStatus(
             @PathVariable Long id,
             @RequestBody Map<String, String> statusUpdate) {
@@ -107,7 +108,7 @@ public class OrderController {
     }
 
     @Operation(summary = "Supprimer une commande")
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public ResponseEntity<Void> deleteOrder(@PathVariable Long id) {
         orderService.deleteOrder(id);
         return ResponseEntity.noContent().build();

@@ -1,6 +1,7 @@
 package ma.codexa.goldyara.mapper;
 
 import ma.codexa.goldyara.dto.CustomerDTO;
+import ma.codexa.goldyara.dto.CustomerSummaryDTO;
 import ma.codexa.goldyara.entity.Customer;
 import org.mapstruct.*;
 import org.mapstruct.factory.Mappers;
@@ -13,4 +14,11 @@ public interface CustomerMapper {
     CustomerDTO toDTO(Customer customer);
 
     Customer toEntity(CustomerDTO customerDTO);
+
+    @Named("toSummary")
+    @Mapping(target = "city", ignore = true)
+    CustomerSummaryDTO toSummaryDTO(Customer customer);
+
+    @Named("toSummaryWithCity")
+    CustomerSummaryDTO toSummaryWithCityDTO(Customer customer);
 }

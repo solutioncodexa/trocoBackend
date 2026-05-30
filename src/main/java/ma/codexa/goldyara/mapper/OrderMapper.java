@@ -30,6 +30,39 @@ public interface OrderMapper {
         return toDTO(order, Mappers.getMapper(ProductMapper.class));
     }
 
+    @Mapping(target = "id", expression = "java(order.getId() != null ? order.getId().toString() : null)")
+    @Mapping(target = "total", source = "totalAmount")
+    @Mapping(target = "status", source = "status", qualifiedByName = "statusToLowercase")
+    @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
+    @Mapping(target = "itemCount", ignore = true)
+    @Mapping(target = "previewProductName", ignore = true)
+    @Mapping(target = "previewProductImage", ignore = true)
+    @Mapping(target = "customer", ignore = true)
+    OrderListItemDTO toListItemDTO(Order order);
+
+    List<OrderListItemDTO> toListItemDTOList(List<Order> orders);
+
+    @AfterMapping
+    default void mapListItemPreview(@MappingTarget OrderListItemDTO dto, Order order) {
+        if (order.getCustomer() != null) {
+            dto.setCustomer(new CustomerSummaryDTO(
+                    order.getCustomer().getFullName(),
+                    order.getCustomer().getPhone(),
+                    order.getCustomer().getCity()
+            ));
+        }
+        if (order.getOrderItems() == null || order.getOrderItems().isEmpty()) {
+            dto.setItemCount(0);
+            return;
+        }
+        dto.setItemCount(order.getOrderItems().size());
+        var firstItem = order.getOrderItems().get(0);
+        if (firstItem.getProduct() != null) {
+            dto.setPreviewProductName(firstItem.getProduct().getName());
+            dto.setPreviewProductImage(MapperUtils.firstImageUrl(firstItem.getProduct().getImages()));
+        }
+    }
+
     @AfterMapping
     default void mapOrderItems(@MappingTarget OrderDTO dto, Order order, @Context ProductMapper productMapper) {
         if (order.getOrderItems() != null && !order.getOrderItems().isEmpty()) {

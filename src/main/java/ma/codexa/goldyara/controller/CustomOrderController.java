@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Min;
 import ma.codexa.goldyara.common.ApiResponse;
 import ma.codexa.goldyara.common.PageResponse;
 import ma.codexa.goldyara.dto.CustomOrderDTO;
+import ma.codexa.goldyara.dto.CustomOrderListItemDTO;
 import ma.codexa.goldyara.dto.CustomOrderStatsDTO;
 import ma.codexa.goldyara.entity.CustomOrder;
 import ma.codexa.goldyara.mapper.CustomOrderMapper;
@@ -43,7 +44,7 @@ public class CustomOrderController {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @GetMapping
-    public ResponseEntity<ApiResponse<PageResponse<CustomOrderDTO>>> getAllCustomOrders(
+    public ResponseEntity<ApiResponse<PageResponse<CustomOrderListItemDTO>>> getAllCustomOrders(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -55,8 +56,8 @@ public class CustomOrderController {
                 : Sort.by(sortBy).descending();
         Page<CustomOrder> customOrderPage = customOrderService.getCustomOrdersPage(
                 status, keyword, PageRequest.of(page, size, sort));
-        List<CustomOrderDTO> dtos = customOrderMapper.toDTOList(customOrderPage.getContent());
-        PageResponse<CustomOrderDTO> pageResponse = PageResponse.of(
+        List<CustomOrderListItemDTO> dtos = customOrderMapper.toListItemDTOList(customOrderPage.getContent());
+        PageResponse<CustomOrderListItemDTO> pageResponse = PageResponse.of(
                 dtos, customOrderPage.getNumber(), customOrderPage.getSize(), customOrderPage.getTotalElements());
         return ResponseEntity.ok(ApiResponse.success(pageResponse));
     }
@@ -66,20 +67,20 @@ public class CustomOrderController {
         return ResponseEntity.ok(ApiResponse.success(customOrderService.getCustomOrderStats()));
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<CustomOrderDTO> getCustomOrderById(@PathVariable Long id) {
-        return customOrderService.getCustomOrderById(id)
-                .map(customOrderMapper::toDTO)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
     @GetMapping("/status/{status}")
     public ResponseEntity<List<CustomOrderDTO>> getCustomOrdersByStatus(@PathVariable String status) {
         // Convert frontend status to backend status
         String backendStatus = status.toUpperCase();
         List<CustomOrder> customOrders = customOrderService.getCustomOrdersByStatus(backendStatus);
         return ResponseEntity.ok(customOrderMapper.toDTOList(customOrders));
+    }
+
+    @GetMapping("/{id:\\d+}")
+    public ResponseEntity<CustomOrderDTO> getCustomOrderById(@PathVariable Long id) {
+        return customOrderService.getCustomOrderById(id)
+                .map(customOrderMapper::toDTO)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -116,7 +117,7 @@ public class CustomOrderController {
         }
     }
 
-    @PatchMapping("/{id}/status")
+    @PatchMapping("/{id:\\d+}/status")
     public ResponseEntity<CustomOrderDTO> updateCustomOrderStatus(
             @PathVariable Long id,
             @RequestBody Map<String, String> statusUpdate) {
@@ -131,7 +132,7 @@ public class CustomOrderController {
         }
     }
 
-    @PatchMapping("/{id}/price")
+    @PatchMapping("/{id:\\d+}/price")
     public ResponseEntity<CustomOrderDTO> updateEstimatedPrice(
             @PathVariable Long id,
             @RequestBody Map<String, Double> priceUpdate) {
@@ -144,7 +145,7 @@ public class CustomOrderController {
         }
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public ResponseEntity<Void> deleteCustomOrder(@PathVariable Long id) {
         try {
             customOrderService.deleteCustomOrder(id);

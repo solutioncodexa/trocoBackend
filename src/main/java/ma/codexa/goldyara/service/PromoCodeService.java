@@ -40,11 +40,11 @@ public class PromoCodeService {
     }
 
     @Transactional(readOnly = true)
-    public Page<PromoCodeDTO> getPromoCodesPage(String keyword, Pageable pageable) {
+    public Page<PromoCodeListItemDTO> getPromoCodesPage(String keyword, Pageable pageable) {
         boolean applyKeywordFilter = keyword != null && !keyword.isBlank();
         String keywordPattern = applyKeywordFilter ? "%" + keyword.trim().toLowerCase() + "%" : "%";
         return promoCodeRepository.findWithFilters(applyKeywordFilter, keywordPattern, pageable)
-                .map(this::toDTO);
+                .map(this::toListItemDTO);
     }
 
     @Transactional(readOnly = true)
@@ -307,6 +307,21 @@ public class PromoCodeService {
         dto.setIsActive(pc.getIsActive());
         dto.setExpiresAt(pc.getExpiresAt() != null ? pc.getExpiresAt().toString() : null);
         dto.setCreatedAt(pc.getCreatedAt() != null ? pc.getCreatedAt().toString() : null);
+        return dto;
+    }
+
+    private PromoCodeListItemDTO toListItemDTO(PromoCode pc) {
+        PromoCodeListItemDTO dto = new PromoCodeListItemDTO();
+        dto.setId(pc.getId());
+        dto.setCode(pc.getCode());
+        dto.setType(pc.getType());
+        dto.setDiscountType(pc.getDiscountType());
+        dto.setDiscountValue(pc.getDiscountValue());
+        dto.setMinOrderAmount(pc.getMinOrderAmount());
+        dto.setMaxUses(pc.getMaxUses());
+        dto.setCurrentUses(pc.getCurrentUses());
+        dto.setIsActive(pc.getIsActive());
+        dto.setExpiresAt(pc.getExpiresAt() != null ? pc.getExpiresAt().toString() : null);
         return dto;
     }
 
