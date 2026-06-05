@@ -530,6 +530,7 @@ public class ProductController {
         dto.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 1);
         dto.setMarginGain(request.getMarginGain());
         dto.setBadges(request.getBadges());
+        dto.setShowWeight(request.getShowWeight() != null ? request.getShowWeight() : true);
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
             dto.setVariants(request.getVariants().stream().map(v -> {
                 ma.codexa.goldyara.dto.ProductVariantDTO vd = new ma.codexa.goldyara.dto.ProductVariantDTO();

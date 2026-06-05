@@ -6,9 +6,11 @@ import ma.codexa.goldyara.common.exception.ResourceNotFoundException;
 import ma.codexa.goldyara.dto.request.ProductVariantRequest;
 import ma.codexa.goldyara.entity.Image;
 import ma.codexa.goldyara.entity.Product;
-import ma.codexa.goldyara.mapper.MapperUtils;
 import ma.codexa.goldyara.repository.ProductRepository;
 import org.hibernate.Hibernate;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ public class ProductService {
     private final ProductVariantService productVariantService;
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "products", key = "#pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort")
     public Page<Product> getAllProducts(Pageable pageable) {
         log.debug("Récupération de tous les produits avec pagination");
         Page<Product> page = productRepository.findAllWithImages(pageable);
@@ -41,6 +44,7 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "productById", key = "#id")
     public Optional<Product> getProductById(Long id) {
         return productRepository.findByIdWithImages(id).map(p -> {
             initializeVariants(p);
@@ -52,6 +56,10 @@ public class ProductService {
         return createProduct(product, null);
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "products", allEntries = true),
+        @CacheEvict(value = "productById", allEntries = true)
+    })
     public Product createProduct(Product product, List<ProductVariantRequest> variantRequests) {
         if (product.getMarginGain() == null) {
             product.setMarginGain(500.0);
@@ -76,9 +84,12 @@ public class ProductService {
         return updateProduct(id, productDetails, null);
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "products", allEntries = true),
+        @CacheEvict(value = "productById", key = "#id")
+    })
     public Product updateProduct(Long id, Product productDetails, List<ProductVariantRequest> variantRequests) {
-        Product product = productRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Produit", id));
+        Product product = loadProductForUpdate(id);
 
         product.setName(productDetails.getName());
         product.setDescription(productDetails.getDescription());
@@ -108,6 +119,7 @@ public class ProductService {
         product.setBadges(productDetails.getBadges());
         product.setCollection(productDetails.getCollection());
         product.setAvailableSizes(productDetails.getAvailableSizes());
+        product.setShowWeight(productDetails.isShowWeight());
 
         // Remplacer les images par celles du DTO (nouvelles entités Image à persister)
         product.getImages().clear();
@@ -126,26 +138,31 @@ public class ProductService {
         return reloaded;
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "products", allEntries = true),
+        @CacheEvict(value = "productById", key = "#id")
+    })
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Produit", id));
-        productRepository.delete(product);
-        log.info("product_deleted productId={}", id);
+        product.setDeleted(true);
+        productRepository.save(product);
+        log.info("product_soft_deleted productId={}", id);
     }
 
     @Transactional(readOnly = true)
     public List<Product> getProductsByStyle(String style) {
-        return productRepository.findByStyle(style);
+        return productRepository.findByStyleAndDeletedFalse(style);
     }
 
     @Transactional(readOnly = true)
     public List<Product> getProductsByGoldType(String goldType) {
-        return productRepository.findByGoldType(goldType);
+        return productRepository.findByGoldTypeAndDeletedFalse(goldType);
     }
 
     @Transactional(readOnly = true)
     public List<Product> getProductsByCategory(Long categoryId) {
-        return productRepository.findByCategoryId(categoryId);
+        return productRepository.findByCategoryIdAndDeletedFalse(categoryId);
     }
 
     @Transactional(readOnly = true)
@@ -221,6 +238,17 @@ public class ProductService {
         if (product != null) {
             Hibernate.initialize(product.getVariants());
         }
+    }
+
+    /** Produit + images + variantes managed dans la même session (évite merge détaché au save). */
+    private Product loadProductForUpdate(Long id) {
+        Product product = productRepository.findByIdWithImages(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Produit", id));
+        if (product.isDeleted()) {
+            throw new ResourceNotFoundException("Produit", id);
+        }
+        initializeVariants(product);
+        return product;
     }
 
     /**

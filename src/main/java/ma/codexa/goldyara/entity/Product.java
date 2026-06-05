@@ -79,6 +79,12 @@ public class Product {
     @OrderBy("displayOrder ASC")
     private List<ProductVariant> variants = new ArrayList<>();
 
+    @Column(nullable = false)
+    private boolean deleted = false;
+
+    @Column(name = "show_weight", nullable = false)
+    private boolean showWeight = true;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

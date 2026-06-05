@@ -23,7 +23,9 @@ public class CacheConfig {
             "heroCategories",
             "collections",
             "goldPriceSetting",
-            "goldPriceHistory"
+            "goldPriceHistory",
+            "products",
+            "productById"
     );
 
     @Bean

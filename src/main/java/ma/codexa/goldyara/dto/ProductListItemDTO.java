@@ -27,4 +27,5 @@ public class ProductListItemDTO {
     private Integer stockQuantity;
     private List<String> badges;
     private String createdAt;
+    private Boolean showWeight;
 }

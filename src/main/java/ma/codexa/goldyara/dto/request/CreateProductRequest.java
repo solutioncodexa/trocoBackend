@@ -55,7 +55,10 @@ public class CreateProductRequest {
     @DecimalMin(value = "0.0", inclusive = true, message = "La marge ne peut pas être négative")
     private Double marginGain = 500.0;
 
-    private List<@Pattern(regexp = "new|bestseller|promo", 
+    private List<@Pattern(regexp = "new|bestseller|promo",
                          message = "Les badges valides sont: new, bestseller, promo") String> badges;
+
+    /** Afficher le poids sur la fiche produit (par défaut : true). */
+    private Boolean showWeight = true;
 }
 

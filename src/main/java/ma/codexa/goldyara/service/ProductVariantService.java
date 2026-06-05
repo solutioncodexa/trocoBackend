@@ -8,10 +8,13 @@ import ma.codexa.goldyara.entity.ProductVariant;
 import ma.codexa.goldyara.mapper.MapperUtils;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -43,47 +46,38 @@ public class ProductVariantService {
     }
 
     /**
-     * Remplace les variantes du produit à partir de la requête et synchronise poids/prix racine.
+     * Met à jour les variantes en place (entités managed) et synchronise poids/prix racine.
      */
     public void applyVariants(Product product, List<ProductVariantRequest> requests, boolean isPromo) {
         List<ProductVariantRequest> source = (requests != null && !requests.isEmpty())
                 ? requests
                 : buildSingleRequestFromProduct(product, isPromo);
 
-        product.getVariants().clear();
+        Map<Long, ProductVariant> existingById = product.getVariants().stream()
+                .filter(v -> v.getId() != null)
+                .collect(Collectors.toMap(ProductVariant::getId, Function.identity()));
+
+        Set<Long> keptIds = new HashSet<>();
         int order = 0;
         boolean hasDefault = source.stream().anyMatch(r -> Boolean.TRUE.equals(r.getIsDefault()));
 
         for (ProductVariantRequest req : source) {
-            ProductVariant variant = new ProductVariant();
-            if (req.getId() != null && !req.getId().isBlank()) {
-                try {
-                    variant.setId(Long.parseLong(req.getId()));
-                } catch (NumberFormatException ignored) {
-                    variant.setId(null);
-                }
-            }
-            double margin = req.getMarginGain() != null ? req.getMarginGain() : 500.0;
-            variant.setMarginGain(margin);
-            variant.setWeight(req.getWeight());
-            variant.setDisplayOrder(req.getDisplayOrder() != null ? req.getDisplayOrder() : order);
-            variant.setLabel(req.getLabel() != null && !req.getLabel().isBlank()
-                    ? req.getLabel().trim()
-                    : formatWeightLabel(req.getWeight()));
+            Long variantId = parseVariantId(req.getId());
+            ProductVariant variant;
 
-            if (isPromo && req.getPrice() != null && req.getPrice() > 0) {
-                variant.setPrice(req.getPrice());
-                variant.setOriginalPrice(req.getOriginalPrice());
+            if (variantId != null && existingById.containsKey(variantId)) {
+                variant = existingById.get(variantId);
+                keptIds.add(variantId);
             } else {
-                variant.setPrice(goldPriceSettingService.calculatePrice(req.getWeight(), margin));
-                variant.setOriginalPrice(null);
+                variant = new ProductVariant();
+                product.addVariant(variant);
             }
 
-            boolean isDefault = hasDefault ? Boolean.TRUE.equals(req.getIsDefault()) : (order == 0);
-            variant.setIsDefault(isDefault);
-            product.addVariant(variant);
+            applyRequestToVariant(variant, req, isPromo, order, hasDefault);
             order++;
         }
+
+        product.getVariants().removeIf(v -> v.getId() != null && !keptIds.contains(v.getId()));
 
         ensureSingleDefault(product);
         syncProductFromDefaultVariant(product);
@@ -153,6 +147,13 @@ public class ProductVariantService {
 
     private List<ProductVariantRequest> buildSingleRequestFromProduct(Product product, boolean isPromo) {
         ProductVariantRequest req = new ProductVariantRequest();
+        ProductVariant existing = product.getVariants().stream()
+                .filter(v -> Boolean.TRUE.equals(v.getIsDefault()))
+                .findFirst()
+                .orElse(product.getVariants().isEmpty() ? null : product.getVariants().get(0));
+        if (existing != null && existing.getId() != null) {
+            req.setId(existing.getId().toString());
+        }
         req.setWeight(product.getWeight());
         req.setMarginGain(product.getMarginGain());
         req.setPrice(product.getPrice());
@@ -160,6 +161,43 @@ public class ProductVariantService {
         req.setIsDefault(true);
         req.setDisplayOrder(0);
         return List.of(req);
+    }
+
+    private void applyRequestToVariant(
+            ProductVariant variant,
+            ProductVariantRequest req,
+            boolean isPromo,
+            int order,
+            boolean hasDefault) {
+        double margin = req.getMarginGain() != null ? req.getMarginGain() : 500.0;
+        variant.setMarginGain(margin);
+        variant.setWeight(req.getWeight());
+        variant.setDisplayOrder(req.getDisplayOrder() != null ? req.getDisplayOrder() : order);
+        variant.setLabel(req.getLabel() != null && !req.getLabel().isBlank()
+                ? req.getLabel().trim()
+                : formatWeightLabel(req.getWeight()));
+
+        if (isPromo && req.getPrice() != null && req.getPrice() > 0) {
+            variant.setPrice(req.getPrice());
+            variant.setOriginalPrice(req.getOriginalPrice());
+        } else {
+            variant.setPrice(goldPriceSettingService.calculatePrice(req.getWeight(), margin));
+            variant.setOriginalPrice(null);
+        }
+
+        boolean isDefault = hasDefault ? Boolean.TRUE.equals(req.getIsDefault()) : (order == 0);
+        variant.setIsDefault(isDefault);
+    }
+
+    private Long parseVariantId(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(id);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private void ensureSingleDefault(Product product) {
@@ -195,7 +233,11 @@ public class ProductVariantService {
         if (weight == Math.floor(weight)) {
             return String.format("%.0f g", weight);
         }
-        return String.format("%.1f g", weight);
+        double rounded1 = Math.round(weight * 10.0) / 10.0;
+        if (rounded1 == weight) {
+            return String.format("%.1f g", weight);
+        }
+        return String.format("%.2f g", weight);
     }
 
     private double round2(double value) {

@@ -6,6 +6,7 @@ import ma.codexa.goldyara.observability.ApiErrorMdc;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -184,6 +185,23 @@ public class GlobalExceptionHandler {
             problemDetail.setProperty("path", request.getDescription(false).replace("uri=", ""));
 
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problemDetail);
+        }
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetail> handleOptimisticLock(
+            ObjectOptimisticLockingFailureException ex, WebRequest request) {
+        try (ApiErrorMdc ignored = ApiErrorMdc.start(request, HttpStatus.CONFLICT, "optimistic_lock")) {
+            log.warn("optimistic_lock_conflict entity={}", ex.getMessage());
+
+            ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                    HttpStatus.CONFLICT,
+                    "Le produit a été modifié entre-temps. Veuillez recharger et réessayer.");
+            problemDetail.setTitle("Conflit de mise à jour");
+            problemDetail.setProperty("timestamp", LocalDateTime.now());
+            problemDetail.setProperty("path", request.getDescription(false).replace("uri=", ""));
+
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(problemDetail);
         }
     }
 

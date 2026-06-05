@@ -23,6 +23,8 @@ public interface ProductMapper {
     @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToList")
     @Mapping(target = "inStock", expression = "java(product.isInStock())")
     @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
+    @Mapping(target = "deleted", source = "deleted")
+    @Mapping(target = "showWeight", source = "showWeight")
     ProductDetailDTO toDetailDTO(Product product);
 
     @Mapping(target = "id", expression = "java(product.getId() != null ? product.getId().toString() : null)")
@@ -34,6 +36,7 @@ public interface ProductMapper {
     @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToList")
     @Mapping(target = "inStock", expression = "java(product.isInStock())")
     @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
+    @Mapping(target = "showWeight", source = "showWeight")
     ProductListItemDTO toListItemDTO(Product product);
 
     List<ProductListItemDTO> toListItemDTOList(List<Product> products);
@@ -49,6 +52,8 @@ public interface ProductMapper {
     @Mapping(target = "category", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "deleted", ignore = true)
+    @Mapping(target = "showWeight", source = "showWeight")
     Product toEntity(ProductDetailDTO dto);
 
     List<ProductDetailDTO> toDetailDTOList(List<Product> products);

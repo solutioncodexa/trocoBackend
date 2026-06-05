@@ -30,6 +30,8 @@ public class ProductDetailDTO {
     private Double marginGain;
     private List<String> badges;
     private String createdAt;
+    private Boolean deleted;
+    private Boolean showWeight;
     /** Options de poids / prix (au moins une variante ; poids/prix racine = variante par défaut) */
     private List<ProductVariantDTO> variants;
 }
