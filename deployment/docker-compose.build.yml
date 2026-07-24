@@ -1,0 +1,14 @@
+﻿services:
+  backend:
+    build:
+      context: ".."
+      dockerfile: Dockerfile
+    image: troco-backend:local
+
+  frontend:
+    build:
+      context: "../../troco frontend"
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    image: troco-frontend:local

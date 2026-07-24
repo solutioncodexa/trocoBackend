@@ -1,0 +1,9 @@
+.env
+.env.local
+certs/*.pem
+certs/*.key
+certs/*.crt
+!certs/.gitkeep
+troco/backend/*.jar
+troco/frontend/dist/**
+!troco/frontend/dist/.gitkeep
