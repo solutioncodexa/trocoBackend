@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>ma.codexa</groupId>
-	<artifactId>goldyara</artifactId>
+	<artifactId>troco</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>goldyara</name>
-	<description>application e commerce de gold</description>
+	<name>troco</name>
+	<description>application troco (fork de or)</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -47,6 +47,10 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aspectj</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>

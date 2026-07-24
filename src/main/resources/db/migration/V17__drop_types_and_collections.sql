@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS product_types CASCADE;
+DROP TABLE IF EXISTS collections CASCADE;
+ALTER TABLE products DROP COLUMN IF EXISTS product_type;
+ALTER TABLE products DROP COLUMN IF EXISTS collection;

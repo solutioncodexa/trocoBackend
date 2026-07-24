@@ -1,0 +1,104 @@
+package ma.codexa.troco.mapper;
+
+import ma.codexa.troco.dto.ProductDetailDTO;
+import ma.codexa.troco.dto.ProductListItemDTO;
+import ma.codexa.troco.entity.Product;
+import org.mapstruct.*;
+import org.mapstruct.factory.Mappers;
+
+import java.util.List;
+
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
+public interface ProductMapper {
+
+    ProductMapper INSTANCE = Mappers.getMapper(ProductMapper.class);
+
+    @Mapping(target = "id", expression = "java(product.getId() != null ? product.getId().toString() : null)")
+    @Mapping(target = "category", source = "category", qualifiedByName = "categoryToSlug")
+    @Mapping(target = "goldType", source = "goldType", qualifiedByName = "goldTypeToFrontend")
+    @Mapping(target = "stockQuantity", source = "stock")
+    @Mapping(target = "images", source = "images", qualifiedByName = "imagesToList")
+    @Mapping(target = "availableSizes", source = "availableSizes", qualifiedByName = "stringToList")
+    @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToList")
+    @Mapping(target = "inStock", expression = "java(product.isInStock())")
+    @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
+    @Mapping(target = "deleted", source = "deleted")
+    @Mapping(target = "showWeight", source = "showWeight")
+    @Mapping(target = "price", expression = "java(product.getDisplayMinPrice())")
+    ProductDetailDTO toDetailDTO(Product product);
+
+    @Mapping(target = "id", expression = "java(product.getId() != null ? product.getId().toString() : null)")
+    @Mapping(target = "category", source = "category", qualifiedByName = "categoryToSlug")
+    @Mapping(target = "goldType", source = "goldType", qualifiedByName = "goldTypeToFrontend")
+    @Mapping(target = "stockQuantity", source = "stock")
+    @Mapping(target = "images", source = "images", qualifiedByName = "imagesToList")
+    @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToList")
+    @Mapping(target = "inStock", expression = "java(product.isInStock())")
+    @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
+    @Mapping(target = "showWeight", source = "showWeight")
+    @Mapping(target = "price", expression = "java(product.getDisplayMinPrice())")
+    ProductListItemDTO toListItemDTO(Product product);
+
+    List<ProductListItemDTO> toListItemDTOList(List<Product> products);
+
+    @Mapping(target = "id", expression = "java(dto.getId() != null && !dto.getId().isEmpty() ? Long.parseLong(dto.getId()) : null)")
+    @Mapping(target = "goldType", source = "goldType", qualifiedByName = "goldTypeToBackend")
+    @Mapping(target = "stock", source = "stockQuantity")
+    @Mapping(target = "availableSizes", source = "availableSizes", qualifiedByName = "listToString")
+    @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToString")
+    @Mapping(target = "images", ignore = true)
+    @Mapping(target = "category", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "deleted", ignore = true)
+    @Mapping(target = "showWeight", source = "showWeight")
+    @Mapping(target = "style", ignore = true)
+    Product toEntity(ProductDetailDTO dto);
+
+    List<ProductDetailDTO> toDetailDTOList(List<Product> products);
+
+    @Named("categoryToSlug")
+    default String categoryToSlug(ma.codexa.troco.entity.Category category) {
+        return category != null ? category.getSlug() : null;
+    }
+
+    @Named("goldTypeToFrontend")
+    default String goldTypeToFrontend(String goldType) {
+        return MapperUtils.goldTypeToFrontend(goldType);
+    }
+
+    @Named("goldTypeToBackend")
+    default String goldTypeToBackend(String goldType) {
+        return MapperUtils.goldTypeToBackend(goldType);
+    }
+
+    @Named("imagesToList")
+    default List<String> imagesToList(List<ma.codexa.troco.entity.Image> images) {
+        return MapperUtils.imagesToList(images);
+    }
+
+    @Named("stringToList")
+    default List<String> stringToList(String str) {
+        return MapperUtils.stringToList(str);
+    }
+
+    @Named("listToString")
+    default String listToString(List<String> list) {
+        return MapperUtils.listToString(list);
+    }
+
+    @Named("badgesToList")
+    default List<String> badgesToList(String badges) {
+        return MapperUtils.badgesToList(badges);
+    }
+
+    @Named("badgesToString")
+    default String badgesToString(List<String> badges) {
+        return MapperUtils.badgesToString(badges);
+    }
+
+    @Named("dateToString")
+    default String dateToString(java.time.LocalDateTime dateTime) {
+        return MapperUtils.dateToString(dateTime);
+    }
+}

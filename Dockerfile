@@ -1,5 +1,5 @@
 # =============================================================================
-# Goldyara Backend — Dockerfile multi-stage
+# Troco Backend — Dockerfile multi-stage
 # =============================================================================
 # Stage 1 : build avec Maven + JDK 21
 # Stage 2 : runtime JRE 21 minimal + agent OpenTelemetry (auto-instrumentation)
@@ -38,8 +38,8 @@ FROM eclipse-temurin:21-jre-alpine
 # tini = init léger, propre gestion des signaux + reaping
 # tzdata pour la timezone correcte
 RUN apk add --no-cache tini tzdata curl \
-    && addgroup -S goldyara \
-    && adduser -S -G goldyara goldyara
+    && addgroup -S troco \
+    && adduser -S -G troco troco
 ENV TZ=Africa/Casablanca
 
 WORKDIR /app
@@ -47,14 +47,14 @@ COPY --from=build /workspace/app.jar /app/app.jar
 COPY --from=otel /tmp/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar
 
 # Volumes : stockage local fallback + logs persistants
-RUN mkdir -p /app/uploads /app/logs && chown -R goldyara:goldyara /app
+RUN mkdir -p /app/uploads /app/logs && chown -R troco:troco /app
 VOLUME ["/app/uploads", "/app/logs"]
 
-USER goldyara
+USER troco
 
 ENV SPRING_PROFILES_ACTIVE=prod \
     JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError" \
-    OTEL_RESOURCE_ATTRIBUTES="service.name=goldyara-backend,service.namespace=goldyara" \
+    OTEL_RESOURCE_ATTRIBUTES="service.name=troco-backend,service.namespace=troco" \
     OTEL_TRACES_EXPORTER=otlp \
     OTEL_METRICS_EXPORTER=none \
     OTEL_LOGS_EXPORTER=none \

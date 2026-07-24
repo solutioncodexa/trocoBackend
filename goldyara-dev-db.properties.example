@@ -1,5 +1,0 @@
-# Secrets locaux (gitignore). Copier depuis goldyara-dev-db.properties.example si absent.
-goldyara.dev.db.password=REMPLACEXXX
-
-# SMTP (optionnel) — surcharge spring.mail.password
-# spring.mail.password=

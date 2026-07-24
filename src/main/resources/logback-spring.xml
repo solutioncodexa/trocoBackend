@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Configuration Logback Goldyara
+  Configuration Logback Troco
   ==============================
   - Profil "dev"  : sortie console pretty + couleurs.
   - Profil "prod" : sortie console JSON (consommée par Promtail/Loki) + fichier
@@ -11,7 +11,7 @@
 -->
 <configuration scan="true" scanPeriod="60 seconds">
 
-    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="goldyara"/>
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="troco"/>
     <springProperty scope="context" name="appEnv" source="spring.profiles.active" defaultValue="dev"/>
 
     <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
@@ -34,8 +34,8 @@
             <appender-ref ref="CONSOLE"/>
         </root>
 
-        <logger name="ma.codexa.goldyara" level="DEBUG"/>
-        <logger name="goldyara.audit" level="INFO"/>
+        <logger name="ma.codexa.troco" level="DEBUG"/>
+        <logger name="troco.audit" level="INFO"/>
     </springProfile>
 
     <!--
@@ -76,9 +76,9 @@
 
         <!-- Fichier rotatif (filet de sécurité) -->
         <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>${LOG_DIR}/goldyara.json</file>
+            <file>${LOG_DIR}/troco.json</file>
             <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-                <fileNamePattern>${LOG_DIR}/goldyara-%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+                <fileNamePattern>${LOG_DIR}/troco-%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
                 <maxFileSize>50MB</maxFileSize>
                 <maxHistory>14</maxHistory>
                 <totalSizeCap>2GB</totalSizeCap>
@@ -142,12 +142,12 @@
         </root>
 
         <!-- Logger dédié business audit : sortie console + fichier audit séparé -->
-        <logger name="goldyara.audit" level="INFO" additivity="false">
+        <logger name="troco.audit" level="INFO" additivity="false">
             <appender-ref ref="CONSOLE_JSON"/>
             <appender-ref ref="AUDIT_FILE"/>
         </logger>
 
-        <logger name="ma.codexa.goldyara" level="INFO"/>
+        <logger name="ma.codexa.troco" level="INFO"/>
         <logger name="org.springframework" level="WARN"/>
         <logger name="org.hibernate" level="WARN"/>
         <logger name="com.zaxxer.hikari" level="WARN"/>

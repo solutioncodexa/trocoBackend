@@ -1,0 +1,5 @@
+# Secrets locaux (gitignore). Copier depuis troco-dev-db.properties.example si absent.
+troco.dev.db.password=REMPLACEXXX
+
+# SMTP (optionnel) — surcharge spring.mail.password
+# spring.mail.password=

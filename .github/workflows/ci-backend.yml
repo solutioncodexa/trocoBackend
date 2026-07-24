@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: goldyara-back-artifacts-${{ github.ref }}
+  group: troco-back-artifacts-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -44,13 +44,13 @@ jobs:
             ls -la target || true
             exit 1
           fi
-          cp "${JAR_PATH}" goldyara-backend.jar
+          cp "${JAR_PATH}" troco-backend.jar
 
       - name: Upload backend artifact
         uses: actions/upload-artifact@v4
         with:
-          name: goldyara-backend-jar
-          path: goldyara-backend.jar
+          name: troco-backend-jar
+          path: troco-backend.jar
           if-no-files-found: error
           retention-days: 7
 
@@ -80,25 +80,25 @@ jobs:
       - name: Download backend artifact
         uses: actions/download-artifact@v4
         with:
-          name: goldyara-backend-jar
+          name: troco-backend-jar
           path: deploy-download
 
       - name: Upload jar to VPS
         uses: appleboy/scp-action@v0.1.7
         env:
-          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
+          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/troco/deployment' }}
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
           username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: ${{ vars.VPS_SSH_PORT || '22' }}
-          source: "deploy-download/goldyara-backend.jar"
-          target: "${{ env.DEPLOY_PATH }}/goldyara/backend/"
+          source: "deploy-download/troco-backend.jar"
+          target: "${{ env.DEPLOY_PATH }}/troco/backend/"
 
       - name: Restart backend
         uses: appleboy/ssh-action@v1.2.0
         env:
-          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
+          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/troco/deployment' }}
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
           username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
@@ -109,8 +109,8 @@ jobs:
           envs: DEPLOY_PATH
           script: |
             set -euo pipefail
-            DEPLOY_PATH="${DEPLOY_PATH:-/opt/goldyara/deployment}"
-            BACK_DIR="${DEPLOY_PATH}/goldyara/backend"
+            DEPLOY_PATH="${DEPLOY_PATH:-/opt/troco/deployment}"
+            BACK_DIR="${DEPLOY_PATH}/troco/backend"
             STAGING_DIR="${BACK_DIR}/jar-staging"
             mkdir -p "${BACK_DIR}"
 
@@ -118,7 +118,7 @@ jobs:
             rm -rf "${STAGING_DIR}"
             mkdir -p "${STAGING_DIR}"
 
-            JAR_PATH=$(find "${BACK_DIR}" -maxdepth 5 -type f -name "goldyara-backend.jar" | sed -n '1p')
+            JAR_PATH=$(find "${BACK_DIR}" -maxdepth 5 -type f -name "troco-backend.jar" | sed -n '1p')
             if [ -z "${JAR_PATH:-}" ]; then
               JAR_PATH=$(find "${BACK_DIR}" -maxdepth 5 -type f -name "*.jar" | sed -n '1p')
             fi
@@ -129,12 +129,12 @@ jobs:
               exit 1
             fi
 
-            cp "${JAR_PATH}" "${STAGING_DIR}/goldyara-backend.jar"
-            mv -f "${STAGING_DIR}/goldyara-backend.jar" "${BACK_DIR}/goldyara-backend.jar"
+            cp "${JAR_PATH}" "${STAGING_DIR}/troco-backend.jar"
+            mv -f "${STAGING_DIR}/troco-backend.jar" "${BACK_DIR}/troco-backend.jar"
 
             # Cleanup known transient folders from artifact download/copy.
             rm -rf "${BACK_DIR}/deploy-download" "${STAGING_DIR}"
-            test -f "${BACK_DIR}/goldyara-backend.jar"
+            test -f "${BACK_DIR}/troco-backend.jar"
 
             cd "${DEPLOY_PATH}"
             docker compose -f docker-compose.yml -f docker-compose.artifacts.yml up -d --force-recreate --no-deps backend
@@ -144,6 +144,6 @@ jobs:
           {
             echo "### Backend artifact deployed"
             echo ""
-            echo "- Path: \`${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}/goldyara/backend/goldyara-backend.jar\`"
+            echo "- Path: \`${{ vars.VPS_DEPLOY_PATH || '/opt/troco/deployment' }}/troco/backend/troco-backend.jar\`"
             echo "- Service: \`backend\`"
           } >> "$GITHUB_STEP_SUMMARY"
