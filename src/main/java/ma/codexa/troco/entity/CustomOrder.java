@@ -3,7 +3,9 @@ package ma.codexa.troco.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import ma.codexa.troco.tenant.TenantScoped;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,9 +13,10 @@ import java.util.List;
 @Entity
 @Table(name = "custom_orders")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class CustomOrder {
+public class CustomOrder extends TenantScoped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

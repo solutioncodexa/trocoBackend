@@ -65,6 +65,14 @@ public class ProductController {
     private final CategoryService categoryService;
     private final FileStorageService fileStorageService;
     private final ma.codexa.troco.service.FeaturedProductService featuredProductService;
+    private final ma.codexa.troco.service.ProductUpsellService productUpsellService;
+
+    @GetMapping("/{id}/frequently-bought")
+    public ResponseEntity<ApiResponse<List<ProductListItemDTO>>> frequentlyBought(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "4") @Min(1) @Max(12) int limit) {
+        return ResponseEntity.ok(ApiResponse.success(productUpsellService.frequentlyBoughtWith(id, limit)));
+    }
 
     @Operation(summary = "Récupérer tous les produits", description = "Récupère une liste paginée de tous les produits")
     @ApiResponses(value = {

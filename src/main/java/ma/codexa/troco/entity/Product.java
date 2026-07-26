@@ -2,6 +2,7 @@ package ma.codexa.troco.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import ma.codexa.troco.tenant.TenantScoped;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
 
@@ -16,8 +17,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString(exclude = {"images", "variants", "category"})
-@EqualsAndHashCode(of = "id")
-public class Product {
+@EqualsAndHashCode(of = "id", callSuper = false)
+public class Product extends TenantScoped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

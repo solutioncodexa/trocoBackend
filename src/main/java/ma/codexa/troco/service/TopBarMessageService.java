@@ -6,6 +6,7 @@ import ma.codexa.troco.dto.TopBarMessageDTO;
 import ma.codexa.troco.entity.TopBarMessage;
 import ma.codexa.troco.common.exception.ResourceNotFoundException;
 import ma.codexa.troco.repository.TopBarMessageRepository;
+import ma.codexa.troco.util.PathTargetMatcher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,9 +22,14 @@ public class TopBarMessageService {
     private final TopBarMessageRepository topBarMessageRepository;
     
     public List<TopBarMessageDTO> getAllActiveMessages() {
-        log.debug("topbar_messages_active_fetch");
+        return getAllActiveMessagesForPath(null);
+    }
+
+    public List<TopBarMessageDTO> getAllActiveMessagesForPath(String path) {
+        log.debug("topbar_messages_active_fetch path={}", path);
         return topBarMessageRepository.findByIsActiveTrueOrderByDisplayOrderAsc()
                 .stream()
+                .filter(m -> PathTargetMatcher.matches(m.getTargetPaths(), path))
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -64,6 +70,7 @@ public class TopBarMessageService {
         message.setDisplayOrder(order);
         message.setIsActive(messageDTO.getIsActive() != null ? messageDTO.getIsActive() : true);
         message.setDisplayDurationSeconds(duration);
+        message.setTargetPaths(messageDTO.getTargetPaths());
 
         TopBarMessage savedMessage = topBarMessageRepository.save(message);
         log.info("topbar_message_created messageId={} displayOrder={} active={}",
@@ -103,6 +110,9 @@ public class TopBarMessageService {
             duration = 600;
         }
         existingMessage.setDisplayDurationSeconds(duration);
+        if (messageDTO.getTargetPaths() != null) {
+            existingMessage.setTargetPaths(messageDTO.getTargetPaths());
+        }
         
         TopBarMessage updatedMessage = topBarMessageRepository.save(existingMessage);
         log.info("topbar_message_updated messageId={}", id);
@@ -140,6 +150,7 @@ public class TopBarMessageService {
         dto.setIsActive(message.getIsActive());
         dto.setDisplayDurationSeconds(
                 message.getDisplayDurationSeconds() != null ? message.getDisplayDurationSeconds() : 7);
+        dto.setTargetPaths(message.getTargetPaths());
         return dto;
     }
 }

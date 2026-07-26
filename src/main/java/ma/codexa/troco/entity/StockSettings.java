@@ -2,6 +2,7 @@ package ma.codexa.troco.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import ma.codexa.troco.tenant.TenantScoped;
 
 import java.time.LocalDateTime;
 
@@ -11,10 +12,11 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class StockSettings {
+public class StockSettings extends TenantScoped {
 
     @Id
-    private Long id = 1L;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @Column(name = "default_safety_stock", nullable = false)
     private Integer defaultSafetyStock = 10;

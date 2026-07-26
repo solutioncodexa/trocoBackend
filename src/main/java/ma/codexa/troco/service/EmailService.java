@@ -71,6 +71,37 @@ public class EmailService {
         return String.format("%s <%s>", senderDisplayName.trim(), mailUsername.trim());
     }
 
+    @Async
+    public void sendAbandonedCartReminder(
+            String customerEmail,
+            String customerName,
+            String storeName,
+            double cartTotal,
+            String recoveryPath) {
+        if (customerEmail == null || customerEmail.isBlank()) return;
+        String text = String.format(
+                "Bonjour %s,\n\n" +
+                "Vous avez laissé des articles dans votre panier chez %s (environ %.2f DH).\n\n" +
+                "Finalisez votre commande ici : %s\n\n" +
+                "À bientôt !",
+                customerName != null ? customerName : "",
+                storeName != null ? storeName : "notre boutique",
+                cartTotal,
+                recoveryPath
+        );
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromHeader());
+            message.setTo(customerEmail.trim());
+            message.setSubject("Votre panier vous attend — " + (storeName != null ? storeName : "Boutique"));
+            message.setText(text);
+            mailSender.send(message);
+            log.info("abandoned_cart_email_sent to={}", customerEmail);
+        } catch (Exception e) {
+            log.error("Failed to send abandoned cart email: {}", e.getMessage());
+        }
+    }
+
     private void sendToAdmins(List<String> emails, String subject, String text) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();

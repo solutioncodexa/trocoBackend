@@ -30,7 +30,7 @@ public class PermissionCheckService {
         }
         Object principal = authentication.getPrincipal();
         if (principal instanceof UserDetailsImpl udi) {
-            if ("ADMIN".equalsIgnoreCase(udi.getRole())) {
+            if ("SUPER_ADMIN".equalsIgnoreCase(udi.getRole()) || "ADMIN".equalsIgnoreCase(udi.getRole())) {
                 return true;
             }
             Set<String> granted = new HashSet<>();
@@ -46,7 +46,7 @@ public class PermissionCheckService {
         if (user == null || permissionName == null) {
             return false;
         }
-        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+        if ("SUPER_ADMIN".equalsIgnoreCase(user.getRole()) || "ADMIN".equalsIgnoreCase(user.getRole())) {
             return true;
         }
         return AppPermissions.effectivelyHas(user.getPermissionCodes(), permissionName);
@@ -56,7 +56,7 @@ public class PermissionCheckService {
         if (user == null) {
             return List.of();
         }
-        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+        if ("SUPER_ADMIN".equalsIgnoreCase(user.getRole()) || "ADMIN".equalsIgnoreCase(user.getRole())) {
             return new ArrayList<>(AppPermissions.ALL);
         }
         if (user.getPermissionCodes() == null || user.getPermissionCodes().isEmpty()) {

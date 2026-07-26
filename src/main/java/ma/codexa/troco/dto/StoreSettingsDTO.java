@@ -1,0 +1,40 @@
+package ma.codexa.troco.dto;
+
+import java.math.BigDecimal;
+
+public record StoreSettingsDTO(
+        Long fournisseurId,
+        String slug,
+        String siteName,
+        String tagline,
+        String aboutText,
+        String logoUrl,
+        String primaryColor,
+        String secondaryColor,
+        String customDomain,
+        boolean domainVerified,
+        String contactEmail,
+        String contactPhone,
+        String contactWhatsapp,
+        String contactCity,
+        BigDecimal freeShippingThreshold,
+        String facebookUrl,
+        String instagramUrl,
+        String tiktokUrl,
+        String faviconUrl,
+        boolean heroEnabled,
+        boolean categoriesEnabled,
+        boolean surMesureEnabled,
+        String themeKey,
+        String status,
+        String planCode,
+        String planName,
+        java.math.BigDecimal planPriceMad,
+        String metaPixelId,
+        String tiktokPixelId,
+        String googleAdsId,
+        String googleAnalyticsId,
+        boolean abandonedCartEnabled,
+        Integer abandonedCartDelayMinutes,
+        String whatsappOrderTemplate
+) {}

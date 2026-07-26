@@ -8,6 +8,7 @@ import ma.codexa.troco.entity.CustomOrder;
 import ma.codexa.troco.entity.User;
 import ma.codexa.troco.repository.NotificationRepository;
 import ma.codexa.troco.repository.UserRepository;
+import ma.codexa.troco.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,6 +68,46 @@ public class NotificationService {
         notification.setReferenceId(variantId);
         notificationRepository.save(notification);
         log.info("notification_recorded kind={} variantId={}", type, variantId);
+    }
+
+    @Transactional
+    public void notifyAbandonedCart(
+            Long cartId,
+            String customerName,
+            String customerPhone,
+            String customerEmail,
+            java.math.BigDecimal cartTotal) {
+        Notification notification = new Notification();
+        notification.setType("ABANDONED_CART");
+        notification.setTitle("Panier abandonné");
+        notification.setMessage(String.format(
+                "%s — %s / %s — %.2f DH",
+                customerName != null ? customerName : "Client",
+                customerPhone != null ? customerPhone : "-",
+                customerEmail != null ? customerEmail : "-",
+                cartTotal != null ? cartTotal.doubleValue() : 0));
+        notification.setReferenceId(cartId);
+        notification.setFournisseurId(TenantContext.getFournisseurId());
+        notificationRepository.save(notification);
+        log.info("notification_recorded kind=ABANDONED_CART cartId={}", cartId);
+    }
+
+    @Transactional
+    public void notifyPageScheduleChange(Long pageId, String title, String slug, boolean nowLive) {
+        Notification notification = new Notification();
+        notification.setType(nowLive ? "PAGE_LIVE" : "PAGE_OFFLINE");
+        notification.setTitle(nowLive ? "Page en ligne" : "Page hors ligne");
+        notification.setMessage(String.format(
+                nowLive
+                        ? "La page « %s » (%s) est maintenant visible sur la vitrine."
+                        : "La page « %s » (%s) n’est plus visible sur la vitrine.",
+                title != null ? title : "Page",
+                slug != null ? slug : "-"));
+        notification.setReferenceId(pageId);
+        notification.setFournisseurId(TenantContext.getFournisseurId());
+        notificationRepository.save(notification);
+        log.info("notification_recorded kind={} pageId={} live={}",
+                notification.getType(), pageId, nowLive);
     }
 
     @Transactional

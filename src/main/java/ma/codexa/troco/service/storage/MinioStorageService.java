@@ -36,11 +36,14 @@ public class MinioStorageService implements StorageService {
     private final MinioClient client;
     private final MinioProperties props;
     private final AuditLogService auditLog;
+    private final ImageOptimizeService imageOptimizeService;
 
-    public MinioStorageService(MinioClient client, MinioProperties props, AuditLogService auditLog) {
+    public MinioStorageService(MinioClient client, MinioProperties props, AuditLogService auditLog,
+                               ImageOptimizeService imageOptimizeService) {
         this.client = client;
         this.props = props;
         this.auditLog = auditLog;
+        this.imageOptimizeService = imageOptimizeService;
         log.info("Stockage MINIO initialisé : bucket={}, public={}",
                 props.bucket(), props.effectivePublicEndpoint());
     }
@@ -55,22 +58,32 @@ public class MinioStorageService implements StorageService {
             throw new IllegalArgumentException("Type de fichier non autorisé. Utilisez JPG, PNG, GIF, WebP ou PDF.");
         }
 
-        String ext = LocalStorageService.resolveExtension(file.getOriginalFilename());
-        String objectName = UUID.randomUUID() + ext;
+        Long fournisseurId = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        String prefix = fournisseurId != null ? ("f" + fournisseurId + "/") : "platform/";
+        String objectName = prefix + "pending";
 
-        try (InputStream is = file.getInputStream()) {
-            client.putObject(PutObjectArgs.builder()
-                    .bucket(props.bucket())
-                    .object(objectName)
-                    .stream(is, file.getSize(), -1)
-                    .contentType(contentType)
-                    .build());
+        try {
+            OptimizedImage optimized = imageOptimizeService.optimize(file);
+            String ext = optimized.extension();
+            objectName = prefix + UUID.randomUUID() + ext;
+            try (InputStream is = new java.io.ByteArrayInputStream(optimized.bytes())) {
+                client.putObject(PutObjectArgs.builder()
+                        .bucket(props.bucket())
+                        .object(objectName)
+                        .stream(is, optimized.bytes().length, -1)
+                        .contentType(optimized.contentType())
+                        .build());
+            }
 
             String url = buildPublicUrl(objectName);
-            log.info("Fichier MinIO uploadé: {} ({})", url, file.getSize());
+            log.info("Fichier MinIO uploadé: {} ({} bytes, optimized={})",
+                    url, optimized.bytes().length, optimized.transformed());
             auditLog.log(AuditLogService.Action.FILE_UPLOAD, AuditLogService.Outcome.SUCCESS,
-                    objectName, "size=" + file.getSize() + " ct=" + contentType);
+                    objectName, "size=" + optimized.bytes().length + " ct=" + optimized.contentType()
+                            + " optimized=" + optimized.transformed());
             return url;
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (IOException | RuntimeException | java.security.NoSuchAlgorithmException
                  | java.security.InvalidKeyException
                  | io.minio.errors.MinioException e) {

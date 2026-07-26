@@ -2,6 +2,7 @@ package ma.codexa.troco.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import ma.codexa.troco.tenant.TenantScoped;
 
 import java.time.LocalDateTime;
 
@@ -11,8 +12,8 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(of = "id")
-public class AutoPromoRule {
+@EqualsAndHashCode(of = "id", callSuper = false)
+public class AutoPromoRule extends TenantScoped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

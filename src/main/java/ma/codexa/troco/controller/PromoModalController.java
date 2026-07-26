@@ -21,8 +21,9 @@ public class PromoModalController {
     private final PromoModalService promoModalService;
     
     @GetMapping("/public")
-    public ResponseEntity<ApiResponse<PromoModalDTO>> getActivePromoModal() {
-        PromoModalDTO modal = promoModalService.getFirstActivePromoModal();
+    public ResponseEntity<ApiResponse<PromoModalDTO>> getActivePromoModal(
+            @RequestParam(required = false) String path) {
+        PromoModalDTO modal = promoModalService.getFirstActivePromoModalForPath(path);
         if (modal == null) {
             return ResponseEntity.ok(ApiResponse.success(null, "Aucun promo modal actif"));
         }

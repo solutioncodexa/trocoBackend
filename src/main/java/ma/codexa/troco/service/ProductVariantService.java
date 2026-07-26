@@ -109,7 +109,10 @@ public class ProductVariantService {
     }
 
     public void ensureVariantsFromProductFields(Product product) {
-        if (product.getVariants() != null && !product.getVariants().isEmpty()) {
+        if (product.getVariants() == null) {
+            product.setVariants(new java.util.ArrayList<>());
+        }
+        if (!product.getVariants().isEmpty()) {
             return;
         }
         ProductVariant variant = new ProductVariant();

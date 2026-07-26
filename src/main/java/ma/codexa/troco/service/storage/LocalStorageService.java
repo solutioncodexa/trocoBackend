@@ -34,11 +34,14 @@ public class LocalStorageService implements StorageService {
     );
 
     private final AuditLogService auditLog;
+    private final ImageOptimizeService imageOptimizeService;
     private final String uploadDir;
 
     public LocalStorageService(AuditLogService auditLog,
+                               ImageOptimizeService imageOptimizeService,
                                @Value("${app.upload.dir:uploads/}") String uploadDir) {
         this.auditLog = auditLog;
+        this.imageOptimizeService = imageOptimizeService;
         this.uploadDir = uploadDir;
         log.info("Stockage LOCAL initialisé sur '{}'", uploadDir);
     }
@@ -53,22 +56,32 @@ public class LocalStorageService implements StorageService {
             throw new IllegalArgumentException("Type de fichier non autorisé. Utilisez JPG, PNG, GIF, WebP ou PDF.");
         }
 
-        String ext = resolveExtension(file.getOriginalFilename());
-        String filename = UUID.randomUUID() + ext;
-
         try {
+            OptimizedImage optimized = imageOptimizeService.optimize(file);
+            if (!ALLOWED_CONTENT_TYPES.contains(optimized.contentType())) {
+                throw new IllegalArgumentException("Type de fichier non autorisé après optimisation.");
+            }
+            String ext = optimized.extension();
+            if (!ALLOWED_EXTENSIONS.contains(ext)) {
+                ext = resolveExtension(file.getOriginalFilename());
+            }
+            String filename = UUID.randomUUID() + ext;
             Path dir = Paths.get(uploadDir).toAbsolutePath().normalize();
             Files.createDirectories(dir);
             Path target = dir.resolve(filename);
-            file.transferTo(target.toFile());
+            Files.write(target, optimized.bytes());
             String url = "/uploads/" + filename;
-            log.info("Fichier sauvegardé localement: {} ({})", url, file.getSize());
+            log.info("Fichier sauvegardé localement: {} ({} bytes, optimized={})",
+                    url, optimized.bytes().length, optimized.transformed());
             auditLog.log(AuditLogService.Action.FILE_UPLOAD, AuditLogService.Outcome.SUCCESS,
-                    filename, "size=" + file.getSize() + " ct=" + contentType);
+                    filename, "size=" + optimized.bytes().length + " ct=" + optimized.contentType()
+                            + " optimized=" + optimized.transformed());
             return url;
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (IOException e) {
             auditLog.log(AuditLogService.Action.FILE_UPLOAD, AuditLogService.Outcome.FAILURE,
-                    filename, e.getMessage());
+                    file.getOriginalFilename(), e.getMessage());
             throw new RuntimeException("Erreur lors de l'enregistrement du fichier", e);
         }
     }
@@ -109,7 +122,6 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public boolean isPublicAccessDirect() {
-        // Le local passe par /api/uploads/** servi par WebMvcConfig
         return false;
     }
 

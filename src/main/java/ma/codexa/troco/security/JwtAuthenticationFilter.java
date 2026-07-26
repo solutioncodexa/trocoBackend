@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.config.JwtProperties;
+import ma.codexa.troco.tenant.TenantContext;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -44,6 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 );
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authentication);
+                        applyTenantFromUser(userDetails, token);
                     }
                 }
             } else if (StringUtils.hasText(token)) {
@@ -53,6 +55,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             logger.error("Cannot set user authentication: " + e.getMessage(), e);
         }
         filterChain.doFilter(request, response);
+    }
+
+    private void applyTenantFromUser(UserDetails userDetails, String token) {
+        if (!(userDetails instanceof UserDetailsImpl udi)) {
+            return;
+        }
+        if ("SUPER_ADMIN".equalsIgnoreCase(udi.getRole())) {
+            TenantContext.setBypass(true);
+            return;
+        }
+        Long fid = udi.getFournisseurId();
+        if (fid == null) {
+            fid = jwtUtil.getFournisseurIdFromToken(token);
+        }
+        if (fid != null && TenantContext.getFournisseurId() == null) {
+            TenantContext.setFournisseurId(fid);
+        }
     }
 
     private String getTokenFromRequest(HttpServletRequest request) {

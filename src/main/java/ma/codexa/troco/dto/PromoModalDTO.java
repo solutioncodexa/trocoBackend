@@ -18,4 +18,6 @@ public class PromoModalDTO {
     private Integer autoCloseSeconds;
     private Boolean isActive;
     private Integer displayOrder;
+    /** Chemins cibles (une ligne ou JSON), vide = toutes les pages */
+    private String targetPaths;
 }

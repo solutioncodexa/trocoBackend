@@ -30,7 +30,10 @@ public class ProductService {
     private final AuditLogService auditLog;
 
     @Transactional(readOnly = true)
-    @Cacheable(value = "products", key = "#pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort")
+    @Cacheable(
+            value = "products",
+            key = "T(ma.codexa.troco.tenant.TenantContext).getFournisseurId() + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort"
+    )
     public Page<Product> getAllProducts(Pageable pageable) {
         log.debug("Récupération de tous les produits avec pagination");
         Page<Product> page = productRepository.findAllWithImages(pageable);
@@ -69,6 +72,9 @@ public class ProductService {
         @CacheEvict(value = "productById", allEntries = true)
     })
     public Product createProduct(Product product, List<ProductVariantRequest> variantRequests) {
+        if (product.getFournisseurId() == null) {
+            product.setFournisseurId(ma.codexa.troco.tenant.TenantContext.getFournisseurId());
+        }
         if (product.getStock() == null) {
             product.setStock(0);
         }
@@ -176,7 +182,9 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public List<Product> searchProducts(String keyword) {
-        return productRepository.searchByName(keyword);
+        List<Product> products = productRepository.searchByName(keyword);
+        products.forEach(this::initializeForDto);
+        return products;
     }
 
     @Transactional(readOnly = true)

@@ -31,10 +31,15 @@ jobs:
           java-version: "21"
           cache: maven
 
+      - name: Run unit & integration tests
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -ntp test
+
       - name: Build jar
         run: |
           chmod +x mvnw
-          ./mvnw -B -ntp clean package -DskipTests
+          ./mvnw -B -ntp package -DskipTests
 
       - name: Select artifact jar
         run: |

@@ -32,7 +32,10 @@ public class CategoryService {
     private final ProductRepository productRepository;
 
     @Transactional(readOnly = true)
-    @Cacheable(value = "categories")
+    @Cacheable(
+            value = "categories",
+            key = "T(ma.codexa.troco.tenant.TenantContext).getFournisseurId() ?: 'none'"
+    )
     public List<Category> getAllCategories() {
         log.debug("Fetching all categories from database (cache miss)");
         return categoryRepository.findAll();
@@ -53,7 +56,10 @@ public class CategoryService {
 
     /** Catégories affichées sur le bandeau d’accueil (ordre + image configurés en admin). */
     @Transactional(readOnly = true)
-    @Cacheable(value = "heroCategories")
+    @Cacheable(
+            value = "heroCategories",
+            key = "T(ma.codexa.troco.tenant.TenantContext).getFournisseurId() ?: 'none'"
+    )
     public List<CategoryDTO> getHeroCategoryDtos() {
         return categoryRepository.findHeroCategoriesOrdered().stream()
                 .peek(c -> {
@@ -111,6 +117,7 @@ public class CategoryService {
             throw new BusinessException("Une catégorie avec ce slug existe déjà", HttpStatus.CONFLICT);
         }
         Category category = new Category();
+        category.setFournisseurId(ma.codexa.troco.tenant.TenantContext.getFournisseurId());
         category.setName(request.getName().trim());
         category.setSlug(slug);
         category.setDescription(blankToNull(request.getDescription()));

@@ -9,6 +9,8 @@ import ma.codexa.troco.repository.PromoModalRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ma.codexa.troco.util.PathTargetMatcher;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -35,7 +37,13 @@ public class PromoModalService {
     }
     
     public PromoModalDTO getFirstActivePromoModal() {
-        return promoModalRepository.findFirstByIsActiveOrderByDisplayOrderAsc(true)
+        return getFirstActivePromoModalForPath(null);
+    }
+
+    public PromoModalDTO getFirstActivePromoModalForPath(String path) {
+        return promoModalRepository.findByIsActiveOrderByDisplayOrderAsc(true).stream()
+                .filter(m -> PathTargetMatcher.matches(m.getTargetPaths(), path))
+                .findFirst()
                 .map(this::convertToDTO)
                 .orElse(null);
     }
@@ -65,6 +73,7 @@ public class PromoModalService {
         existingModal.setAutoCloseSeconds(modalDTO.getAutoCloseSeconds());
         existingModal.setIsActive(modalDTO.getIsActive());
         existingModal.setDisplayOrder(modalDTO.getDisplayOrder());
+        existingModal.setTargetPaths(modalDTO.getTargetPaths());
         
         PromoModal updatedModal = promoModalRepository.save(existingModal);
         log.info("Updated promo modal: {}", updatedModal.getId());
@@ -100,6 +109,7 @@ public class PromoModalService {
         dto.setAutoCloseSeconds(modal.getAutoCloseSeconds());
         dto.setIsActive(modal.getIsActive());
         dto.setDisplayOrder(modal.getDisplayOrder());
+        dto.setTargetPaths(modal.getTargetPaths());
         return dto;
     }
     
@@ -113,6 +123,7 @@ public class PromoModalService {
         modal.setAutoCloseSeconds(dto.getAutoCloseSeconds());
         modal.setIsActive(dto.getIsActive());
         modal.setDisplayOrder(dto.getDisplayOrder());
+        modal.setTargetPaths(dto.getTargetPaths());
         return modal;
     }
 }

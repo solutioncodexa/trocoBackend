@@ -39,16 +39,26 @@ public class StockService {
     private final AuditLogService auditLog;
 
     public StockSettings getOrCreateSettings() {
-        return stockSettingsRepository.findById(1L).orElseGet(() -> {
-            StockSettings s = new StockSettings();
-            s.setId(1L);
-            s.setDefaultSafetyStock(10);
-            s.setExpiryAlertDays(30);
-            s.setAlertsEnabled(true);
-            s.setLowStockAlertsEnabled(true);
-            s.setExpiryAlertsEnabled(true);
-            return s;
-        });
+        Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        if (fid != null) {
+            return stockSettingsRepository.findFirstByFournisseurId(fid).orElseGet(() -> {
+                StockSettings s = newStockDefaults();
+                s.setFournisseurId(fid);
+                return stockSettingsRepository.save(s);
+            });
+        }
+        return stockSettingsRepository.findAll().stream().findFirst().orElseGet(() ->
+                stockSettingsRepository.save(newStockDefaults()));
+    }
+
+    private static StockSettings newStockDefaults() {
+        StockSettings s = new StockSettings();
+        s.setDefaultSafetyStock(10);
+        s.setExpiryAlertDays(30);
+        s.setAlertsEnabled(true);
+        s.setLowStockAlertsEnabled(true);
+        s.setExpiryAlertsEnabled(true);
+        return s;
     }
 
     @Transactional(readOnly = true)
@@ -58,16 +68,7 @@ public class StockService {
 
     @Transactional
     public StockSettingsDTO updateSettings(StockSettingsDTO dto) {
-        StockSettings s = stockSettingsRepository.findById(1L).orElseGet(() -> {
-            StockSettings created = new StockSettings();
-            created.setId(1L);
-            created.setDefaultSafetyStock(10);
-            created.setExpiryAlertDays(30);
-            created.setAlertsEnabled(true);
-            created.setLowStockAlertsEnabled(true);
-            created.setExpiryAlertsEnabled(true);
-            return created;
-        });
+        StockSettings s = getOrCreateSettings();
         if (dto.getDefaultSafetyStock() != null) {
             if (dto.getDefaultSafetyStock() < 0) {
                 throw new BusinessException("Le seuil d'alerte doit être ≥ 0", HttpStatus.BAD_REQUEST);

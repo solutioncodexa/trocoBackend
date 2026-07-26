@@ -16,6 +16,9 @@ public class TopBarMessageDTO {
     /** Secondes avant d'afficher le message suivant lorsque plusieurs messages sont actifs */
     private Integer displayDurationSeconds;
 
+    /** Chemins cibles (une ligne ou JSON), vide = toutes les pages */
+    private String targetPaths;
+
     public TopBarMessageDTO(String message, Integer displayOrder, Boolean isActive) {
         this.message = message;
         this.displayOrder = displayOrder;

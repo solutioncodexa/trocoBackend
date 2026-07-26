@@ -17,10 +17,11 @@ public class UserDetailsImpl implements UserDetails {
     private final boolean active;
     private final String role;
     private final String fullName;
+    private final Long fournisseurId;
     private final Collection<? extends GrantedAuthority> authorities;
 
     public UserDetailsImpl(Long id, String email, String password, boolean active,
-                           String role, String fullName,
+                           String role, String fullName, Long fournisseurId,
                            Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.email = email;
@@ -28,6 +29,7 @@ public class UserDetailsImpl implements UserDetails {
         this.active = active;
         this.role = role;
         this.fullName = fullName;
+        this.fournisseurId = fournisseurId;
         this.authorities = authorities;
     }
 
@@ -46,6 +48,7 @@ public class UserDetailsImpl implements UserDetails {
                 user.isActive(),
                 user.getRole(),
                 user.getFullName(),
+                user.getFournisseurId(),
                 authorities
         );
     }
@@ -60,6 +63,10 @@ public class UserDetailsImpl implements UserDetails {
 
     public String getFullName() {
         return fullName;
+    }
+
+    public Long getFournisseurId() {
+        return fournisseurId;
     }
 
     @Override

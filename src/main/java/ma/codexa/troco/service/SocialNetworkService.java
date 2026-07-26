@@ -6,6 +6,7 @@ import ma.codexa.troco.common.exception.ResourceNotFoundException;
 import ma.codexa.troco.dto.SocialNetworkDTO;
 import ma.codexa.troco.entity.SocialNetwork;
 import ma.codexa.troco.repository.SocialNetworkRepository;
+import ma.codexa.troco.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,30 +69,33 @@ public class SocialNetworkService {
     }
 
     /**
-     * Seed les 4 réseaux si la table est vide (ex. table créée par Hibernate
-     * avant que Flyway V10 n'insère les lignes).
+     * Seed neutre (désactivé, sans URL marque) pour une boutique vide —
+     * chaque fournisseur configure ses propres réseaux.
      */
     private void ensureDefaults() {
         if (socialNetworkRepository.count() > 0) {
             return;
         }
-        log.warn("social_networks vide — seed des 4 réseaux par défaut");
+        Long fid = TenantContext.getFournisseurId();
+        log.info("social_networks vide — seed neutre fournisseurId={}", fid);
         socialNetworkRepository.saveAll(List.of(
-                network("facebook", "Facebook", "https://www.facebook.com/profile.php?id=61589818832364", 1),
-                network("instagram", "Instagram", "https://www.instagram.com/troco/", 2),
-                network("tiktok", "TikTok", "https://www.tiktok.com/@troco1", 3),
-                network("whatsapp", "WhatsApp", "https://wa.me/212684490098", 4)
+                network(fid, "facebook", "Facebook", 1),
+                network(fid, "instagram", "Instagram", 2),
+                network(fid, "tiktok", "TikTok", 3),
+                network(fid, "whatsapp", "WhatsApp", 4)
         ));
     }
 
-    private static SocialNetwork network(String key, String label, String url, int order) {
-        return SocialNetwork.builder()
+    private static SocialNetwork network(Long fid, String key, String label, int order) {
+        SocialNetwork n = SocialNetwork.builder()
                 .networkKey(key)
                 .label(label)
-                .url(url)
-                .enabled(true)
+                .url("")
+                .enabled(false)
                 .displayOrder(order)
                 .build();
+        n.setFournisseurId(fid);
+        return n;
     }
 
     private SocialNetworkDTO toDto(SocialNetwork e) {

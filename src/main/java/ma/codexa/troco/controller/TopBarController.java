@@ -26,9 +26,10 @@ public class TopBarController {
     
     @GetMapping("/public")
     @Operation(summary = "Récupérer les messages actifs de la top bar", description = "Retourne la liste des messages actifs pour affichage public")
-    public ResponseEntity<ApiResponse<List<TopBarMessageDTO>>> getActiveMessages() {
-        log.info("Récupération des messages actifs de la top bar pour le public");
-        List<TopBarMessageDTO> messages = topBarMessageService.getAllActiveMessages();
+    public ResponseEntity<ApiResponse<List<TopBarMessageDTO>>> getActiveMessages(
+            @RequestParam(required = false) String path) {
+        log.info("Récupération des messages actifs de la top bar pour le public path={}", path);
+        List<TopBarMessageDTO> messages = topBarMessageService.getAllActiveMessagesForPath(path);
         return ResponseEntity.ok(ApiResponse.success(messages, "Messages actifs récupérés avec succès"));
     }
     

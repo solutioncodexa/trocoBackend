@@ -44,6 +44,7 @@ public class OrderService {
     private final OrderMapper orderMapper;
     private final ProductMapper productMapper;
     private final AuditLogService auditLog;
+    private final StoreWebhookDispatcher storeWebhookDispatcher;
 
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
@@ -171,10 +172,13 @@ public class OrderService {
      */
     public OrderDTO createOrderFromDTO(OrderDTO orderDTO) {
         Order order = new Order();
+        Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        order.setFournisseurId(fid);
 
         // Create customer
         CustomerDTO customerDTO = orderDTO.getCustomer();
         Customer customer = new Customer();
+        customer.setFournisseurId(fid);
         customer.setFullName(customerDTO.getFullName());
         customer.setPhone(customerDTO.getPhone());
         customer.setAddress(customerDTO.getAddress());
@@ -244,6 +248,19 @@ public class OrderService {
         log.info("Order created orderId={} orderNumber={} customerEmail={} totalAmount={}",
                 savedOrder.getId(), savedOrder.getOrderNumber(), customer.getEmail(), savedOrder.getTotalAmount());
         notificationService.notifyNewOrder(savedOrder);
+        try {
+            java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+            payload.put("orderId", savedOrder.getId());
+            payload.put("orderNumber", savedOrder.getOrderNumber());
+            payload.put("totalAmount", savedOrder.getTotalAmount());
+            payload.put("customerName", customer.getFullName());
+            payload.put("customerPhone", customer.getPhone());
+            payload.put("customerEmail", customer.getEmail());
+            payload.put("itemCount", savedOrder.getOrderItems() != null ? savedOrder.getOrderItems().size() : 0);
+            storeWebhookDispatcher.dispatchAsync(fid, StoreWebhookDispatcher.EVENT_ORDER_CREATED, payload);
+        } catch (Exception e) {
+            log.warn("webhook_order_hook_failed: {}", e.getMessage());
+        }
         return toOrderDto(savedOrder);
     }
 }

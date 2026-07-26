@@ -26,9 +26,13 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    /** ADMIN | STAFF | CUSTOMER */
+    /** SUPER_ADMIN | ADMIN | STAFF | CUSTOMER */
     @Column(nullable = false)
     private String role;
+
+    /** Null pour SUPER_ADMIN (plateforme). Obligatoire pour ADMIN/STAFF/CUSTOMER. */
+    @Column(name = "fournisseur_id")
+    private Long fournisseurId;
 
     @Column(name = "full_name")
     private String fullName;

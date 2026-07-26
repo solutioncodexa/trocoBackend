@@ -41,7 +41,9 @@ public class AuditLogService {
         MEMBER_CREATE, MEMBER_UPDATE, MEMBER_ACTIVATE, MEMBER_DEACTIVATE, MEMBER_PASSWORD_RESET, MEMBER_DELETE,
         FILE_UPLOAD, FILE_DELETE,
         UNAUTHORIZED_ACCESS, RATE_LIMIT_EXCEEDED,
-        TOP_BAR_MESSAGE_UPDATE, PROMO_MODAL_UPDATE
+        TOP_BAR_MESSAGE_UPDATE, PROMO_MODAL_UPDATE,
+        PAGE_CREATE, PAGE_UPDATE, PAGE_PUBLISH, PAGE_UNPUBLISH, PAGE_DELETE,
+        PAGE_BLOCKS_UPDATE, PAGE_AB_PROMOTE, WEBHOOK_UPDATE
     }
 
     private static final Logger AUDIT = LoggerFactory.getLogger("troco.audit");
@@ -167,6 +169,8 @@ public class AuditLogService {
         if (n.startsWith("MEMBER") || n.startsWith("ADMIN")) return "USER";
         if (n.startsWith("CATEGORY")) return "CATEGORY";
         if (n.startsWith("COLLECTION")) return "COLLECTION";
+        if (n.startsWith("PAGE")) return "STORE_PAGE";
+        if (n.startsWith("WEBHOOK")) return "WEBHOOK";
         if (n.contains("LOGIN") || n.contains("LOGOUT") || n.equals("REGISTER") || n.equals("REFRESH_TOKEN")) {
             return "AUTH";
         }

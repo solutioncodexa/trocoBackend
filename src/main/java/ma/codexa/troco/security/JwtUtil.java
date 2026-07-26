@@ -28,15 +28,33 @@ public class JwtUtil {
     }
 
     public String generateToken(String email, String role) {
+        return generateToken(email, role, null);
+    }
+
+    public String generateToken(String email, String role, Long fournisseurId) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + jwtProperties.expirationMs());
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(email)
                 .claim("role", role)
                 .issuedAt(now)
-                .expiration(expiry)
-                .signWith(key)
-                .compact();
+                .expiration(expiry);
+        if (fournisseurId != null) {
+            builder.claim("fournisseurId", fournisseurId);
+        }
+        return builder.signWith(key).compact();
+    }
+
+    public Long getFournisseurIdFromToken(String token) {
+        Claims claims = parseToken(token);
+        if (claims == null) {
+            return null;
+        }
+        Object raw = claims.get("fournisseurId");
+        if (raw instanceof Number n) {
+            return n.longValue();
+        }
+        return null;
     }
 
     public Claims parseToken(String token) {

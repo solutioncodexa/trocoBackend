@@ -17,6 +17,9 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT COUNT(p) FROM Product p WHERE p.deleted = FALSE")
     long countActive();
 
+    @Query("SELECT p.id FROM Product p WHERE p.deleted = FALSE ORDER BY p.id")
+    List<Long> findAllActiveIds();
+
     /** Charge les produits avec images + catégorie (évite LazyInitializationException). */
     @EntityGraph(attributePaths = {"images", "category"})
     @Query("SELECT p FROM Product p WHERE p.deleted = FALSE")

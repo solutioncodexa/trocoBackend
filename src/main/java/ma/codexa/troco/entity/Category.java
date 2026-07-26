@@ -3,16 +3,19 @@ package ma.codexa.troco.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import ma.codexa.troco.tenant.TenantScoped;
 
 @Entity
 @Table(name = "categories")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString(exclude = "parent")
-public class Category {
+public class Category extends TenantScoped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,7 +27,8 @@ public class Category {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(nullable = false, unique = true)
+    /** Unique par fournisseur (index composite en migration V18). */
+    @Column(nullable = false)
     private String slug;
 
     @ManyToOne(fetch = FetchType.LAZY)

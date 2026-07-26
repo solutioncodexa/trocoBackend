@@ -3,14 +3,17 @@ package ma.codexa.troco.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import ma.codexa.troco.tenant.TenantScoped;
 
 @Entity
 @Table(name = "promo_modals")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class PromoModal {
+public class PromoModal extends TenantScoped {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,6 +42,10 @@ public class PromoModal {
     
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 1;
+
+    /** Chemins cibles (JSON array ou lignes), vide = toutes les pages. */
+    @Column(name = "target_paths", columnDefinition = "TEXT")
+    private String targetPaths;
     
     public PromoModal(String title, String description, String imageUrl, String buttonText, String buttonUrl, Integer autoCloseSeconds, Boolean isActive, Integer displayOrder) {
         this.title = title;

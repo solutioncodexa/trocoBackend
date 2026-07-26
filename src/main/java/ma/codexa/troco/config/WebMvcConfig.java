@@ -4,8 +4,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.CacheControl;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.util.concurrent.TimeUnit;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,6 +36,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
         registry.addResourceHandler("/uploads/**", "/api/uploads/**")
                 .addResourceLocations(location, "classpath:/static/uploads/")
-                .setCachePeriod(60 * 60 * 24); // 1 jour
+                .setCacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic());
     }
 }

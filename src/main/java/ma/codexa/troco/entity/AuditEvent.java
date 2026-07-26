@@ -2,6 +2,7 @@ package ma.codexa.troco.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import ma.codexa.troco.tenant.TenantScoped;
 
 import java.time.LocalDateTime;
 
@@ -12,7 +13,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AuditEvent {
+public class AuditEvent extends TenantScoped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

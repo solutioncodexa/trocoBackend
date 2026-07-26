@@ -3,7 +3,10 @@ package ma.codexa.troco.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import ma.codexa.troco.tenant.TenantScoped;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,15 +14,17 @@ import java.util.List;
 @Entity
 @Table(name = "orders")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class Order {
+public class Order extends TenantScoped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "order_number", nullable = false, unique = true)
+    /** Unique par fournisseur (index composite en migration V18). */
+    @Column(name = "order_number", nullable = false)
     private String orderNumber;
 
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)

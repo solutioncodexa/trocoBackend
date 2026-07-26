@@ -11,6 +11,7 @@ import ma.codexa.troco.dto.request.LoginRequest;
 import ma.codexa.troco.dto.request.RegisterRequest;
 import ma.codexa.troco.entity.RefreshToken;
 import ma.codexa.troco.entity.User;
+import ma.codexa.troco.repository.FournisseurRepository;
 import ma.codexa.troco.repository.RefreshTokenRepository;
 import ma.codexa.troco.repository.UserRepository;
 import ma.codexa.troco.security.JwtUtil;
@@ -36,6 +37,7 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final FournisseurRepository fournisseurRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
@@ -47,6 +49,7 @@ public class UserService {
     private static final String ROLE_CUSTOMER = "CUSTOMER";
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_STAFF = "STAFF";
+    private static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
 
     public AuthResponse login(LoginRequest request) {
         try {
@@ -57,7 +60,8 @@ public class UserService {
             UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
             String role = userDetails.getRole();
-            if (!ROLE_ADMIN.equals(role) && !ROLE_STAFF.equals(role) && !ROLE_CUSTOMER.equals(role)) {
+            if (!ROLE_SUPER_ADMIN.equals(role) && !ROLE_ADMIN.equals(role)
+                    && !ROLE_STAFF.equals(role) && !ROLE_CUSTOMER.equals(role)) {
                 role = userDetails.getAuthorities().iterator().next().getAuthority().replace("ROLE_", "");
             }
 
@@ -68,15 +72,29 @@ public class UserService {
                         user.getEmail(), "inactive account");
                 throw new BusinessException("Compte désactivé", HttpStatus.FORBIDDEN);
             }
+            if (user.getFournisseurId() != null
+                    && ("ADMIN".equals(role) || "STAFF".equals(role))) {
+                ma.codexa.troco.entity.Fournisseur boutique =
+                        fournisseurRepository.findById(user.getFournisseurId()).orElse(null);
+                if (boutique != null
+                        && !ma.codexa.troco.tenant.FournisseurStatus.isAdminLoginAllowed(boutique.getStatus())) {
+                    auditLog.log(AuditLogService.Action.LOGIN, AuditLogService.Outcome.DENIED,
+                            user.getEmail(), "store status=" + boutique.getStatus());
+                    throw new BusinessException(
+                            "Boutique suspendue ou annulée — contactez Matjarona",
+                            HttpStatus.FORBIDDEN);
+                }
+            }
 
-            String accessToken = jwtUtil.generateToken(userDetails.getUsername(), role);
+            String accessToken = jwtUtil.generateToken(userDetails.getUsername(), role, user.getFournisseurId());
             String refreshToken = createRefreshToken(user);
             long expiresIn = jwtProperties.expirationMs() / 1000;
             List<String> permissions = permissionCheckService.resolvePermissions(user);
 
-            log.info("auth_login_success email={} role={}", userDetails.getUsername(), role);
+            log.info("auth_login_success email={} role={} fournisseurId={}",
+                    userDetails.getUsername(), role, user.getFournisseurId());
             auditLog.log(
-                    ROLE_ADMIN.equals(role) || ROLE_STAFF.equals(role)
+                    ROLE_SUPER_ADMIN.equals(role) || ROLE_ADMIN.equals(role) || ROLE_STAFF.equals(role)
                             ? AuditLogService.Action.ADMIN_LOGIN
                             : AuditLogService.Action.LOGIN,
                     AuditLogService.Outcome.SUCCESS,
@@ -93,6 +111,7 @@ public class UserService {
                     role,
                     user.getFullName(),
                     permissions,
+                    user.getFournisseurId(),
                     expiresIn
             );
         } catch (BusinessException ex) {
@@ -114,7 +133,9 @@ public class UserService {
 
         String requestedRole = request.getRole();
         if (requestedRole != null
-                && (ROLE_ADMIN.equalsIgnoreCase(requestedRole) || ROLE_STAFF.equalsIgnoreCase(requestedRole))) {
+                && (ROLE_SUPER_ADMIN.equalsIgnoreCase(requestedRole)
+                || ROLE_ADMIN.equalsIgnoreCase(requestedRole)
+                || ROLE_STAFF.equalsIgnoreCase(requestedRole))) {
             log.warn("Tentative d'inscription admin/staff bloquée pour: {}", request.getEmail());
             auditLog.log(AuditLogService.Action.REGISTER, AuditLogService.Outcome.DENIED,
                     request.getEmail(), "admin/staff registration attempted");
@@ -125,11 +146,12 @@ public class UserService {
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(ROLE_CUSTOMER);
+        user.setFournisseurId(ma.codexa.troco.tenant.TenantContext.getFournisseurId());
         user.setActive(true);
         user.setFullName(request.getEmail().split("@")[0]);
         user = userRepository.save(user);
 
-        String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole());
+        String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole(), user.getFournisseurId());
         String refreshToken = createRefreshToken(user);
         long expiresIn = jwtProperties.expirationMs() / 1000;
 
@@ -139,7 +161,7 @@ public class UserService {
         return new AuthResponse(
                 accessToken, refreshToken, "Bearer",
                 user.getId(), user.getEmail(), user.getRole(),
-                user.getFullName(), List.of(), expiresIn);
+                user.getFullName(), List.of(), user.getFournisseurId(), expiresIn);
     }
 
     public AuthResponse refreshToken(RefreshTokenRequest request) {
@@ -163,7 +185,7 @@ public class UserService {
         if (!user.isActive()) {
             throw new BusinessException("Compte désactivé", HttpStatus.FORBIDDEN);
         }
-        String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole());
+        String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole(), user.getFournisseurId());
         long expiresIn = jwtProperties.expirationMs() / 1000;
         List<String> permissions = permissionCheckService.resolvePermissions(user);
 
@@ -173,7 +195,7 @@ public class UserService {
         return new AuthResponse(
                 newAccessToken, requestRefreshToken, "Bearer",
                 user.getId(), user.getEmail(), user.getRole(),
-                user.getFullName(), permissions, expiresIn);
+                user.getFullName(), permissions, user.getFournisseurId(), expiresIn);
     }
 
     public void logout(String refreshToken) {
@@ -196,6 +218,7 @@ public class UserService {
                         u.getRole(),
                         u.getFullName(),
                         u.isActive(),
+                        u.getFournisseurId(),
                         permissionCheckService.resolvePermissions(u)))
                 .orElse(null);
     }

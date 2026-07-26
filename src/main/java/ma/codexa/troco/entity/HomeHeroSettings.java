@@ -2,6 +2,7 @@ package ma.codexa.troco.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import ma.codexa.troco.tenant.TenantScoped;
 
 import java.time.LocalDateTime;
 
@@ -11,10 +12,11 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class HomeHeroSettings {
+public class HomeHeroSettings extends TenantScoped {
 
     @Id
-    private Long id = 1L;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     /** Première image (rétrocompatibilité). */
     @Column(name = "image_url", length = 1024)

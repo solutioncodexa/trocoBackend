@@ -30,23 +30,29 @@ public final class AppPermissions {
     public static final String MEMBERS_MANAGE = "MEMBERS_MANAGE";
     public static final String AUDIT_VIEW = "AUDIT_VIEW";
 
+    public static final String PAGES_EDIT = "PAGES_EDIT";
+    public static final String PAGES_PUBLISH = "PAGES_PUBLISH";
+    public static final String WEBHOOKS_MANAGE = "WEBHOOKS_MANAGE";
+
     public static final List<String> ALL = List.of(
             PRODUCTS_VIEW, PRODUCTS_CREATE, PRODUCTS_UPDATE, PRODUCTS_DELETE,
             ORDERS_VIEW, ORDERS_UPDATE,
             STOCK_VIEW, STOCK_ADJUST,
             CUSTOM_ORDERS_VIEW, CUSTOM_ORDERS_UPDATE,
             CATALOG_MANAGE, CONTENT_MANAGE, STATS_VIEW,
-            MEMBERS_MANAGE, AUDIT_VIEW
+            MEMBERS_MANAGE, AUDIT_VIEW,
+            PAGES_EDIT, PAGES_PUBLISH, WEBHOOKS_MANAGE
     );
 
     /** Action → implied view permissions (gérer implique voir). */
-    public static final Map<String, List<String>> IMPLIES = Map.of(
-            STOCK_ADJUST, List.of(STOCK_VIEW),
-            ORDERS_UPDATE, List.of(ORDERS_VIEW),
-            CUSTOM_ORDERS_UPDATE, List.of(CUSTOM_ORDERS_VIEW),
-            PRODUCTS_CREATE, List.of(PRODUCTS_VIEW),
-            PRODUCTS_UPDATE, List.of(PRODUCTS_VIEW),
-            PRODUCTS_DELETE, List.of(PRODUCTS_VIEW)
+    public static final Map<String, List<String>> IMPLIES = Map.ofEntries(
+            Map.entry(STOCK_ADJUST, List.of(STOCK_VIEW)),
+            Map.entry(ORDERS_UPDATE, List.of(ORDERS_VIEW)),
+            Map.entry(CUSTOM_ORDERS_UPDATE, List.of(CUSTOM_ORDERS_VIEW)),
+            Map.entry(PRODUCTS_CREATE, List.of(PRODUCTS_VIEW)),
+            Map.entry(PRODUCTS_UPDATE, List.of(PRODUCTS_VIEW)),
+            Map.entry(PRODUCTS_DELETE, List.of(PRODUCTS_VIEW)),
+            Map.entry(PAGES_PUBLISH, List.of(PAGES_EDIT))
     );
 
     public static Set<String> expand(Set<String> codes) {

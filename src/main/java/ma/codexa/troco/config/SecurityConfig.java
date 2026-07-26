@@ -90,6 +90,22 @@ public class SecurityConfig {
                     // ─── Auth public ──────────────────────────────────────────
                     auth.requestMatchers("/auth/**").permitAll();
 
+                    // ─── Plateforme Matjarona (plans + store public + inscription) ──
+                    auth.requestMatchers(HttpMethod.GET, "/platform/plans").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/platform/themes").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/platform/store").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/platform/register").permitAll();
+                    auth.requestMatchers("/platform/**").hasRole("SUPER_ADMIN");
+
+                    // ─── Billing (test-pass + CMI ; callbacks publics) ───────
+                    auth.requestMatchers(HttpMethod.POST, "/billing/cmi/callback").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/billing/cmi/ok").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/billing/cmi/fail").permitAll();
+                    auth.requestMatchers("/billing/**").hasAnyRole("ADMIN", "SUPER_ADMIN");
+
+                    // ─── Settings boutique (admin fournisseur) ───────────────
+                    auth.requestMatchers("/store-settings/**").hasAnyRole("ADMIN", "STAFF");
+
                     // ─── Lecture publique du catalogue ────────────────────────
                     auth.requestMatchers(HttpMethod.GET, "/products/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/categories/**").permitAll();
@@ -102,6 +118,17 @@ public class SecurityConfig {
                     auth.requestMatchers("/promo-modals/public").permitAll();
                     auth.requestMatchers("/social-networks/public").permitAll();
                     auth.requestMatchers("/home-hero/public").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/store-pages/public/**").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/store-pages/public/track").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/store-leads/public").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/store-blog/public", "/store-blog/public/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/product-reviews/public/**").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/product-reviews/public").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/abandoned-carts/public/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/abandoned-carts/public/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/store-global-sections/public").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/sitemap.xml", "/seo/sitemap.xml").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/robots.txt", "/seo/robots.txt").permitAll();
 
                     // ─── Promo codes : validation publique, le reste ADMIN ────
                     auth.requestMatchers(HttpMethod.GET, "/promo-codes/validate").permitAll();
@@ -137,51 +164,59 @@ public class SecurityConfig {
                     // /actuator/prometheus : accessible uniquement depuis le réseau Docker
                     // interne (Prometheus). Le reverse-proxy ne l'expose PAS publiquement.
                     auth.requestMatchers("/actuator/prometheus").permitAll();
-                    auth.requestMatchers("/actuator/**").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers("/actuator/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Membres : ADMIN uniquement ──────────────────────────
-                    auth.requestMatchers("/admin/members", "/admin/members/**").hasRole("ADMIN");
-                    auth.requestMatchers("/admin/audit", "/admin/audit/**").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers("/admin/members", "/admin/members/**").hasAnyRole("SUPER_ADMIN", "ADMIN");
+                    auth.requestMatchers("/admin/audit", "/admin/audit/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Featured products : écriture back-office ────────────
-                    auth.requestMatchers(HttpMethod.POST, "/featured-products/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.PUT, "/featured-products/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.PATCH, "/featured-products/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.DELETE, "/featured-products/**").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.POST, "/featured-products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.PUT, "/featured-products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.PATCH, "/featured-products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.DELETE, "/featured-products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Catalogue : écriture back-office ────────────────────
-                    auth.requestMatchers(HttpMethod.POST, "/products", "/products/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.PUT, "/products/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.PATCH, "/products/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.DELETE, "/products/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.POST, "/import/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.POST, "/categories", "/categories/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.PUT, "/categories/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.PATCH, "/categories/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers(HttpMethod.DELETE, "/categories/**").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.POST, "/products", "/products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.PUT, "/products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.PATCH, "/products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.DELETE, "/products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.POST, "/import/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.POST, "/categories", "/categories/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.PUT, "/categories/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.PATCH, "/categories/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.DELETE, "/categories/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Top-bar / promo / social / home hero ─────────────────
-                    auth.requestMatchers("/top-bar-messages/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers("/promo-modals/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers("/social-networks", "/social-networks/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers("/home-hero", "/home-hero/**").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers("/top-bar-messages/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/promo-modals/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/social-networks", "/social-networks/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/home-hero", "/home-hero/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/store-pages", "/store-pages/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/store-leads", "/store-leads/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/store-blog", "/store-blog/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/product-reviews", "/product-reviews/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/abandoned-carts", "/abandoned-carts/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/store-global-sections", "/store-global-sections/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/store-webhooks", "/store-webhooks/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/ai-copy", "/ai-copy/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Promo codes ─────────────────────────────────────────
-                    auth.requestMatchers("/promo-codes/**").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers("/promo-codes/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Upload ──────────────────────────────────────────────
-                    auth.requestMatchers(HttpMethod.POST, "/upload", "/upload/**", "/upload-multiple").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers(HttpMethod.POST, "/upload", "/upload/**", "/upload-multiple").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Notifications ───────────────────────────────────────
-                    auth.requestMatchers("/notifications", "/notifications/**").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers("/notifications", "/notifications/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Stock & stats ───────────────────────────────────────
-                    auth.requestMatchers("/stock", "/stock/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers("/stats", "/stats/**").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers("/stock", "/stock/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/stats", "/stats/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Liste/gestion commandes ─────────────────────────────
-                    auth.requestMatchers("/orders", "/orders/**").hasAnyRole("ADMIN", "STAFF");
-                    auth.requestMatchers("/custom-orders", "/custom-orders/**").hasAnyRole("ADMIN", "STAFF");
+                    auth.requestMatchers("/orders", "/orders/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/custom-orders", "/custom-orders/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Tout le reste = authentifié ─────────────────────────
                     auth.anyRequest().authenticated();

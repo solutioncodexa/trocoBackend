@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import ma.codexa.troco.dto.HomeHeroSettingsDTO;
 import ma.codexa.troco.entity.HomeHeroSettings;
 import ma.codexa.troco.repository.HomeHeroSettingsRepository;
+import ma.codexa.troco.tenant.TenantContext;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -30,7 +31,7 @@ public class HomeHeroSettingsService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional(readOnly = true)
-    @Cacheable(value = "homeHero")
+    @Cacheable(value = "homeHero", key = "T(ma.codexa.troco.tenant.TenantContext).getFournisseurId() ?: 'none'")
     public HomeHeroSettingsDTO getPublic() {
         return toDto(getOrCreate());
     }
@@ -72,9 +73,17 @@ public class HomeHeroSettingsService {
     }
 
     private HomeHeroSettings getOrCreate() {
-        return repository.findById(1L).orElseGet(() -> {
+        Long fid = TenantContext.getFournisseurId();
+        if (fid == null) {
+            // Pas de tenant : ne jamais renvoyer le hero d'une autre boutique.
+            HomeHeroSettings ephemeral = new HomeHeroSettings();
+            ephemeral.setImageUrl(DEFAULT_IMAGE_URL);
+            ephemeral.setImageUrlsJson(writeUrls(List.of(DEFAULT_IMAGE_URL)));
+            return ephemeral;
+        }
+        return repository.findFirstByFournisseurId(fid).orElseGet(() -> {
             HomeHeroSettings created = new HomeHeroSettings();
-            created.setId(1L);
+            created.setFournisseurId(fid);
             created.setImageUrl(DEFAULT_IMAGE_URL);
             created.setImageUrlsJson(writeUrls(List.of(DEFAULT_IMAGE_URL)));
             return repository.save(created);

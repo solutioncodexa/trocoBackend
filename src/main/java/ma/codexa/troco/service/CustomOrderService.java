@@ -107,9 +107,12 @@ public class CustomOrderService {
     /** Cree la demande puis materialise le DTO dans la transaction (referenceImages/customer lazies). */
     public CustomOrderDTO createCustomOrderFromDTO(CustomOrderDTO dto) {
         CustomOrder customOrder = new CustomOrder();
+        Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        customOrder.setFournisseurId(fid);
 
         CustomerDTO customerDTO = dto.getCustomer();
         Customer customer = new Customer();
+        customer.setFournisseurId(fid);
         customer.setFullName(customerDTO.getFullName());
         customer.setPhone(customerDTO.getPhone());
         customer.setAddress(customerDTO.getAddress());

@@ -17,5 +17,11 @@ public class UserInfoDTO {
     private String role;
     private String fullName;
     private Boolean active;
+    private Long fournisseurId;
     private List<String> permissions = new ArrayList<>();
+
+    public UserInfoDTO(Long id, String email, String role, String fullName,
+                       Boolean active, List<String> permissions) {
+        this(id, email, role, fullName, active, null, permissions);
+    }
 }

@@ -20,12 +20,17 @@ public record AuthResponse(
     String fullName,
     List<String> permissions,
 
+    @JsonProperty("fournisseur_id")
+    Long fournisseurId,
+
     @JsonProperty("expires_in")
     Long expiresIn
 ) {
     public AuthResponse(String accessToken, String refreshToken, String tokenType,
-                        Long id, String email, String role, Long expiresIn) {
+                        Long id, String email, String role, String fullName,
+                        List<String> permissions, Long expiresIn) {
         this(accessToken, refreshToken, tokenType != null ? tokenType : "Bearer",
-                id, email, role, null, List.of(), expiresIn);
+                id, email, role, fullName, permissions != null ? permissions : List.of(),
+                null, expiresIn);
     }
 }

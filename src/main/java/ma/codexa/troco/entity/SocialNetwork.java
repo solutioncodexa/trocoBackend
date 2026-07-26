@@ -2,6 +2,7 @@ package ma.codexa.troco.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import ma.codexa.troco.tenant.TenantScoped;
 
 import java.time.LocalDateTime;
 
@@ -12,13 +13,13 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SocialNetwork {
+public class SocialNetwork extends TenantScoped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "network_key", nullable = false, unique = true, length = 50)
+    @Column(name = "network_key", nullable = false, length = 50)
     private String networkKey;
 
     @Column(nullable = false, length = 100)

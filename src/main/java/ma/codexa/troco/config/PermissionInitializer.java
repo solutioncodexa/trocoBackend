@@ -38,6 +38,9 @@ public class PermissionInitializer {
         DEFS.put(AppPermissions.STATS_VIEW, new String[]{"Voir les statistiques", "STATS", "Tableau de bord et revenus"});
         DEFS.put(AppPermissions.MEMBERS_MANAGE, new String[]{"Gérer les membres", "MEMBRES", "Créer et administrer les comptes équipe"});
         DEFS.put(AppPermissions.AUDIT_VIEW, new String[]{"Voir l'audit", "AUDIT", "Consulter l'historique des actions"});
+        DEFS.put(AppPermissions.PAGES_EDIT, new String[]{"Éditer les pages", "PAGES", "Créer et modifier pages / composants"});
+        DEFS.put(AppPermissions.PAGES_PUBLISH, new String[]{"Publier les pages", "PAGES", "Publier, dépublier et planifier"});
+        DEFS.put(AppPermissions.WEBHOOKS_MANAGE, new String[]{"Gérer les webhooks", "INTEGRATIONS", "Zapier / n8n"});
     }
 
     @Bean

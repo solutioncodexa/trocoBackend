@@ -2,15 +2,18 @@ package ma.codexa.troco.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import ma.codexa.troco.tenant.TenantScoped;
 
 @Entity
 @Table(name = "top_bar_messages")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class TopBarMessage {
+public class TopBarMessage extends TenantScoped {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -28,6 +31,10 @@ public class TopBarMessage {
     /** Durée d'affichage de ce message avant passage au suivant (rotation), en secondes — comme autoCloseSeconds des promo modals */
     @Column(name = "display_duration_seconds", nullable = false)
     private Integer displayDurationSeconds = 7;
+
+    /** Chemins cibles (JSON array ou lignes), vide = toutes les pages. */
+    @Column(name = "target_paths", columnDefinition = "TEXT")
+    private String targetPaths;
 
     public TopBarMessage(String message, Integer displayOrder, Boolean isActive) {
         this.message = message;

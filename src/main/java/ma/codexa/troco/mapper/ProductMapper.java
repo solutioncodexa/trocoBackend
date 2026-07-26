@@ -47,6 +47,8 @@ public interface ProductMapper {
     @Mapping(target = "availableSizes", source = "availableSizes", qualifiedByName = "listToString")
     @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToString")
     @Mapping(target = "images", ignore = true)
+    /** Variantes gérées par ProductVariantService — ne pas écraser la liste vide initiale avec null. */
+    @Mapping(target = "variants", ignore = true)
     @Mapping(target = "category", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
