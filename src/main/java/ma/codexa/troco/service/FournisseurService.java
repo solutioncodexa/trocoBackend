@@ -3,10 +3,14 @@ package ma.codexa.troco.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.codexa.troco.common.exception.BusinessException;
+import ma.codexa.troco.dto.AdminStoreSummaryDTO;
 import ma.codexa.troco.dto.FournisseurDTO;
 import ma.codexa.troco.dto.PlanDTO;
+import ma.codexa.troco.dto.PlanMarketingDTO;
 import ma.codexa.troco.dto.StoreSettingsDTO;
 import ma.codexa.troco.dto.StoreThemeDTO;
+import ma.codexa.troco.dto.StorefrontBootstrapDTO;
+import ma.codexa.troco.dto.StorefrontCheckoutDTO;
 import ma.codexa.troco.dto.request.CreateFournisseurRequest;
 import ma.codexa.troco.dto.request.UpdateStoreSettingsRequest;
 import ma.codexa.troco.entity.Fournisseur;
@@ -46,6 +50,7 @@ public class FournisseurService {
     private final SocialNetworkRepository socialNetworkRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PlanEntitlementService planEntitlementService;
 
     @Value("${app.platform.default-plan-code:basic}")
     private String defaultPlanCode;
@@ -53,16 +58,130 @@ public class FournisseurService {
     @Value("${app.platform.domain:matjarona.ma}")
     private String platformDomain;
 
+    /** Landing / inscription — DTO marketing (sans flag admin). */
     @Transactional(readOnly = true)
-    public List<PlanDTO> listPlans() {
+    public List<PlanMarketingDTO> listPlans() {
         return planRepository.findByActiveTrueOrderByPriceMadAsc().stream()
+                .map(this::toPlanMarketingDto)
+                .toList();
+    }
+
+    /** Tous les packs (actifs + inactifs) — Super Admin. */
+    @Transactional(readOnly = true)
+    public List<PlanDTO> listAllPlans() {
+        return planRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(Plan::getPriceMad, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
                 .map(this::toPlanDto)
                 .toList();
     }
 
+    @Transactional
+    public PlanDTO upsertPlan(Long id, ma.codexa.troco.dto.request.UpdatePlanRequest req) {
+        Plan p;
+        if (id == null) {
+            if (req.getCode() == null || req.getCode().isBlank()) {
+                throw new BusinessException("Code plan requis", HttpStatus.BAD_REQUEST);
+            }
+            String code = req.getCode().trim().toLowerCase(Locale.ROOT);
+            if (planRepository.findByCodeIgnoreCase(code).isPresent()) {
+                throw new BusinessException("Ce code plan existe déjà", HttpStatus.CONFLICT);
+            }
+            p = new Plan();
+            p.setCode(code);
+            p.setCurrency("MAD");
+            p.setBillingPeriod("MONTHLY");
+            p.setActive(true);
+            p.setCustomDomain(false);
+            p.setPriceMad(java.math.BigDecimal.ZERO);
+        } else {
+            p = planRepository.findById(id)
+                    .orElseThrow(() -> new BusinessException("Plan introuvable", HttpStatus.NOT_FOUND));
+        }
+
+        if (req.getName() != null && !req.getName().isBlank()) p.setName(req.getName().trim());
+        if (req.getDescription() != null) p.setDescription(blankToNull(req.getDescription()));
+        if (req.getPriceMad() != null) p.setPriceMad(req.getPriceMad());
+        if (req.getCurrency() != null && !req.getCurrency().isBlank()) {
+            p.setCurrency(req.getCurrency().trim().toUpperCase(Locale.ROOT));
+        }
+        if (req.getBillingPeriod() != null && !req.getBillingPeriod().isBlank()) {
+            p.setBillingPeriod(req.getBillingPeriod().trim().toUpperCase(Locale.ROOT));
+        }
+        // null ou < 0 = illimité (le formulaire Super Admin envoie toujours ces champs)
+        p.setMaxProducts(normalizeLimit(req.getMaxProducts()));
+        p.setMaxStaff(normalizeLimit(req.getMaxStaff()));
+        p.setMaxOrdersPerMonth(normalizeLimit(req.getMaxOrdersPerMonth()));
+        p.setMaxPixels(normalizeLimit(req.getMaxPixels()));
+        p.setStorageMb(normalizeLimit(req.getStorageMb()));
+        if (req.getCustomDomain() != null) p.setCustomDomain(req.getCustomDomain());
+        if (req.getActive() != null) p.setActive(req.getActive());
+        if (req.getFeatures() != null) {
+            p.setFeaturesJson(writeFeaturesJson(req.getFeatures(), p.getCode()));
+        }
+        if (p.getName() == null || p.getName().isBlank()) {
+            throw new BusinessException("Nom du plan requis", HttpStatus.BAD_REQUEST);
+        }
+        if (p.getPriceMad() == null) {
+            throw new BusinessException("Prix requis", HttpStatus.BAD_REQUEST);
+        }
+        return toPlanDto(planRepository.save(p));
+    }
+
+    private String writeFeaturesJson(java.util.Map<String, Object> features, String code) {
+        var defaults = ma.codexa.troco.plan.PlanFeatures.defaultsForCode(code);
+        java.util.function.Function<String, Object> get = (k) ->
+                features.containsKey(k) ? features.get(k) : null;
+        String themes = strOr(get.apply("themes"), defaults.themes());
+        String pageBuilder = strOr(get.apply("pageBuilder"), defaults.pageBuilder());
+        boolean abTesting = boolOr(get.apply("abTesting"), defaults.abTesting());
+        boolean abandonedCart = boolOr(get.apply("abandonedCart"), defaults.abandonedCart());
+        boolean abandonedCartAdvanced = boolOr(get.apply("abandonedCartAdvanced"), defaults.abandonedCartAdvanced());
+        boolean whatsappBusiness = boolOr(get.apply("whatsappBusiness"), defaults.whatsappBusiness());
+        boolean whatsappMultiTemplates = boolOr(get.apply("whatsappMultiTemplates"), defaults.whatsappMultiTemplates());
+        String webhooks = strOr(get.apply("webhooks"), defaults.webhooks());
+        String blogSeo = strOr(get.apply("blogSeo"), defaults.blogSeo());
+        String support = strOr(get.apply("support"), defaults.support());
+        boolean apiHeadless = boolOr(get.apply("apiHeadless"), defaults.apiHeadless());
+        boolean loyalty = boolOr(get.apply("loyalty"), defaults.loyalty());
+        boolean multiCurrency = boolOr(get.apply("multiCurrency"), defaults.multiCurrency());
+        return """
+                {"themes":"%s","pageBuilder":"%s","abTesting":%s,"abandonedCart":%s,"abandonedCartAdvanced":%s,\
+                "whatsappBusiness":%s,"whatsappMultiTemplates":%s,"webhooks":"%s","blogSeo":"%s","support":"%s",\
+                "apiHeadless":%s,"loyalty":%s,"multiCurrency":%s}"""
+                .formatted(themes, pageBuilder, abTesting, abandonedCart, abandonedCartAdvanced,
+                        whatsappBusiness, whatsappMultiTemplates, webhooks, blogSeo, support,
+                        apiHeadless, loyalty, multiCurrency);
+    }
+
+    private static String strOr(Object v, String fallback) {
+        if (v == null) return fallback;
+        String s = String.valueOf(v).trim();
+        return s.isEmpty() || "null".equalsIgnoreCase(s) ? fallback : s;
+    }
+
+    private static boolean boolOr(Object v, boolean fallback) {
+        if (v == null) return fallback;
+        if (v instanceof Boolean b) return b;
+        return Boolean.parseBoolean(String.valueOf(v));
+    }
+
+    private static Integer normalizeLimit(Integer value) {
+        if (value == null || value < 0) return null;
+        return value;
+    }
+
     @Transactional(readOnly = true)
     public List<StoreThemeDTO> listThemes() {
-        return Arrays.stream(StoreTheme.values())
+        var stream = Arrays.stream(StoreTheme.values());
+        if (TenantContext.getFournisseurId() != null) {
+            try {
+                var features = planEntitlementService.features();
+                stream = stream.filter(t -> features.themeAllowed(t.getKey()));
+            } catch (Exception ignored) {
+                // catalogue public sans tenant : tous les thèmes
+            }
+        }
+        return stream
                 .map(t -> new StoreThemeDTO(t.getKey(), t.getLabel(), t.getDescription()))
                 .toList();
     }
@@ -213,8 +332,25 @@ public class FournisseurService {
         }
     }
 
+    /** Bootstrap vitrine (léger) — sans paiement / plan / CNDP admin. */
     @Transactional(readOnly = true)
-    public StoreSettingsDTO getPublicStore(String slugOrNull) {
+    public StorefrontBootstrapDTO getPublicStore(String slugOrNull) {
+        Fournisseur f = resolveAccessibleFournisseur(slugOrNull);
+        StoreSettings settings = storeSettingsRepository.findByFournisseurId(f.getId())
+                .orElseGet(() -> emptySettings(f.getId(), f.getName()));
+        return toBootstrapDto(f, settings);
+    }
+
+    /** Checkout à la demande. */
+    @Transactional(readOnly = true)
+    public StorefrontCheckoutDTO getPublicStoreCheckout(String slugOrNull) {
+        Fournisseur f = resolveAccessibleFournisseur(slugOrNull);
+        StoreSettings settings = storeSettingsRepository.findByFournisseurId(f.getId())
+                .orElseGet(() -> emptySettings(f.getId(), f.getName()));
+        return toCheckoutDto(f, settings);
+    }
+
+    private Fournisseur resolveAccessibleFournisseur(String slugOrNull) {
         Fournisseur f = resolveFournisseur(slugOrNull);
         if (!FournisseurStatus.isStorefrontAccessible(f.getStatus())) {
             String msg = FournisseurStatus.PENDING.equalsIgnoreCase(f.getStatus())
@@ -222,9 +358,7 @@ public class FournisseurService {
                     : "Boutique temporairement indisponible";
             throw new BusinessException(msg, HttpStatus.FORBIDDEN);
         }
-        StoreSettings settings = storeSettingsRepository.findByFournisseurId(f.getId())
-                .orElseGet(() -> emptySettings(f.getId(), f.getName()));
-        return toStoreDto(f, settings);
+        return f;
     }
 
     @Transactional
@@ -252,6 +386,17 @@ public class FournisseurService {
         return toStoreDto(f, settings);
     }
 
+    /** Shell admin — branding / statut / plan, sans config complète. */
+    @Transactional(readOnly = true)
+    public AdminStoreSummaryDTO getMyStoreSummary() {
+        Long fid = TenantContext.requireFournisseurId();
+        Fournisseur f = fournisseurRepository.findById(fid)
+                .orElseThrow(() -> new BusinessException("Fournisseur introuvable", HttpStatus.NOT_FOUND));
+        StoreSettings settings = storeSettingsRepository.findByFournisseurId(fid)
+                .orElseGet(() -> emptySettings(fid, f.getName()));
+        return toAdminSummaryDto(f, settings);
+    }
+
     @Transactional
     public StoreSettingsDTO updateMyStoreSettings(UpdateStoreSettingsRequest request) {
         Long fid = TenantContext.requireFournisseurId();
@@ -261,6 +406,7 @@ public class FournisseurService {
         if (request.getCustomDomain() != null) {
             String domain = normalizeDomain(request.getCustomDomain());
             if (!domain.isBlank()) {
+                planEntitlementService.assertCustomDomainAllowed();
                 fournisseurRepository.findByCustomDomainIgnoreCase(domain).ifPresent(other -> {
                     if (!other.getId().equals(fid)) {
                         throw new BusinessException("Ce domaine est déjà utilisé", HttpStatus.CONFLICT);
@@ -310,19 +456,70 @@ public class FournisseurService {
         if (request.getCategoriesEnabled() != null) settings.setCategoriesEnabled(request.getCategoriesEnabled());
         if (request.getSurMesureEnabled() != null) settings.setSurMesureEnabled(request.getSurMesureEnabled());
         if (request.getThemeKey() != null) {
-            settings.setThemeKey(StoreTheme.normalizeOrDefault(request.getThemeKey()));
+            String theme = StoreTheme.normalizeOrDefault(request.getThemeKey());
+            planEntitlementService.assertThemeAllowed(theme);
+            settings.setThemeKey(theme);
         }
         if (request.getMetaPixelId() != null) settings.setMetaPixelId(blankToNull(request.getMetaPixelId()));
         if (request.getTiktokPixelId() != null) settings.setTiktokPixelId(blankToNull(request.getTiktokPixelId()));
         if (request.getGoogleAdsId() != null) settings.setGoogleAdsId(blankToNull(request.getGoogleAdsId()));
         if (request.getGoogleAnalyticsId() != null) settings.setGoogleAnalyticsId(blankToNull(request.getGoogleAnalyticsId()));
-        if (request.getAbandonedCartEnabled() != null) settings.setAbandonedCartEnabled(request.getAbandonedCartEnabled());
+        if (request.getAbandonedCartEnabled() != null) {
+            if (Boolean.TRUE.equals(request.getAbandonedCartEnabled())) {
+                planEntitlementService.assertAbandonedCartAllowed();
+            }
+            settings.setAbandonedCartEnabled(request.getAbandonedCartEnabled());
+        }
         if (request.getAbandonedCartDelayMinutes() != null) {
             int delay = Math.max(15, Math.min(request.getAbandonedCartDelayMinutes(), 7 * 24 * 60));
             settings.setAbandonedCartDelayMinutes(delay);
         }
         if (request.getWhatsappOrderTemplate() != null) {
+            if (blankToNull(request.getWhatsappOrderTemplate()) != null) {
+                planEntitlementService.assertWhatsappBusinessAllowed();
+            }
             settings.setWhatsappOrderTemplate(blankToNull(request.getWhatsappOrderTemplate()));
+        }
+        if (request.getLoyaltyEnabled() != null && Boolean.TRUE.equals(request.getLoyaltyEnabled())) {
+            planEntitlementService.assertLoyaltyAllowed();
+        }
+        // Compte pixels marketing après éventuelles mises à jour
+        int pixelCount = 0;
+        if (blankToNull(settings.getMetaPixelId()) != null) pixelCount++;
+        if (blankToNull(settings.getTiktokPixelId()) != null) pixelCount++;
+        if (blankToNull(settings.getGoogleAnalyticsId()) != null || blankToNull(settings.getGoogleAdsId()) != null) {
+            pixelCount++;
+        }
+        planEntitlementService.assertPixelCountAllowed(pixelCount);
+        if (request.getDefaultLocale() != null) {
+            settings.setDefaultLocale(normalizeLocale(request.getDefaultLocale()));
+        }
+        if (request.getSupportedLocales() != null) {
+            settings.setSupportedLocales(normalizeLocales(request.getSupportedLocales()));
+        }
+        if (request.getCurrency() != null && !request.getCurrency().isBlank()) {
+            settings.setCurrency(request.getCurrency().trim().toUpperCase(Locale.ROOT));
+        }
+        if (request.getCurrencyRatesJson() != null) {
+            settings.setCurrencyRatesJson(blankToNull(request.getCurrencyRatesJson()));
+        }
+        if (request.getPaymentCodEnabled() != null) settings.setPaymentCodEnabled(Boolean.TRUE.equals(request.getPaymentCodEnabled()));
+        if (request.getPaymentCmiEnabled() != null) settings.setPaymentCmiEnabled(Boolean.TRUE.equals(request.getPaymentCmiEnabled()));
+        if (request.getPaymentBnplEnabled() != null) settings.setPaymentBnplEnabled(Boolean.TRUE.equals(request.getPaymentBnplEnabled()));
+        if (request.getBnplProvider() != null) settings.setBnplProvider(blankToNull(request.getBnplProvider()));
+        if (request.getLoyaltyEnabled() != null) settings.setLoyaltyEnabled(Boolean.TRUE.equals(request.getLoyaltyEnabled()));
+        if (request.getLoyaltyPointsPerMad() != null) settings.setLoyaltyPointsPerMad(request.getLoyaltyPointsPerMad());
+        if (request.getLoyaltyMadPerPoint() != null) settings.setLoyaltyMadPerPoint(request.getLoyaltyMadPerPoint());
+        if (request.getPrivacyPolicyUrl() != null) settings.setPrivacyPolicyUrl(blankToNull(request.getPrivacyPolicyUrl()));
+        if (request.getCookieConsentRequired() != null) {
+            settings.setCookieConsentRequired(Boolean.TRUE.equals(request.getCookieConsentRequired()));
+        }
+        if (request.getDataRetentionDays() != null) {
+            settings.setDataRetentionDays(Math.max(30, Math.min(request.getDataRetentionDays(), 3650)));
+        }
+        if (request.getCndpNoticeVersion() != null) settings.setCndpNoticeVersion(blankToNull(request.getCndpNoticeVersion()));
+        if (request.getShippingDefaultCarrier() != null) {
+            settings.setShippingDefaultCarrier(blankToNull(request.getShippingDefaultCarrier()));
         }
 
         storeSettingsRepository.save(settings);
@@ -492,7 +689,94 @@ public class FournisseurService {
         return new PlanDTO(
                 p.getId(), p.getCode(), p.getName(), p.getDescription(),
                 p.getPriceMad(), p.getCurrency(), p.getBillingPeriod(),
-                p.getMaxProducts(), p.getMaxStaff(), p.isCustomDomain(), p.isActive()
+                p.getMaxProducts(), p.getMaxStaff(),
+                p.getMaxOrdersPerMonth(), p.getMaxPixels(), p.getStorageMb(),
+                p.isCustomDomain(), p.isActive(),
+                PlanEntitlementService.featuresMap(p)
+        );
+    }
+
+    private PlanMarketingDTO toPlanMarketingDto(Plan p) {
+        return new PlanMarketingDTO(
+                p.getId(), p.getCode(), p.getName(), p.getDescription(),
+                p.getPriceMad(), p.getCurrency(),
+                p.getMaxProducts(), p.getMaxStaff(),
+                p.getMaxOrdersPerMonth(), p.getMaxPixels(), p.getStorageMb(),
+                p.isCustomDomain(),
+                PlanEntitlementService.featuresMap(p)
+        );
+    }
+
+    private StorefrontBootstrapDTO toBootstrapDto(Fournisseur f, StoreSettings s) {
+        return new StorefrontBootstrapDTO(
+                f.getId(),
+                f.getSlug(),
+                f.getStatus(),
+                s.getSiteName() != null ? s.getSiteName() : f.getName(),
+                s.getTagline(),
+                s.getAboutText(),
+                f.getLogoUrl(),
+                s.getFaviconUrl(),
+                f.getPrimaryColor(),
+                f.getSecondaryColor(),
+                StoreTheme.normalizeOrDefault(s.getThemeKey()),
+                s.getContactEmail(),
+                s.getContactPhone(),
+                s.getContactWhatsapp(),
+                s.getContactCity(),
+                s.getFreeShippingThreshold(),
+                s.getFacebookUrl(),
+                s.getInstagramUrl(),
+                s.getTiktokUrl(),
+                s.isHeroEnabled(),
+                s.isCategoriesEnabled(),
+                s.isSurMesureEnabled(),
+                s.getMetaPixelId(),
+                s.getTiktokPixelId(),
+                s.getGoogleAdsId(),
+                s.getGoogleAnalyticsId(),
+                !Boolean.FALSE.equals(s.getCookieConsentRequired()),
+                s.getPrivacyPolicyUrl(),
+                s.getDefaultLocale() != null ? s.getDefaultLocale() : "fr",
+                s.getSupportedLocales() != null ? s.getSupportedLocales() : "fr,ar,en",
+                s.getCurrency() != null ? s.getCurrency() : "MAD",
+                s.getCurrencyRatesJson(),
+                s.getWhatsappOrderTemplate()
+        );
+    }
+
+    private StorefrontCheckoutDTO toCheckoutDto(Fournisseur f, StoreSettings s) {
+        return new StorefrontCheckoutDTO(
+                f.getSlug(),
+                !Boolean.FALSE.equals(s.getPaymentCodEnabled()),
+                Boolean.TRUE.equals(s.getPaymentCmiEnabled()),
+                Boolean.TRUE.equals(s.getPaymentBnplEnabled()),
+                s.getBnplProvider(),
+                Boolean.TRUE.equals(s.getLoyaltyEnabled()),
+                s.getLoyaltyPointsPerMad() != null ? s.getLoyaltyPointsPerMad() : java.math.BigDecimal.ONE,
+                s.getLoyaltyMadPerPoint() != null ? s.getLoyaltyMadPerPoint() : new java.math.BigDecimal("0.10"),
+                s.getShippingDefaultCarrier(),
+                s.isAbandonedCartEnabled(),
+                s.getFreeShippingThreshold()
+        );
+    }
+
+    private AdminStoreSummaryDTO toAdminSummaryDto(Fournisseur f, StoreSettings s) {
+        Plan p = f.getPlan();
+        return new AdminStoreSummaryDTO(
+                f.getId(),
+                f.getSlug(),
+                f.getStatus(),
+                s.getSiteName() != null ? s.getSiteName() : f.getName(),
+                s.getTagline(),
+                s.getAboutText(),
+                f.getLogoUrl(),
+                s.getFaviconUrl(),
+                f.getPrimaryColor(),
+                f.getSecondaryColor(),
+                StoreTheme.normalizeOrDefault(s.getThemeKey()),
+                p != null ? p.getCode() : null,
+                p != null ? p.getName() : null
         );
     }
 
@@ -532,7 +816,40 @@ public class FournisseurService {
                 s.getGoogleAnalyticsId(),
                 s.isAbandonedCartEnabled(),
                 s.getAbandonedCartDelayMinutes() != null ? s.getAbandonedCartDelayMinutes() : 60,
-                s.getWhatsappOrderTemplate()
+                s.getWhatsappOrderTemplate(),
+                s.getDefaultLocale() != null ? s.getDefaultLocale() : "fr",
+                s.getSupportedLocales() != null ? s.getSupportedLocales() : "fr,ar,en",
+                s.getCurrency() != null ? s.getCurrency() : "MAD",
+                s.getCurrencyRatesJson(),
+                !Boolean.FALSE.equals(s.getPaymentCodEnabled()),
+                Boolean.TRUE.equals(s.getPaymentCmiEnabled()),
+                Boolean.TRUE.equals(s.getPaymentBnplEnabled()),
+                s.getBnplProvider(),
+                Boolean.TRUE.equals(s.getLoyaltyEnabled()),
+                s.getLoyaltyPointsPerMad() != null ? s.getLoyaltyPointsPerMad() : java.math.BigDecimal.ONE,
+                s.getLoyaltyMadPerPoint() != null ? s.getLoyaltyMadPerPoint() : new java.math.BigDecimal("0.10"),
+                s.getPrivacyPolicyUrl(),
+                !Boolean.FALSE.equals(s.getCookieConsentRequired()),
+                s.getDataRetentionDays() != null ? s.getDataRetentionDays() : 365,
+                s.getCndpNoticeVersion(),
+                s.getShippingDefaultCarrier()
         );
+    }
+
+    private String normalizeLocale(String raw) {
+        if (raw == null || raw.isBlank()) return "fr";
+        String l = raw.trim().toLowerCase(Locale.ROOT);
+        if (l.startsWith("ar")) return "ar";
+        if (l.startsWith("en")) return "en";
+        return "fr";
+    }
+
+    private String normalizeLocales(String raw) {
+        if (raw == null || raw.isBlank()) return "fr,ar,en";
+        return java.util.Arrays.stream(raw.split(","))
+                .map(this::normalizeLocale)
+                .distinct()
+                .reduce((a, b) -> a + "," + b)
+                .orElse("fr,ar,en");
     }
 }

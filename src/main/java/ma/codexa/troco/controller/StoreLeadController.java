@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
 import ma.codexa.troco.dto.StoreLeadDTO;
+import ma.codexa.troco.dto.StoreLeadListItemDTO;
 import ma.codexa.troco.dto.request.CreateStoreLeadRequest;
 import ma.codexa.troco.service.StoreLeadService;
 import org.springframework.http.HttpHeaders;
@@ -29,8 +30,14 @@ public class StoreLeadController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    public ResponseEntity<ApiResponse<List<StoreLeadDTO>>> list() {
+    public ResponseEntity<ApiResponse<List<StoreLeadListItemDTO>>> list() {
         return ResponseEntity.ok(ApiResponse.success(storeLeadService.list()));
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<ApiResponse<StoreLeadDTO>> get(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(storeLeadService.get(id)));
     }
 
     @GetMapping(value = "/export.csv", produces = "text/csv")

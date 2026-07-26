@@ -2,6 +2,7 @@ package ma.codexa.troco.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ma.codexa.troco.common.PageResponse;
 import ma.codexa.troco.common.exception.BusinessException;
 import ma.codexa.troco.common.exception.ResourceNotFoundException;
 import ma.codexa.troco.dto.*;
@@ -131,6 +132,11 @@ public class StockService {
 
     @Transactional(readOnly = true)
     public List<StockVariantRowDTO> listVariantRows(String filter) {
+        return listVariantRows(filter, 0, Integer.MAX_VALUE).getContent();
+    }
+
+    /** Liste paginée des variantes stock. */
+    public PageResponse<StockVariantRowDTO> listVariantRows(String filter, int page, int size) {
         StockSettings settings = getOrCreateSettings();
         LocalDate expiryLimit = LocalDate.now().plusDays(settings.getExpiryAlertDays());
         String f = filter != null ? filter.trim().toLowerCase(Locale.ROOT) : "all";
@@ -141,7 +147,11 @@ public class StockService {
                 result.add(row);
             }
         }
-        return result;
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        int safePage = Math.max(page, 0);
+        int from = Math.min(safePage * safeSize, result.size());
+        int to = Math.min(from + safeSize, result.size());
+        return PageResponse.of(result.subList(from, to), safePage, safeSize, result.size());
     }
 
     private boolean matchesFilter(StockVariantRowDTO row, String filter, LocalDate expiryLimit) {
@@ -267,7 +277,8 @@ public class StockService {
     @Transactional
     public int bulkSafety(BulkSafetyStockRequest request) {
         if (Boolean.TRUE.equals(request.getClearOverrides())) {
-            List<ProductVariant> all = productVariantRepository.findAll();
+            // Via produit (TenantScoped) — jamais findAll() brut cross-tenant.
+            List<ProductVariant> all = productVariantRepository.findAllActiveWithProduct();
             int n = 0;
             for (ProductVariant v : all) {
                 if (v.getSafetyStock() != null) {
@@ -284,7 +295,7 @@ public class StockService {
         if (request.getSafetyStock() < 0) {
             throw new BusinessException("Le seuil d'alerte doit être ≥ 0", HttpStatus.BAD_REQUEST);
         }
-        List<ProductVariant> all = productVariantRepository.findAll();
+        List<ProductVariant> all = productVariantRepository.findAllActiveWithProduct();
         for (ProductVariant v : all) {
             v.setSafetyStock(request.getSafetyStock());
         }

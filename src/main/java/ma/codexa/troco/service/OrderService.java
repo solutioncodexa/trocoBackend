@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import ma.codexa.troco.common.exception.ResourceNotFoundException;
 import ma.codexa.troco.dto.CartItemDTO;
 import ma.codexa.troco.dto.CustomerDTO;
+import ma.codexa.troco.dto.OrderCreatedDTO;
 import ma.codexa.troco.dto.OrderDTO;
 import ma.codexa.troco.mapper.OrderMapper;
 import ma.codexa.troco.mapper.ProductMapper;
@@ -13,10 +14,15 @@ import ma.codexa.troco.entity.Order;
 import ma.codexa.troco.entity.OrderItem;
 import ma.codexa.troco.entity.Product;
 import ma.codexa.troco.entity.PromoCode;
+import ma.codexa.troco.entity.ShippingCarrier;
+import ma.codexa.troco.entity.StoreSettings;
 import ma.codexa.troco.repository.CustomerRepository;
 import ma.codexa.troco.repository.OrderRepository;
 import ma.codexa.troco.repository.PromoCodeRepository;
 import ma.codexa.troco.repository.ProductRepository;
+import ma.codexa.troco.repository.StoreSettingsRepository;
+
+import java.math.BigDecimal;
 import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +51,11 @@ public class OrderService {
     private final ProductMapper productMapper;
     private final AuditLogService auditLog;
     private final StoreWebhookDispatcher storeWebhookDispatcher;
+    private final ShippingCarrierService shippingCarrierService;
+    private final LoyaltyService loyaltyService;
+    private final PaymentAuditService paymentAuditService;
+    private final StoreSettingsRepository storeSettingsRepository;
+    private final PlanEntitlementService planEntitlementService;
 
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
@@ -167,10 +178,10 @@ public class OrderService {
     }
 
     /**
-     * Cree la commande et retourne un DTO deja materialise (chargement images produits
-     * encore dans la transaction — evite LazyInitializationException dans le controleur).
+     * Crée la commande et retourne un accusé allégé (pas de lignes / client complets).
      */
-    public OrderDTO createOrderFromDTO(OrderDTO orderDTO) {
+    public OrderCreatedDTO createOrderFromDTO(OrderDTO orderDTO) {
+        planEntitlementService.assertCanCreateOrder();
         Order order = new Order();
         Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
         order.setFournisseurId(fid);
@@ -187,9 +198,14 @@ public class OrderService {
         customer = customerRepository.save(customer);
 
         order.setCustomer(customer);
-        order.setPaymentMethod(orderDTO.getPaymentMethod());
+        String paymentMethod = normalizePaymentMethod(orderDTO.getPaymentMethod());
+        order.setPaymentMethod(paymentMethod);
+        order.setPaymentStatus(paymentMethod.startsWith("cash") ? "cod" : "pending");
         order.setStatus("NEW");
         order.setNotes(customerDTO.getAddress() + ", " + customerDTO.getCity());
+        if (orderDTO.getCarrierCode() != null && !orderDTO.getCarrierCode().isBlank()) {
+            order.setCarrierCode(orderDTO.getCarrierCode().trim().toUpperCase());
+        }
 
         // Create order items
         List<OrderItem> orderItems = new ArrayList<>();
@@ -243,8 +259,45 @@ public class OrderService {
             });
         }
 
+        // Shipping quote
+        if (order.getCarrierCode() != null) {
+            BigDecimal fee = shippingCarrierService.quote(
+                    order.getCarrierCode(), BigDecimal.valueOf(order.getTotalAmount()));
+            order.setShippingFee(fee.doubleValue());
+            order.setTotalAmount(order.getTotalAmount() + fee.doubleValue());
+        } else {
+            order.setShippingFee(0.0);
+        }
+
+        // Loyalty redeem then earn
+        LoyaltyService.RedeemResult redeemed = loyaltyService.redeem(
+                customer.getPhone(),
+                orderDTO.getLoyaltyPointsToRedeem(),
+                order.getTotalAmount());
+        if (redeemed.pointsRedeemed() > 0) {
+            order.setLoyaltyPointsRedeemed(redeemed.pointsRedeemed());
+            order.setDiscountAmount((order.getDiscountAmount() != null ? order.getDiscountAmount() : 0)
+                    + redeemed.discountMad());
+            order.setTotalAmount(Math.max(0, order.getTotalAmount() - redeemed.discountMad()));
+        }
+        int earned = loyaltyService.earn(customer.getPhone(), customer.getEmail(), order.getTotalAmount());
+        order.setLoyaltyPointsEarned(earned);
+
         Order savedOrder = orderRepository.save(order);
         stockService.consumeForOrder(savedOrder);
+
+        StoreSettings settings = storeSettingsRepository.findByFournisseurId(fid).orElse(null);
+        String currency = settings != null && settings.getCurrency() != null ? settings.getCurrency() : "MAD";
+        paymentAuditService.record(
+                savedOrder.getId(),
+                savedOrder.getOrderNumber(),
+                paymentProvider(paymentMethod),
+                "ORDER_CREATED",
+                BigDecimal.valueOf(savedOrder.getTotalAmount()),
+                currency,
+                savedOrder.getPaymentStatus(),
+                "{\"paymentMethod\":\"" + paymentMethod + "\"}");
+
         log.info("Order created orderId={} orderNumber={} customerEmail={} totalAmount={}",
                 savedOrder.getId(), savedOrder.getOrderNumber(), customer.getEmail(), savedOrder.getTotalAmount());
         notificationService.notifyNewOrder(savedOrder);
@@ -261,6 +314,41 @@ public class OrderService {
         } catch (Exception e) {
             log.warn("webhook_order_hook_failed: {}", e.getMessage());
         }
-        return toOrderDto(savedOrder);
+        return new OrderCreatedDTO(
+                savedOrder.getId() != null ? savedOrder.getId().toString() : null,
+                savedOrder.getOrderNumber(),
+                savedOrder.getTotalAmount() != null ? savedOrder.getTotalAmount() : 0,
+                savedOrder.getStatus() != null ? savedOrder.getStatus().toLowerCase() : "new",
+                savedOrder.getPaymentStatus(),
+                savedOrder.getLoyaltyPointsEarned()
+        );
+    }
+
+    public OrderDTO updateTracking(Long id, String trackingNumber) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Commande", id));
+        order.setTrackingNumber(trackingNumber);
+        if (order.getCarrierCode() != null && trackingNumber != null) {
+            ShippingCarrier carrier = shippingCarrierService.requireEnabled(order.getCarrierCode());
+            order.setTrackingUrl(shippingCarrierService.buildTrackingUrl(carrier, trackingNumber));
+        }
+        return toOrderDto(orderRepository.save(order));
+    }
+
+    private static String normalizePaymentMethod(String raw) {
+        if (raw == null || raw.isBlank()) return "cash_on_delivery";
+        String m = raw.trim().toLowerCase();
+        return switch (m) {
+            case "online", "card_cmi", "bnpl", "cash_on_delivery" -> m;
+            default -> "cash_on_delivery";
+        };
+    }
+
+    private static String paymentProvider(String method) {
+        return switch (method) {
+            case "card_cmi", "online" -> "CMI";
+            case "bnpl" -> "BNPL";
+            default -> "COD";
+        };
     }
 }

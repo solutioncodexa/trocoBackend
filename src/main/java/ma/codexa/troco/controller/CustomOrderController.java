@@ -68,11 +68,11 @@ public class CustomOrderController {
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<CustomOrderDTO>> getCustomOrdersByStatus(@PathVariable String status) {
-        // Convert frontend status to backend status
+    public ResponseEntity<ApiResponse<List<CustomOrderListItemDTO>>> getCustomOrdersByStatus(
+            @PathVariable String status) {
         String backendStatus = status.toUpperCase();
         List<CustomOrder> customOrders = customOrderService.getCustomOrdersByStatus(backendStatus);
-        return ResponseEntity.ok(customOrderMapper.toDTOList(customOrders));
+        return ResponseEntity.ok(ApiResponse.success(customOrderMapper.toListItemDTOList(customOrders)));
     }
 
     @GetMapping("/{id:\\d+}")

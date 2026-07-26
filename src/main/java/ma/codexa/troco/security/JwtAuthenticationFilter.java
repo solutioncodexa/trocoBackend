@@ -62,6 +62,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         if ("SUPER_ADMIN".equalsIgnoreCase(udi.getRole())) {
+            // Super Admin : voit tout (filtre Hibernate off). Peut aussi cibler un tenant via header/query.
             TenantContext.setBypass(true);
             return;
         }
@@ -69,7 +70,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (fid == null) {
             fid = jwtUtil.getFournisseurIdFromToken(token);
         }
-        if (fid != null && TenantContext.getFournisseurId() == null) {
+        if (fid != null) {
+            // ADMIN / STAFF / CUSTOMER : toujours liés à LEUR boutique.
+            // Empêche le spoofing via ?tenant= / X-Fournisseur-Slug d’un autre store.
             TenantContext.setFournisseurId(fid);
         }
     }

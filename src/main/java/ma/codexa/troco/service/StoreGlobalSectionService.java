@@ -27,13 +27,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class StoreGlobalSectionService {
 
-    public static final Set<String> KEYS = Set.of("mega_menu", "footer_links", "sticky_cta");
+    public static final Set<String> KEYS = Set.of("mega_menu", "footer_links", "sticky_cta", "app_bar");
 
     private final StoreGlobalSectionRepository repository;
     /** Boot 4 expose JsonMapper (Jackson 3), pas ObjectMapper — instance locale. */
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Transactional(readOnly = true)
+    /** Lecture admin + seed des clés manquantes (écriture) — pas readOnly. */
+    @Transactional
     public List<StoreGlobalSectionDTO> listAdmin() {
         ensureDefaults();
         return repository.findAllByOrderBySectionKeyAsc().stream().map(this::toDto).collect(Collectors.toList());
@@ -63,6 +64,7 @@ public class StoreGlobalSectionService {
 
     private void ensureDefaults() {
         Long fid = TenantContext.requireFournisseurId();
+        int created = 0;
         for (String key : KEYS) {
             if (repository.findBySectionKey(key).isEmpty()) {
                 StoreGlobalSection s = new StoreGlobalSection();
@@ -71,7 +73,11 @@ public class StoreGlobalSectionService {
                 s.setEnabled(false);
                 s.setConfigJson(defaultConfig(key));
                 repository.save(s);
+                created++;
             }
+        }
+        if (created > 0) {
+            log.info("store_global_sections_seed fournisseurId={} created={} keys={}", fid, created, KEYS);
         }
     }
 
@@ -101,6 +107,22 @@ public class StoreGlobalSectionService {
                     "ctaHref", "/contact",
                     "dismissible", true
             ));
+            case "app_bar" -> {
+                Map<String, Object> cfg = new LinkedHashMap<>();
+                cfg.put("bgColor", "");
+                cfg.put("textColor", "");
+                cfg.put("topBarEnabled", false);
+                cfg.put("topBarText", "Livraison gratuite dès 500 DH");
+                cfg.put("topBarBg", "#0F766E");
+                cfg.put("topBarTextColor", "#FFFFFF");
+                cfg.put("showSearch", true);
+                cfg.put("showWishlist", true);
+                cfg.put("showCart", true);
+                cfg.put("navLabels", List.of("Boutique", "Sur-mesure", "Contact"));
+                cfg.put("logoHeight", "md");
+                cfg.put("sticky", true);
+                yield writeJson(cfg);
+            }
             default -> "{}";
         };
     }

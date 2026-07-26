@@ -55,12 +55,14 @@ public class StockController {
         return ResponseEntity.ok(ApiResponse.success(stockService.getOverview()));
     }
 
-    @Operation(summary = "Liste des variantes avec stock")
+    @Operation(summary = "Liste des variantes avec stock (paginée)")
     @GetMapping("/variants")
     @RequirePermission(AppPermissions.STOCK_VIEW)
-    public ResponseEntity<ApiResponse<List<StockVariantRowDTO>>> listVariants(
-            @RequestParam(required = false, defaultValue = "all") String filter) {
-        return ResponseEntity.ok(ApiResponse.success(stockService.listVariantRows(filter)));
+    public ResponseEntity<ApiResponse<PageResponse<StockVariantRowDTO>>> listVariants(
+            @RequestParam(required = false, defaultValue = "all") String filter,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(200) int size) {
+        return ResponseEntity.ok(ApiResponse.success(stockService.listVariantRows(filter, page, size)));
     }
 
     @Operation(summary = "Mouvements de stock (historique achats, ventes, commandes site…)")

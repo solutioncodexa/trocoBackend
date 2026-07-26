@@ -81,7 +81,8 @@ public abstract class IntegrationTestBase {
         req.setAdminPassword(password);
         req.setAdminFullName("Admin " + name);
         req.setPhone("0612345678");
-        req.setPlanCode("basic");
+        // Pro : maxStaff >= 2 pour les tests membres (Basic = propriétaire seul).
+        req.setPlanCode("pro");
         return req;
     }
 
@@ -214,7 +215,9 @@ public abstract class IntegrationTestBase {
     }
 
     protected long firstVariantId(String token, String tenantSlug) throws Exception {
-        JsonNode variants = authHeadersGet("/stock/variants", token, tenantSlug);
+        JsonNode data = authHeadersGet("/stock/variants", token, tenantSlug);
+        // GET /stock/variants renvoie une page { content: [...] }
+        JsonNode variants = data.isArray() ? data : data.path("content");
         if (!variants.isArray() || variants.isEmpty()) {
             throw new IllegalStateException("Aucune variante stock pour le tenant " + tenantSlug);
         }

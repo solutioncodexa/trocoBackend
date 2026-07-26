@@ -30,21 +30,31 @@ public class HomeHeroSettingsService {
     private final HomeHeroSettingsRepository repository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * Lecture publique : pas d'INSERT (évite "read-only transaction").
+     * Si aucune ligne, retourne le défaut en mémoire.
+     */
     @Transactional(readOnly = true)
     @Cacheable(value = "homeHero", key = "T(ma.codexa.troco.tenant.TenantContext).getFournisseurId() ?: 'none'")
     public HomeHeroSettingsDTO getPublic() {
-        return toDto(getOrCreate());
+        Long fid = TenantContext.getFournisseurId();
+        if (fid == null) {
+            return toDto(ephemeralDefault());
+        }
+        return repository.findFirstByFournisseurId(fid)
+                .map(this::toDto)
+                .orElseGet(() -> toDto(ephemeralDefault()));
     }
 
     @Transactional
     @CacheEvict(cacheNames = "homeHero", allEntries = true)
     public HomeHeroSettingsDTO update(HomeHeroSettingsDTO dto) {
-        HomeHeroSettings settings = getOrCreate();
+        HomeHeroSettings settings = getOrCreateWritable();
         List<String> urls = normalizeUrls(dto);
         settings.setImageUrlsJson(writeUrls(urls));
         settings.setImageUrl(urls.isEmpty() ? null : urls.get(0));
         HomeHeroSettings saved = repository.save(settings);
-        log.info("Home hero images updated (count={})", urls.size());
+        log.info("home_hero_updated fournisseurId={} count={}", TenantContext.getFournisseurId(), urls.size());
         return toDto(saved);
     }
 
@@ -72,20 +82,26 @@ public class HomeHeroSettingsService {
         return new ArrayList<>(unique);
     }
 
-    private HomeHeroSettings getOrCreate() {
+    private HomeHeroSettings ephemeralDefault() {
+        HomeHeroSettings ephemeral = new HomeHeroSettings();
+        ephemeral.setImageUrl(DEFAULT_IMAGE_URL);
+        ephemeral.setImageUrlsJson(writeUrls(List.of(DEFAULT_IMAGE_URL)));
+        return ephemeral;
+    }
+
+    /** Création persistée — uniquement depuis une méthode @Transactional (écriture). */
+    private HomeHeroSettings getOrCreateWritable() {
         Long fid = TenantContext.getFournisseurId();
         if (fid == null) {
-            // Pas de tenant : ne jamais renvoyer le hero d'une autre boutique.
-            HomeHeroSettings ephemeral = new HomeHeroSettings();
-            ephemeral.setImageUrl(DEFAULT_IMAGE_URL);
-            ephemeral.setImageUrlsJson(writeUrls(List.of(DEFAULT_IMAGE_URL)));
-            return ephemeral;
+            // Pas de tenant : ne jamais persister / renvoyer le hero d'une autre boutique.
+            return ephemeralDefault();
         }
         return repository.findFirstByFournisseurId(fid).orElseGet(() -> {
             HomeHeroSettings created = new HomeHeroSettings();
             created.setFournisseurId(fid);
             created.setImageUrl(DEFAULT_IMAGE_URL);
             created.setImageUrlsJson(writeUrls(List.of(DEFAULT_IMAGE_URL)));
+            log.info("home_hero_seed fournisseurId={}", fid);
             return repository.save(created);
         });
     }

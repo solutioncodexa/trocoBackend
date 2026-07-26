@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.codexa.troco.dto.AbandonedCartDTO;
+import ma.codexa.troco.dto.AbandonedCartListItemDTO;
 import ma.codexa.troco.dto.request.CaptureAbandonedCartRequest;
 import ma.codexa.troco.entity.AbandonedCart;
 import ma.codexa.troco.entity.StoreSettings;
@@ -31,6 +32,7 @@ public class AbandonedCartService {
     private final StoreSettingsRepository storeSettingsRepository;
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final PlanEntitlementService planEntitlementService;
     /** Boot 4 expose JsonMapper (Jackson 3), pas ObjectMapper — instance locale. */
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -39,6 +41,11 @@ public class AbandonedCartService {
         Long fid = TenantContext.getFournisseurId();
         if (fid == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Boutique non résolue");
+        }
+        try {
+            planEntitlementService.assertAbandonedCartAllowed();
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED, e.getMessage());
         }
         StoreSettings settings = storeSettingsRepository.findByFournisseurId(fid).orElse(null);
         if (settings != null && !settings.isAbandonedCartEnabled()) {
@@ -94,8 +101,10 @@ public class AbandonedCartService {
     }
 
     @Transactional(readOnly = true)
-    public List<AbandonedCartDTO> listAdmin() {
-        return repository.findAllByOrderByUpdatedAtDesc().stream().map(this::toDto).collect(Collectors.toList());
+    public List<AbandonedCartListItemDTO> listAdmin() {
+        return repository.findAllByOrderByUpdatedAtDesc().stream()
+                .map(this::toListItem)
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -143,6 +152,18 @@ public class AbandonedCartService {
                 cart.getCustomerPhone(),
                 cart.getCustomerEmail(),
                 cart.getCartTotal()
+        );
+    }
+
+    private AbandonedCartListItemDTO toListItem(AbandonedCart c) {
+        return new AbandonedCartListItemDTO(
+                c.getId(),
+                c.getCustomerEmail(), c.getCustomerPhone(), c.getCustomerName(),
+                c.getCartTotal(),
+                c.getItemCount() != null ? c.getItemCount() : 0,
+                Boolean.TRUE.equals(c.getReminderSent()),
+                Boolean.TRUE.equals(c.getRecovered()),
+                c.getRemindAt(), c.getLastActivityAt(), c.getCreatedAt()
         );
     }
 

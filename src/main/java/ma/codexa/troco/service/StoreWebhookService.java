@@ -3,6 +3,7 @@ package ma.codexa.troco.service;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.dto.StoreWebhookDTO;
 import ma.codexa.troco.dto.StoreWebhookDeliveryDTO;
+import ma.codexa.troco.dto.StoreWebhookListItemDTO;
 import ma.codexa.troco.dto.request.UpsertStoreWebhookRequest;
 import ma.codexa.troco.entity.StoreWebhook;
 import ma.codexa.troco.entity.StoreWebhookDelivery;
@@ -26,10 +27,13 @@ public class StoreWebhookService {
     private final StoreWebhookRepository webhookRepository;
     private final StoreWebhookDeliveryRepository deliveryRepository;
     private final AuditLogService auditLogService;
+    private final PlanEntitlementService planEntitlementService;
 
     @Transactional(readOnly = true)
-    public List<StoreWebhookDTO> list() {
-        return webhookRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toDto).collect(Collectors.toList());
+    public List<StoreWebhookListItemDTO> list() {
+        return webhookRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toListItem)
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -39,24 +43,26 @@ public class StoreWebhookService {
 
     @Transactional
     public StoreWebhookDTO create(UpsertStoreWebhookRequest req) {
+        planEntitlementService.assertWebhooksAllowed();
         Long fid = TenantContext.requireFournisseurId();
         StoreWebhook w = new StoreWebhook();
         w.setFournisseurId(fid);
-        apply(w, req);
+        apply(w, req, true);
         StoreWebhook saved = webhookRepository.save(w);
         auditLogService.record(AuditLogService.Action.WEBHOOK_UPDATE, "WEBHOOK",
                 String.valueOf(saved.getId()), "Webhook créé: " + saved.getName());
+        // Secret renvoyé une seule fois à la création.
         return toDto(saved);
     }
 
     @Transactional
-    public StoreWebhookDTO update(Long id, UpsertStoreWebhookRequest req) {
+    public StoreWebhookListItemDTO update(Long id, UpsertStoreWebhookRequest req) {
         StoreWebhook w = require(id);
-        apply(w, req);
+        apply(w, req, false);
         StoreWebhook saved = webhookRepository.save(w);
         auditLogService.record(AuditLogService.Action.WEBHOOK_UPDATE, "WEBHOOK",
                 String.valueOf(saved.getId()), "Webhook mis à jour: " + saved.getName());
-        return toDto(saved);
+        return toListItem(saved);
     }
 
     @Transactional
@@ -67,7 +73,7 @@ public class StoreWebhookService {
                 String.valueOf(id), "Webhook supprimé");
     }
 
-    private void apply(StoreWebhook w, UpsertStoreWebhookRequest req) {
+    private void apply(StoreWebhook w, UpsertStoreWebhookRequest req, boolean creating) {
         String url = req.getTargetUrl().trim();
         if (!url.startsWith("https://") && !url.startsWith("http://localhost") && !url.startsWith("http://127.0.0.1")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "URL webhook doit être https (ou localhost en test)");
@@ -80,9 +86,16 @@ public class StoreWebhookService {
         if (events.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Aucun événement valide (order.created, lead.created)");
         }
+        for (String event : events) {
+            planEntitlementService.assertWebhookEventAllowed(event);
+        }
         w.setName(req.getName().trim());
         w.setTargetUrl(url);
-        w.setSecret(req.getSecret() != null && !req.getSecret().isBlank() ? req.getSecret().trim() : null);
+        if (req.getSecret() != null && !req.getSecret().isBlank()) {
+            w.setSecret(req.getSecret().trim());
+        } else if (creating) {
+            w.setSecret(null);
+        }
         w.setEvents(String.join(",", events));
         if (req.getEnabled() != null) w.setEnabled(req.getEnabled());
     }
@@ -92,11 +105,22 @@ public class StoreWebhookService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Webhook introuvable"));
     }
 
-    private StoreWebhookDTO toDto(StoreWebhook w) {
-        List<String> events = w.getEvents() == null ? List.of()
+    private List<String> parseEvents(StoreWebhook w) {
+        return w.getEvents() == null ? List.of()
                 : Arrays.stream(w.getEvents().split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+    }
+
+    private StoreWebhookListItemDTO toListItem(StoreWebhook w) {
+        return new StoreWebhookListItemDTO(
+                w.getId(), w.getName(), w.getTargetUrl(),
+                w.getSecret() != null && !w.getSecret().isBlank(),
+                parseEvents(w),
+                Boolean.TRUE.equals(w.getEnabled()), w.getCreatedAt(), w.getUpdatedAt());
+    }
+
+    private StoreWebhookDTO toDto(StoreWebhook w) {
         return new StoreWebhookDTO(
-                w.getId(), w.getName(), w.getTargetUrl(), w.getSecret(), events,
+                w.getId(), w.getName(), w.getTargetUrl(), w.getSecret(), parseEvents(w),
                 Boolean.TRUE.equals(w.getEnabled()), w.getCreatedAt(), w.getUpdatedAt());
     }
 

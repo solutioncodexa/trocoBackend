@@ -1,6 +1,7 @@
 package ma.codexa.troco.dto;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 public record PlanDTO(
         Long id,
@@ -12,6 +13,10 @@ public record PlanDTO(
         String billingPeriod,
         Integer maxProducts,
         Integer maxStaff,
+        Integer maxOrdersPerMonth,
+        Integer maxPixels,
+        Integer storageMb,
         boolean customDomain,
-        boolean active
+        boolean active,
+        Map<String, Object> features
 ) {}

@@ -15,6 +15,10 @@ public interface StorePageRepository extends JpaRepository<StorePage, Long> {
 
     Optional<StorePage> findBySlugIgnoreCase(String slug);
 
+    Optional<StorePage> findByIdAndFournisseurId(Long id, Long fournisseurId);
+
+    Optional<StorePage> findBySlugIgnoreCaseAndFournisseurId(String slug, Long fournisseurId);
+
     Optional<StorePage> findByPreviewToken(String previewToken);
 
     Optional<StorePage> findFirstByIsHomeTrueAndPublishedTrue();

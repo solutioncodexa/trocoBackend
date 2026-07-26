@@ -16,8 +16,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -28,6 +32,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductVariantService productVariantService;
     private final AuditLogService auditLog;
+    private final PlanEntitlementService planEntitlementService;
 
     @Transactional(readOnly = true)
     @Cacheable(
@@ -55,6 +60,29 @@ public class ProductService {
         });
     }
 
+    /** Batch wishlist / cartes — max 50, ordre des ids préservé. */
+    @Transactional(readOnly = true)
+    public List<Product> getProductsByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        List<Long> limited = ids.stream().filter(java.util.Objects::nonNull).distinct().limit(50).toList();
+        if (limited.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Product> byId = productRepository.findByIdInWithImages(limited).stream()
+                .collect(Collectors.toMap(Product::getId, p -> p, (a, b) -> a, LinkedHashMap::new));
+        List<Product> ordered = new ArrayList<>();
+        for (Long id : limited) {
+            Product p = byId.get(id);
+            if (p != null) {
+                initializeForDto(p);
+                ordered.add(p);
+            }
+        }
+        return ordered;
+    }
+
     @Caching(evict = {
         @CacheEvict(value = "products", allEntries = true),
         @CacheEvict(value = "productById", allEntries = true)
@@ -72,6 +100,7 @@ public class ProductService {
         @CacheEvict(value = "productById", allEntries = true)
     })
     public Product createProduct(Product product, List<ProductVariantRequest> variantRequests) {
+        planEntitlementService.assertCanCreateProduct();
         if (product.getFournisseurId() == null) {
             product.setFournisseurId(ma.codexa.troco.tenant.TenantContext.getFournisseurId());
         }
@@ -204,8 +233,23 @@ public class ProductService {
             Double maxPrice,
             Boolean inStock,
             Pageable pageable) {
+        return searchProductsWithFilters(keyword, style, goldType, categoryId, minPrice, maxPrice, inStock, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Product> searchProductsWithFilters(
+            String keyword,
+            String style,
+            String goldType,
+            Long categoryId,
+            Double minPrice,
+            Double maxPrice,
+            Boolean inStock,
+            String size,
+            Pageable pageable) {
         boolean applyKeywordFilter = keyword != null && !keyword.isBlank();
         String keywordPattern = applyKeywordFilter ? "%" + keyword.toLowerCase() + "%" : "%";
+        String sizeFilter = size != null && !size.isBlank() ? size.trim() : null;
 
         Page<Product> page = productRepository.searchProductsWithFilters(
                 applyKeywordFilter,
@@ -216,9 +260,42 @@ public class ProductService {
                 minPrice,
                 maxPrice,
                 inStock,
+                sizeFilter,
                 pageable);
         page.getContent().forEach(this::initializeForDto);
         return page;
+    }
+
+    @Transactional(readOnly = true)
+    public ma.codexa.troco.dto.CatalogFacetsDTO catalogFacets() {
+        List<ma.codexa.troco.dto.CatalogFacetsDTO.FacetBucket> categories = productRepository.countCategoryFacets()
+                .stream()
+                .map(row -> new ma.codexa.troco.dto.CatalogFacetsDTO.FacetBucket(
+                        String.valueOf(row[0]),
+                        row[1] != null ? row[1].toString() : "",
+                        ((Number) row[2]).longValue()))
+                .toList();
+        List<ma.codexa.troco.dto.CatalogFacetsDTO.FacetBucket> sizes = productRepository.countSizeFacets()
+                .stream()
+                .filter(row -> row[0] != null && !row[0].toString().isBlank())
+                .map(row -> new ma.codexa.troco.dto.CatalogFacetsDTO.FacetBucket(
+                        row[0].toString(),
+                        row[0].toString(),
+                        ((Number) row[1]).longValue()))
+                .toList();
+        Double min = null;
+        Double max = null;
+        long total = 0;
+        List<Object[]> boundRows = productRepository.priceBounds();
+        if (boundRows != null && !boundRows.isEmpty()) {
+            Object[] bounds = boundRows.get(0);
+            if (bounds != null && bounds.length >= 3) {
+                min = bounds[0] != null ? ((Number) bounds[0]).doubleValue() : null;
+                max = bounds[1] != null ? ((Number) bounds[1]).doubleValue() : null;
+                total = bounds[2] != null ? ((Number) bounds[2]).longValue() : 0;
+            }
+        }
+        return new ma.codexa.troco.dto.CatalogFacetsDTO(categories, sizes, min, max, total);
     }
 
     private void initializeVariants(Product product) {

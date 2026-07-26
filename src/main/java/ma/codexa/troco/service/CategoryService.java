@@ -4,7 +4,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.codexa.troco.common.exception.BusinessException;
 import ma.codexa.troco.common.exception.ResourceNotFoundException;
+import ma.codexa.troco.dto.CategoryCardDTO;
 import ma.codexa.troco.dto.CategoryDTO;
+import ma.codexa.troco.dto.CategoryHeroDTO;
+import ma.codexa.troco.dto.CategoryNavDTO;
 import ma.codexa.troco.dto.request.CreateCategoryRequest;
 import ma.codexa.troco.dto.request.HeroCategoryPatchRequest;
 import ma.codexa.troco.dto.request.UpdateCategoryRequest;
@@ -18,8 +21,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -43,14 +48,44 @@ public class CategoryService {
 
     @Transactional(readOnly = true)
     public List<CategoryDTO> getAllCategoryDtos() {
+        Map<Long, Long> counts = loadProductCountsByCategory();
         return categoryRepository.findAll().stream()
                 .peek(c -> {
                     if (c.getParent() != null) {
                         Hibernate.initialize(c.getParent());
                     }
                 })
-                .map(this::toDto)
+                .map(c -> toDto(c, counts))
                 .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                .toList();
+    }
+
+    /** Footer / nav — sans description ni productCount (évite N+1). */
+    @Transactional(readOnly = true)
+    public List<CategoryNavDTO> getNavCategoryDtos() {
+        return categoryRepository.findAll().stream()
+                .map(c -> new CategoryNavDTO(
+                        c.getId(),
+                        c.getName(),
+                        c.getSlug(),
+                        c.getParent() != null ? c.getParent().getId() : null
+                ))
+                .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
+                .toList();
+    }
+
+    /** Cartes vitrine (home / page builder) — sans productCount. */
+    @Transactional(readOnly = true)
+    public List<CategoryCardDTO> getCardCategoryDtos() {
+        return categoryRepository.findAll().stream()
+                .map(c -> new CategoryCardDTO(
+                        c.getId(),
+                        c.getName(),
+                        c.getSlug(),
+                        c.getParent() != null ? c.getParent().getId() : null,
+                        c.getHeroImageUrl()
+                ))
+                .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
                 .toList();
     }
 
@@ -60,14 +95,15 @@ public class CategoryService {
             value = "heroCategories",
             key = "T(ma.codexa.troco.tenant.TenantContext).getFournisseurId() ?: 'none'"
     )
-    public List<CategoryDTO> getHeroCategoryDtos() {
+    public List<CategoryHeroDTO> getHeroCategoryDtos() {
         return categoryRepository.findHeroCategoriesOrdered().stream()
-                .peek(c -> {
-                    if (c.getParent() != null) {
-                        Hibernate.initialize(c.getParent());
-                    }
-                })
-                .map(this::toDto)
+                .map(c -> new CategoryHeroDTO(
+                        c.getId(),
+                        c.getName(),
+                        c.getSlug(),
+                        c.getHeroImageUrl(),
+                        c.getHeroSortOrder()
+                ))
                 .toList();
     }
 
@@ -88,7 +124,7 @@ public class CategoryService {
             if (c.getParent() != null) {
                 Hibernate.initialize(c.getParent());
             }
-            return toDto(c);
+            return toDto(c, loadProductCountsByCategory());
         });
     }
 
@@ -98,7 +134,7 @@ public class CategoryService {
             if (c.getParent() != null) {
                 Hibernate.initialize(c.getParent());
             }
-            return toDto(c);
+            return toDto(c, loadProductCountsByCategory());
         });
     }
 
@@ -237,6 +273,15 @@ public class CategoryService {
     }
 
     public CategoryDTO toDto(Category category) {
+        long productCount = category.getId() != null
+                ? productRepository.countByCategoryIdAndDeletedFalse(category.getId())
+                : 0;
+        return toDto(category, Map.of(
+                category.getId() != null ? category.getId() : -1L,
+                productCount));
+    }
+
+    private CategoryDTO toDto(Category category, Map<Long, Long> countsByCategoryId) {
         Long parentId = null;
         String parentName = null;
         Category parent = category.getParent();
@@ -247,8 +292,8 @@ public class CategoryService {
             }
         }
         long productCount = category.getId() != null
-                ? productRepository.countByCategoryIdAndDeletedFalse(category.getId())
-                : 0;
+                ? countsByCategoryId.getOrDefault(category.getId(), 0L)
+                : 0L;
         return CategoryDTO.builder()
                 .id(category.getId())
                 .name(category.getName())
@@ -261,6 +306,17 @@ public class CategoryService {
                 .heroSortOrder(category.getHeroSortOrder())
                 .productCount(productCount)
                 .build();
+    }
+
+    private Map<Long, Long> loadProductCountsByCategory() {
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : productRepository.countActiveGroupedByCategoryId()) {
+            if (row == null || row.length < 2 || row[0] == null) continue;
+            Long catId = ((Number) row[0]).longValue();
+            Long count = ((Number) row[1]).longValue();
+            map.put(catId, count);
+        }
+        return map;
     }
 
     private Category resolveParent(Long parentId, Long selfId) {

@@ -46,6 +46,21 @@ public class Plan {
     @Column(name = "custom_domain", nullable = false)
     private boolean customDomain = true;
 
+    /** null = illimité */
+    @Column(name = "max_orders_per_month")
+    private Integer maxOrdersPerMonth;
+
+    /** null = illimité */
+    @Column(name = "max_pixels")
+    private Integer maxPixels;
+
+    @Column(name = "storage_mb")
+    private Integer storageMb;
+
+    /** Flags fonctionnels JSON — voir {@link ma.codexa.troco.plan.PlanFeatures}. */
+    @Column(name = "features_json", columnDefinition = "TEXT")
+    private String featuresJson;
+
     @Column(nullable = false)
     private boolean active = true;
 

@@ -1,13 +1,14 @@
 package ma.codexa.troco.config;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ma.codexa.troco.security.ApiKeyAuthenticationFilter;
 import ma.codexa.troco.security.JwtAuthenticationFilter;
 import ma.codexa.troco.security.RateLimitingFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -53,12 +54,23 @@ import java.util.List;
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 @EnableConfigurationProperties
-@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final RateLimitingFilter rateLimitingFilter;
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final UserDetailsService userDetailsService;
+
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            RateLimitingFilter rateLimitingFilter,
+            @Lazy ApiKeyAuthenticationFilter apiKeyAuthenticationFilter,
+            UserDetailsService userDetailsService) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.rateLimitingFilter = rateLimitingFilter;
+        this.apiKeyAuthenticationFilter = apiKeyAuthenticationFilter;
+        this.userDetailsService = userDetailsService;
+    }
 
     @Value("${app.swagger.enabled:false}")
     private boolean swaggerEnabled;
@@ -93,7 +105,7 @@ public class SecurityConfig {
                     // ─── Plateforme Matjarona (plans + store public + inscription) ──
                     auth.requestMatchers(HttpMethod.GET, "/platform/plans").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/platform/themes").permitAll();
-                    auth.requestMatchers(HttpMethod.GET, "/platform/store").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/platform/store", "/platform/store/checkout").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/platform/register").permitAll();
                     auth.requestMatchers("/platform/**").hasRole("SUPER_ADMIN");
 
@@ -127,6 +139,9 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/abandoned-carts/public/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/abandoned-carts/public/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/store-global-sections/public").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/shipping-carriers/public", "/shipping-carriers/public/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/loyalty/public/**").permitAll();
+                    auth.requestMatchers("/headless/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/sitemap.xml", "/seo/sitemap.xml").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/robots.txt", "/seo/robots.txt").permitAll();
 
@@ -200,6 +215,10 @@ public class SecurityConfig {
                     auth.requestMatchers("/store-global-sections", "/store-global-sections/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers("/store-webhooks", "/store-webhooks/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers("/ai-copy", "/ai-copy/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/api-keys", "/api-keys/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/privacy", "/privacy/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/payment-audit", "/payment-audit/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/shipping-carriers", "/shipping-carriers/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Promo codes ─────────────────────────────────────────
                     auth.requestMatchers("/promo-codes/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
@@ -224,7 +243,8 @@ public class SecurityConfig {
                 .authenticationProvider(authenticationProvider())
                 // Rate limiter d'abord (avant même JWT) pour bloquer les floods anonymes
                 .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(apiKeyAuthenticationFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

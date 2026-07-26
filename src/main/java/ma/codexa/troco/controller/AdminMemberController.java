@@ -19,7 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/members")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
 public class AdminMemberController {
 
     private final MemberService memberService;

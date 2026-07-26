@@ -83,14 +83,62 @@ public class StoreSettings extends TenantScoped {
     @Column(name = "google_analytics_id", length = 64)
     private String googleAnalyticsId;
 
-    @Column(name = "abandoned_cart_enabled", nullable = false)
+    @Column(name = "abandoned_cart_enabled", nullable = false, columnDefinition = "boolean default true")
     private boolean abandonedCartEnabled = true;
 
-    @Column(name = "abandoned_cart_delay_minutes", nullable = false)
+    @Column(name = "abandoned_cart_delay_minutes", nullable = false, columnDefinition = "integer default 60")
     private Integer abandonedCartDelayMinutes = 60;
 
     @Column(name = "whatsapp_order_template", columnDefinition = "TEXT")
     private String whatsappOrderTemplate;
+
+    @Column(name = "default_locale", length = 10)
+    private String defaultLocale = "fr";
+
+    @Column(name = "supported_locales", length = 40)
+    private String supportedLocales = "fr,ar,en";
+
+    @Column(length = 8)
+    private String currency = "MAD";
+
+    @Column(name = "currency_rates_json", columnDefinition = "TEXT")
+    private String currencyRatesJson;
+
+    @Column(name = "payment_cod_enabled")
+    private Boolean paymentCodEnabled = true;
+
+    @Column(name = "payment_cmi_enabled")
+    private Boolean paymentCmiEnabled = false;
+
+    @Column(name = "payment_bnpl_enabled")
+    private Boolean paymentBnplEnabled = false;
+
+    @Column(name = "bnpl_provider", length = 40)
+    private String bnplProvider = "manual";
+
+    @Column(name = "loyalty_enabled")
+    private Boolean loyaltyEnabled = false;
+
+    @Column(name = "loyalty_points_per_mad", precision = 12, scale = 4)
+    private BigDecimal loyaltyPointsPerMad = BigDecimal.ONE;
+
+    @Column(name = "loyalty_mad_per_point", precision = 12, scale = 4)
+    private BigDecimal loyaltyMadPerPoint = new BigDecimal("0.10");
+
+    @Column(name = "privacy_policy_url", length = 1024)
+    private String privacyPolicyUrl;
+
+    @Column(name = "cookie_consent_required")
+    private Boolean cookieConsentRequired = true;
+
+    @Column(name = "data_retention_days")
+    private Integer dataRetentionDays = 365;
+
+    @Column(name = "cndp_notice_version", length = 40)
+    private String cndpNoticeVersion;
+
+    @Column(name = "shipping_default_carrier", length = 40)
+    private String shippingDefaultCarrier;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -110,10 +110,13 @@ public class MapperUtils {
     }
 
     public static String firstImageUrl(List<Image> images) {
-        if (images == null || images.isEmpty()) {
-            return null;
-        }
-        return images.get(0).getUrl();
+        List<String> urls = imagesToList(images);
+        return urls.isEmpty() ? null : urls.get(0);
+    }
+
+    /** Alias explicite pour listes (1ère image triée). */
+    public static String firstImageUrlSorted(List<Image> images) {
+        return firstImageUrl(images);
     }
 
     public static String statusToFrontend(String status) {

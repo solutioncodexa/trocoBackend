@@ -76,4 +76,38 @@ public class UpdateStoreSettingsRequest {
     private Boolean abandonedCartEnabled;
     private Integer abandonedCartDelayMinutes;
     private String whatsappOrderTemplate;
+
+    @Size(max = 10)
+    private String defaultLocale;
+
+    @Size(max = 40)
+    private String supportedLocales;
+
+    @Size(max = 8)
+    private String currency;
+
+    private String currencyRatesJson;
+
+    private Boolean paymentCodEnabled;
+    private Boolean paymentCmiEnabled;
+    private Boolean paymentBnplEnabled;
+
+    @Size(max = 40)
+    private String bnplProvider;
+
+    private Boolean loyaltyEnabled;
+    private BigDecimal loyaltyPointsPerMad;
+    private BigDecimal loyaltyMadPerPoint;
+
+    @Size(max = 1024)
+    private String privacyPolicyUrl;
+
+    private Boolean cookieConsentRequired;
+    private Integer dataRetentionDays;
+
+    @Size(max = 40)
+    private String cndpNoticeVersion;
+
+    @Size(max = 40)
+    private String shippingDefaultCarrier;
 }

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
 import ma.codexa.troco.common.PageResponse;
+import ma.codexa.troco.dto.OrderCreatedDTO;
 import ma.codexa.troco.dto.OrderDTO;
 import ma.codexa.troco.dto.OrderListItemDTO;
 import ma.codexa.troco.entity.Order;
@@ -92,8 +93,8 @@ public class OrderController {
 
     @Operation(summary = "Créer une nouvelle commande")
     @PostMapping
-    public ResponseEntity<ApiResponse<OrderDTO>> createOrder(@Valid @RequestBody OrderDTO orderDTO) {
-        OrderDTO created = orderService.createOrderFromDTO(orderDTO);
+    public ResponseEntity<ApiResponse<OrderCreatedDTO>> createOrder(@Valid @RequestBody OrderDTO orderDTO) {
+        OrderCreatedDTO created = orderService.createOrderFromDTO(orderDTO);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(created, "Commande créée avec succès"));
     }
@@ -108,6 +109,16 @@ public class OrderController {
         String backendStatus = status.toUpperCase();
         OrderDTO updatedOrder = orderService.updateOrderStatus(id, backendStatus);
         return ResponseEntity.ok(ApiResponse.success(updatedOrder, "Statut mis à jour"));
+    }
+
+    @PatchMapping("/{id:\\d+}/tracking")
+    @RequirePermission(AppPermissions.ORDERS_UPDATE)
+    public ResponseEntity<ApiResponse<OrderDTO>> updateTracking(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(ApiResponse.success(
+                orderService.updateTracking(id, body.get("trackingNumber")),
+                "Suivi mis à jour"));
     }
 
     @Operation(summary = "Supprimer une commande")

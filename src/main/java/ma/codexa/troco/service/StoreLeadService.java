@@ -2,6 +2,7 @@ package ma.codexa.troco.service;
 
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.dto.StoreLeadDTO;
+import ma.codexa.troco.dto.StoreLeadListItemDTO;
 import ma.codexa.troco.dto.request.CreateStoreLeadRequest;
 import ma.codexa.troco.entity.StoreLead;
 import ma.codexa.troco.repository.StoreLeadRepository;
@@ -65,26 +66,49 @@ public class StoreLeadService {
     }
 
     @Transactional(readOnly = true)
-    public List<StoreLeadDTO> list() {
+    public List<StoreLeadListItemDTO> list() {
         TenantContext.requireFournisseurId();
-        return repository.findAllByOrderByCreatedAtDesc().stream().map(this::toDto).collect(Collectors.toList());
+        return repository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toListItem)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public StoreLeadDTO get(Long id) {
+        TenantContext.requireFournisseurId();
+        return toDto(repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lead introuvable")));
     }
 
     @Transactional(readOnly = true)
     public String exportCsv() {
         StringBuilder sb = new StringBuilder("id,type,name,email,phone,message,source,createdAt\n");
-        for (StoreLeadDTO l : list()) {
-            sb.append(csv(l.id())).append(',')
-                    .append(csv(l.leadType())).append(',')
-                    .append(csv(l.fullName())).append(',')
-                    .append(csv(l.email())).append(',')
-                    .append(csv(l.phone())).append(',')
-                    .append(csv(l.message())).append(',')
-                    .append(csv(l.sourcePath())).append(',')
-                    .append(csv(l.createdAt() != null ? l.createdAt().toString() : ""))
+        for (StoreLead l : repository.findAllByOrderByCreatedAtDesc()) {
+            StoreLeadDTO dto = toDto(l);
+            sb.append(csv(dto.id())).append(',')
+                    .append(csv(dto.leadType())).append(',')
+                    .append(csv(dto.fullName())).append(',')
+                    .append(csv(dto.email())).append(',')
+                    .append(csv(dto.phone())).append(',')
+                    .append(csv(dto.message())).append(',')
+                    .append(csv(dto.sourcePath())).append(',')
+                    .append(csv(dto.createdAt() != null ? dto.createdAt().toString() : ""))
                     .append('\n');
         }
         return sb.toString();
+    }
+
+    private StoreLeadListItemDTO toListItem(StoreLead l) {
+        String msg = l.getMessage();
+        boolean has = msg != null && !msg.isBlank();
+        String preview = null;
+        if (has) {
+            String t = msg.trim();
+            preview = t.length() > 120 ? t.substring(0, 117) + "…" : t;
+        }
+        return new StoreLeadListItemDTO(
+                l.getId(), l.getLeadType(), l.getFullName(), l.getEmail(),
+                l.getPhone(), preview, has, l.getSourcePath(), l.getCreatedAt());
     }
 
     private StoreLeadDTO toDto(StoreLead l) {

@@ -13,9 +13,17 @@ public class OrderDTO {
     private List<CartItemDTO> items;
     private CustomerDTO customer;
     private Double total;
-    private String paymentMethod; // 'cash_on_delivery' or 'online'
+    private String paymentMethod; // cash_on_delivery | online | card_cmi | bnpl
+    private String paymentStatus;
     private String status; // 'new', 'confirmed', 'delivered', 'cancelled'
     private String createdAt;
     private String promoCode;
     private Double discount;
+    private Double shippingFee;
+    private String carrierCode;
+    private String trackingNumber;
+    private String trackingUrl;
+    private Integer loyaltyPointsEarned;
+    private Integer loyaltyPointsRedeemed;
+    private Integer loyaltyPointsToRedeem;
 }

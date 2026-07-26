@@ -31,7 +31,7 @@ public interface ProductMapper {
     @Mapping(target = "category", source = "category", qualifiedByName = "categoryToSlug")
     @Mapping(target = "goldType", source = "goldType", qualifiedByName = "goldTypeToFrontend")
     @Mapping(target = "stockQuantity", source = "stock")
-    @Mapping(target = "images", source = "images", qualifiedByName = "imagesToList")
+    @Mapping(target = "images", source = "images", qualifiedByName = "imagesToListFirst")
     @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToList")
     @Mapping(target = "inStock", expression = "java(product.isInStock())")
     @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "dateToString")
@@ -77,6 +77,13 @@ public interface ProductMapper {
     @Named("imagesToList")
     default List<String> imagesToList(List<ma.codexa.troco.entity.Image> images) {
         return MapperUtils.imagesToList(images);
+    }
+
+    /** Listes catalogue : 1 image max (aperçu). */
+    @Named("imagesToListFirst")
+    default List<String> imagesToListFirst(List<ma.codexa.troco.entity.Image> images) {
+        String first = MapperUtils.firstImageUrlSorted(images);
+        return first != null ? List.of(first) : List.of();
     }
 
     @Named("stringToList")

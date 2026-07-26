@@ -31,16 +31,17 @@ public class FeaturedProductMapper {
             FeaturedProductDTO.ProductInfoDTO productInfo = new FeaturedProductDTO.ProductInfoDTO();
             productInfo.setId(product.getId());
             productInfo.setName(product.getName());
-            productInfo.setDescription(product.getDescription());
+            // Pas de description produit (lourde) — le featured a déjà title/description.
+            productInfo.setDescription(null);
             productInfo.setPrice(product.getPrice());
             productInfo.setCategory(product.getCategory() != null ? product.getCategory().getName() : null);
             productInfo.setGoldType(product.getGoldType());
             productInfo.setWeight(product.getWeight());
             productInfo.setIsActive(product.isInStock());
 
-            // Set image URL from product images if available
-            if (product.getImages() != null && !product.getImages().isEmpty()) {
-                productInfo.setImageUrl(product.getImages().get(0).getUrl());
+            String img = MapperUtils.firstImageUrl(product.getImages());
+            if (img != null) {
+                productInfo.setImageUrl(img);
             }
 
             dto.setProduct(productInfo);

@@ -15,6 +15,7 @@ import ma.codexa.troco.repository.RefreshTokenRepository;
 import ma.codexa.troco.repository.UserRepository;
 import ma.codexa.troco.security.AppPermissions;
 import ma.codexa.troco.security.service.PermissionCheckService;
+import ma.codexa.troco.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -38,11 +39,19 @@ public class MemberService {
     private final PasswordEncoder passwordEncoder;
     private final PermissionCheckService permissionCheckService;
     private final AuditLogService auditLog;
+    private final PlanEntitlementService planEntitlementService;
 
     @Transactional(readOnly = true)
     public List<MemberDTO> listMembers() {
-        return userRepository.findAll().stream()
-                .filter(u -> !"CUSTOMER".equalsIgnoreCase(u.getRole()))
+        // SUPER_ADMIN (bypass) : tous les comptes non-clients.
+        if (TenantContext.isBypass()) {
+            return userRepository.findAll().stream()
+                    .filter(u -> !"CUSTOMER".equalsIgnoreCase(u.getRole()))
+                    .map(this::toDto)
+                    .toList();
+        }
+        Long fid = TenantContext.requireFournisseurId();
+        return userRepository.findStoreMembers(fid).stream()
                 .map(this::toDto)
                 .toList();
     }
@@ -55,6 +64,8 @@ public class MemberService {
     }
 
     public MemberDTO create(CreateMemberRequest request) {
+        planEntitlementService.assertCanCreateStaff();
+        Long fid = TenantContext.requireFournisseurId();
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
         if (userRepository.existsByEmail(email)) {
             throw new BusinessException("Un compte existe déjà avec cet email", HttpStatus.CONFLICT);
@@ -64,6 +75,7 @@ public class MemberService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setFullName(request.getFullName().trim());
         user.setRole("STAFF");
+        user.setFournisseurId(fid);
         user.setActive(request.isActive());
         user.setPermissionCodes(sanitizePermissions(request.getPermissions()));
         user = userRepository.save(user);
@@ -73,16 +85,9 @@ public class MemberService {
     }
 
     public MemberDTO update(Long id, UpdateMemberRequest request) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Membre", id));
-        if ("CUSTOMER".equalsIgnoreCase(user.getRole())) {
-            throw new BusinessException("Impossible de modifier un compte client ici", HttpStatus.BAD_REQUEST);
-        }
+        User user = requireMemberInTenant(id);
         if ("ADMIN".equalsIgnoreCase(user.getRole()) && Boolean.FALSE.equals(request.getActive())) {
-            long activeAdmins = userRepository.findByRole("ADMIN").stream().filter(User::isActive).count();
-            if (activeAdmins <= 1) {
-                throw new BusinessException("Impossible de désactiver le dernier administrateur", HttpStatus.BAD_REQUEST);
-            }
+            assertNotLastActiveAdmin(user);
         }
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
             user.setFullName(request.getFullName().trim());
@@ -100,7 +105,7 @@ public class MemberService {
     }
 
     public MemberDTO activate(Long id) {
-        User user = requireStaffOrAdmin(id);
+        User user = requireMemberInTenant(id);
         user.setActive(true);
         userRepository.save(user);
         auditLog.record(AuditLogService.Action.MEMBER_ACTIVATE, "USER", String.valueOf(id),
@@ -109,12 +114,9 @@ public class MemberService {
     }
 
     public MemberDTO deactivate(Long id) {
-        User user = requireStaffOrAdmin(id);
+        User user = requireMemberInTenant(id);
         if ("ADMIN".equalsIgnoreCase(user.getRole())) {
-            long activeAdmins = userRepository.findByRole("ADMIN").stream().filter(User::isActive).count();
-            if (activeAdmins <= 1) {
-                throw new BusinessException("Impossible de désactiver le dernier administrateur", HttpStatus.BAD_REQUEST);
-            }
+            assertNotLastActiveAdmin(user);
         }
         user.setActive(false);
         userRepository.save(user);
@@ -124,7 +126,7 @@ public class MemberService {
     }
 
     public void resetPassword(Long id, ResetMemberPasswordRequest request) {
-        User user = requireStaffOrAdmin(id);
+        User user = requireMemberInTenant(id);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         userRepository.save(user);
         auditLog.record(AuditLogService.Action.MEMBER_PASSWORD_RESET, "USER", String.valueOf(id),
@@ -132,14 +134,17 @@ public class MemberService {
     }
 
     public void delete(Long id) {
-        User user = requireStaffOrAdmin(id);
+        User user = requireMemberInTenant(id);
         User current = permissionCheckService.currentUser()
                 .orElseThrow(() -> new BusinessException("Non authentifié", HttpStatus.UNAUTHORIZED));
         if (current.getId().equals(user.getId())) {
             throw new BusinessException("Vous ne pouvez pas supprimer votre propre compte", HttpStatus.BAD_REQUEST);
         }
         if ("ADMIN".equalsIgnoreCase(user.getRole())) {
-            long adminCount = userRepository.findByRole("ADMIN").size();
+            Long fid = user.getFournisseurId();
+            long adminCount = fid == null
+                    ? userRepository.findByRole("ADMIN").size()
+                    : userRepository.findByFournisseurIdAndRoleIgnoreCase(fid, "ADMIN").size();
             if (adminCount <= 1) {
                 throw new BusinessException("Impossible de supprimer le dernier administrateur", HttpStatus.BAD_REQUEST);
             }
@@ -155,13 +160,36 @@ public class MemberService {
         log.info("member_deleted id={} email={}", id, email);
     }
 
-    private User requireStaffOrAdmin(Long id) {
+    /**
+     * Charge un membre et refuse tout accès cross-tenant
+     * (sauf SUPER_ADMIN en bypass).
+     */
+    private User requireMemberInTenant(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Membre", id));
         if ("CUSTOMER".equalsIgnoreCase(user.getRole())) {
             throw new BusinessException("Compte client non gérable ici", HttpStatus.BAD_REQUEST);
         }
+        if ("SUPER_ADMIN".equalsIgnoreCase(user.getRole()) && !TenantContext.isBypass()) {
+            throw new ResourceNotFoundException("Membre", id);
+        }
+        if (!TenantContext.isBypass()) {
+            Long fid = TenantContext.requireFournisseurId();
+            if (user.getFournisseurId() == null || !fid.equals(user.getFournisseurId())) {
+                throw new ResourceNotFoundException("Membre", id);
+            }
+        }
         return user;
+    }
+
+    private void assertNotLastActiveAdmin(User user) {
+        Long fid = user.getFournisseurId();
+        long activeAdmins = fid == null
+                ? userRepository.findByRole("ADMIN").stream().filter(User::isActive).count()
+                : userRepository.countActiveAdmins(fid);
+        if (activeAdmins <= 1) {
+            throw new BusinessException("Impossible de désactiver le dernier administrateur", HttpStatus.BAD_REQUEST);
+        }
     }
 
     private Set<String> sanitizePermissions(List<String> requested) {
@@ -176,6 +204,10 @@ public class MemberService {
     }
 
     private MemberDTO toDto(User user) {
+        // ADMIN = toutes les permissions côté UI — ne pas gonfler la liste.
+        java.util.List<String> permissions = "STAFF".equalsIgnoreCase(user.getRole())
+                ? permissionCheckService.resolvePermissions(user)
+                : java.util.List.of();
         return MemberDTO.builder()
                 .id(user.getId())
                 .email(user.getEmail())
@@ -183,7 +215,7 @@ public class MemberService {
                 .role(user.getRole())
                 .active(user.isActive())
                 .createdAt(user.getCreatedAt())
-                .permissions(permissionCheckService.resolvePermissions(user))
+                .permissions(permissions)
                 .build();
     }
 }

@@ -74,6 +74,28 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success(productUpsellService.frequentlyBoughtWith(id, limit)));
     }
 
+    @GetMapping("/{id}/recommendations")
+    @Operation(summary = "Recommandations produits (co-achat + catégorie)")
+    public ResponseEntity<ApiResponse<List<ProductListItemDTO>>> recommendations(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "6") @Min(1) @Max(12) int limit) {
+        return ResponseEntity.ok(ApiResponse.success(productUpsellService.frequentlyBoughtWith(id, limit)));
+    }
+
+    @GetMapping("/facets")
+    @Operation(summary = "Facettes catalogue (catégories, tailles, bornes de prix)")
+    public ResponseEntity<ApiResponse<ma.codexa.troco.dto.CatalogFacetsDTO>> facets() {
+        return ResponseEntity.ok(ApiResponse.success(productService.catalogFacets()));
+    }
+
+    @GetMapping("/by-ids")
+    @Operation(summary = "Produits par IDs (wishlist) — DTO liste, max 50")
+    public ResponseEntity<ApiResponse<List<ProductListItemDTO>>> getByIds(
+            @RequestParam List<Long> ids) {
+        List<Product> products = productService.getProductsByIds(ids);
+        return ResponseEntity.ok(ApiResponse.success(productMapper.toListItemDTOList(products)));
+    }
+
     @Operation(summary = "Récupérer tous les produits", description = "Récupère une liste paginée de tous les produits")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Liste des produits récupérée avec succès",
@@ -95,13 +117,14 @@ public class ProductController {
             @RequestParam(required = false) Double minPrice,
             @RequestParam(required = false) Double maxPrice,
             @RequestParam(required = false) Boolean inStock,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String facetSize) {
 
         log.debug("Récupération des produits - page: {}, size: {}, sortBy: {}, sortDir: {}, filtres actifs",
                 page, size, sortBy, sortDir);
 
         Page<Product> productPage = loadProductPage(page, size, sortBy, sortDir,
-                category, goldType, minPrice, maxPrice, inStock, keyword);
+                category, goldType, minPrice, maxPrice, inStock, keyword, facetSize);
 
         PageResponse<ProductListItemDTO> pageResponse = PageResponse.of(
                 productMapper.toListItemDTOList(productPage.getContent()),
@@ -124,10 +147,11 @@ public class ProductController {
             @RequestParam(required = false) Double minPrice,
             @RequestParam(required = false) Double maxPrice,
             @RequestParam(required = false) Boolean inStock,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String facetSize) {
 
         Page<Product> productPage = loadProductPage(page, size, sortBy, sortDir,
-                category, goldType, minPrice, maxPrice, inStock, keyword);
+                category, goldType, minPrice, maxPrice, inStock, keyword, facetSize);
 
         PageResponse<ProductDetailDTO> pageResponse = PageResponse.of(
                 productDtoMapper.toDetailDTOList(productPage.getContent()),
@@ -463,7 +487,8 @@ public class ProductController {
             Double minPrice,
             Double maxPrice,
             Boolean inStock,
-            String keyword) {
+            String keyword,
+            String facetSize) {
         String safeSortBy = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : ApiConstants.DEFAULT_SORT_BY;
         String safeSortDir = "ASC".equalsIgnoreCase(sortDir) ? "ASC" : "DESC";
 
@@ -480,12 +505,14 @@ public class ProductController {
         Pageable pageable = PageRequest.of(page, size, sort);
 
         String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        String sizeFacet = (facetSize != null && !facetSize.isBlank()) ? facetSize.trim() : null;
         boolean useFilters = kw != null
                 || (category != null && !category.isBlank())
                 || (goldType != null && !goldType.isBlank())
                 || minPrice != null
                 || maxPrice != null
-                || Boolean.TRUE.equals(inStock);
+                || Boolean.TRUE.equals(inStock)
+                || sizeFacet != null;
 
         if (useFilters) {
             Long categoryId = (category != null && !category.isBlank())
@@ -504,6 +531,7 @@ public class ProductController {
                     minPrice,
                     maxPrice,
                     inStock,
+                    sizeFacet,
                     pageable);
         }
         return productService.getAllProducts(pageable);

@@ -5,6 +5,9 @@ import ma.codexa.troco.support.IntegrationTestBase;
 import ma.codexa.troco.tenant.TenantResolutionFilter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.web.servlet.MvcResult;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -74,5 +77,57 @@ class TenantIsolationIntegrationTest extends IntegrationTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data[0].slug").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("Pages d'un fournisseur invisibles pour l'autre (admin + public)")
+    void storePagesIsolatedBetweenTenants() throws Exception {
+        SeededStore storeA = seedStore("pages-a");
+        SeededStore storeB = seedStore("pages-b");
+
+        MvcResult created = authPost("/store-pages", storeA.token(), storeA.slug(), Map.of(
+                "title", "Page Exclusive A",
+                "slug", "page-exclusive-a",
+                "showInNav", true,
+                "published", true,
+                "isHome", false
+        )).andExpect(status().isOk()).andReturn();
+        long pageIdA = readData(created).path("id").asLong();
+
+        authPost("/store-pages", storeB.token(), storeB.slug(), Map.of(
+                "title", "Page Exclusive B",
+                "slug", "page-exclusive-b",
+                "showInNav", true,
+                "published", true,
+                "isHome", false
+        )).andExpect(status().isOk());
+
+        JsonNode listB = readData(mockMvc.perform(get("/store-pages")
+                        .header("Authorization", "Bearer " + storeB.token())
+                        .header(TenantResolutionFilter.HEADER_SLUG, storeB.slug()))
+                .andExpect(status().isOk())
+                .andReturn());
+        assertThat(listB.toString()).contains("Page Exclusive B");
+        assertThat(listB.toString()).doesNotContain("Page Exclusive A");
+
+        mockMvc.perform(get("/store-pages/" + pageIdA)
+                        .header("Authorization", "Bearer " + storeB.token())
+                        .header(TenantResolutionFilter.HEADER_SLUG, storeB.slug()))
+                .andExpect(status().isNotFound());
+
+        // Spoof header tenant A avec token B → JWT force le tenant B
+        mockMvc.perform(get("/store-pages/" + pageIdA)
+                        .header("Authorization", "Bearer " + storeB.token())
+                        .header(TenantResolutionFilter.HEADER_SLUG, storeA.slug()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/store-pages/public/by-slug/page-exclusive-a")
+                        .header(TenantResolutionFilter.HEADER_SLUG, storeB.slug()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/store-pages/public/by-slug/page-exclusive-a")
+                        .header(TenantResolutionFilter.HEADER_SLUG, storeA.slug()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slug").value("page-exclusive-a"));
     }
 }

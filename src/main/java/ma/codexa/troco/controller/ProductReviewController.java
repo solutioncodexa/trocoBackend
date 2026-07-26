@@ -3,6 +3,7 @@ package ma.codexa.troco.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
+import ma.codexa.troco.common.PageResponse;
 import ma.codexa.troco.dto.ProductReviewDTO;
 import ma.codexa.troco.dto.ProductReviewSummaryDTO;
 import ma.codexa.troco.dto.request.CreateProductReviewRequest;
@@ -24,6 +25,14 @@ public class ProductReviewController {
     @GetMapping("/public/{productId}")
     public ResponseEntity<ApiResponse<ProductReviewSummaryDTO>> publicSummary(@PathVariable Long productId) {
         return ResponseEntity.ok(ApiResponse.success(productReviewService.publicSummary(productId)));
+    }
+
+    @GetMapping("/public/{productId}/reviews")
+    public ResponseEntity<ApiResponse<PageResponse<ProductReviewDTO>>> publicReviews(
+            @PathVariable Long productId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(ApiResponse.success(productReviewService.publicReviews(productId, page, size)));
     }
 
     @PostMapping("/public")

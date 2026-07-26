@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -149,13 +150,45 @@ public class GlobalExceptionHandler {
         }
     }
 
+    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+    public ResponseEntity<ProblemDetail> handleDataAccessException(
+            org.springframework.dao.DataAccessException ex, WebRequest request) {
+        if (ex instanceof org.springframework.dao.DataIntegrityViolationException div) {
+            return handleDataIntegrityViolation(div, request);
+        }
+        if (ex instanceof org.springframework.dao.InvalidDataAccessResourceUsageException ida) {
+            return handleInvalidDataAccessResourceUsage(ida, request);
+        }
+        Throwable root = ApiErrorMdc.rootCause(ex);
+        String detail = root != null && root.getMessage() != null ? root.getMessage() : ex.getMessage();
+        try (ApiErrorMdc ignored = ApiErrorMdc.start(request, HttpStatus.INTERNAL_SERVER_ERROR, "data_access", ex)) {
+            log.error("data_access_error type={} rootType={} path={} tenant={} detail={}",
+                    ex.getClass().getSimpleName(),
+                    root != null ? root.getClass().getSimpleName() : "n/a",
+                    pathOf(request),
+                    tenantLabel(),
+                    detail,
+                    ex);
+
+            ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Erreur d'accès aux données. Veuillez réessayer plus tard.");
+            problemDetail.setTitle("Data Access Error");
+            problemDetail.setProperty("timestamp", LocalDateTime.now());
+            problemDetail.setProperty("path", pathOf(request));
+            problemDetail.setProperty("errorType", ex.getClass().getSimpleName());
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problemDetail);
+        }
+    }
+
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(
             org.springframework.dao.DataIntegrityViolationException ex, WebRequest request) {
         Throwable root = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause() : ex;
         String detail = root.getMessage() != null ? root.getMessage() : ex.getMessage();
-        try (ApiErrorMdc ignored = ApiErrorMdc.start(request, HttpStatus.BAD_REQUEST, "data_integrity")) {
-            log.error("DB integrity constraint: {}", detail, ex);
+        try (ApiErrorMdc ignored = ApiErrorMdc.start(request, HttpStatus.BAD_REQUEST, "data_integrity", ex)) {
+            log.error("db_integrity path={} tenant={} detail={}", pathOf(request), tenantLabel(), detail, ex);
 
             ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                     HttpStatus.BAD_REQUEST,
@@ -174,8 +207,8 @@ public class GlobalExceptionHandler {
             org.springframework.dao.InvalidDataAccessResourceUsageException ex, WebRequest request) {
         Throwable root = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause() : ex;
         String detail = root.getMessage() != null ? root.getMessage() : ex.getMessage();
-        try (ApiErrorMdc ignored = ApiErrorMdc.start(request, HttpStatus.BAD_REQUEST, "data_access")) {
-            log.error("SQL / data access: {}", detail, ex);
+        try (ApiErrorMdc ignored = ApiErrorMdc.start(request, HttpStatus.BAD_REQUEST, "schema_mismatch", ex)) {
+            log.error("sql_schema_error path={} tenant={} detail={}", pathOf(request), tenantLabel(), detail, ex);
 
             ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                     HttpStatus.BAD_REQUEST,
@@ -205,20 +238,64 @@ public class GlobalExceptionHandler {
         }
     }
 
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ProblemDetail> handleResponseStatusException(
+            ResponseStatusException ex, WebRequest request) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        if (status == null) {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        String detail = ex.getReason() != null ? ex.getReason() : status.getReasonPhrase();
+        try (ApiErrorMdc ignored = ApiErrorMdc.start(request, status, "response_status")) {
+            if (status.is5xxServerError()) {
+                log.error("response_status status={} path={} detail={}", status.value(), pathOf(request), detail, ex);
+            } else {
+                log.warn("response_status status={} path={} detail={}", status.value(), pathOf(request), detail);
+            }
+            ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, detail);
+            problemDetail.setTitle(status.getReasonPhrase());
+            problemDetail.setProperty("timestamp", LocalDateTime.now());
+            problemDetail.setProperty("path", pathOf(request));
+            return ResponseEntity.status(status).body(problemDetail);
+        }
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleGlobalException(
             Exception ex, WebRequest request) {
-        try (ApiErrorMdc ignored = ApiErrorMdc.start(request, HttpStatus.INTERNAL_SERVER_ERROR, "internal_error")) {
-            log.error("Unexpected internal error", ex);
+        Throwable root = ApiErrorMdc.rootCause(ex);
+        try (ApiErrorMdc ignored = ApiErrorMdc.start(request, HttpStatus.INTERNAL_SERVER_ERROR, "internal_error", ex)) {
+            log.error("internal_error type={} rootType={} path={} tenant={} message={} rootMessage={}",
+                    ex.getClass().getName(),
+                    root != null ? root.getClass().getName() : "n/a",
+                    pathOf(request),
+                    tenantLabel(),
+                    ex.getMessage(),
+                    root != null ? root.getMessage() : null,
+                    ex);
 
             ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "Une erreur interne s'est produite. Veuillez réessayer plus tard.");
             problemDetail.setTitle("Internal Server Error");
             problemDetail.setProperty("timestamp", LocalDateTime.now());
-            problemDetail.setProperty("path", request.getDescription(false).replace("uri=", ""));
+            problemDetail.setProperty("path", pathOf(request));
+            problemDetail.setProperty("errorType", ex.getClass().getSimpleName());
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problemDetail);
         }
+    }
+
+    private static String pathOf(WebRequest request) {
+        return request.getDescription(false).replace("uri=", "");
+    }
+
+    private static String tenantLabel() {
+        String slug = ma.codexa.troco.tenant.TenantContext.getSlug();
+        Long id = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        if (slug != null && !slug.isBlank()) {
+            return slug + (id != null ? "#" + id : "");
+        }
+        return id != null ? "#" + id : "-";
     }
 }

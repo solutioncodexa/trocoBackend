@@ -70,7 +70,7 @@ public interface OrderMapper {
                     .map(item -> {
                         CartItemDTO cartItemDTO = new CartItemDTO();
                         if (item.getProduct() != null) {
-                            cartItemDTO.setProduct(productMapper.toDetailDTO(item.getProduct()));
+                            cartItemDTO.setProduct(toLineProduct(item));
                         }
                         cartItemDTO.setQuantity(item.getQuantity());
                         cartItemDTO.setSelectedSize(item.getSelectedSize());
@@ -84,6 +84,22 @@ public interface OrderMapper {
                     .toList();
             dto.setItems(cartItems);
         }
+    }
+
+    private static OrderLineProductDTO toLineProduct(OrderItem item) {
+        var p = item.getProduct();
+        OrderLineProductDTO line = new OrderLineProductDTO();
+        line.setId(p.getId() != null ? p.getId().toString() : null);
+        line.setName(p.getName());
+        Double unit = item.getUnitPrice() != null && item.getUnitPrice() > 0
+                ? item.getUnitPrice()
+                : p.getDisplayMinPrice();
+        line.setPrice(unit);
+        String img = MapperUtils.firstImageUrl(p.getImages());
+        line.setImages(img != null ? List.of(img) : List.of());
+        line.setWeight(item.getSelectedWeight() != null ? item.getSelectedWeight() : p.getWeight());
+        line.setSku(p.getSku());
+        return line;
     }
 
     @Named("statusToLowercase")

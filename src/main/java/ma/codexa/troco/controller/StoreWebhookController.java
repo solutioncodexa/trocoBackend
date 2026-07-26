@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
 import ma.codexa.troco.dto.StoreWebhookDTO;
 import ma.codexa.troco.dto.StoreWebhookDeliveryDTO;
+import ma.codexa.troco.dto.StoreWebhookListItemDTO;
 import ma.codexa.troco.dto.request.UpsertStoreWebhookRequest;
 import ma.codexa.troco.security.AppPermissions;
 import ma.codexa.troco.security.annotations.RequirePermission;
@@ -25,7 +26,7 @@ public class StoreWebhookController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     @RequirePermission(AppPermissions.WEBHOOKS_MANAGE)
-    public ResponseEntity<ApiResponse<List<StoreWebhookDTO>>> list() {
+    public ResponseEntity<ApiResponse<List<StoreWebhookListItemDTO>>> list() {
         return ResponseEntity.ok(ApiResponse.success(storeWebhookService.list()));
     }
 
@@ -46,7 +47,7 @@ public class StoreWebhookController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     @RequirePermission(AppPermissions.WEBHOOKS_MANAGE)
-    public ResponseEntity<ApiResponse<StoreWebhookDTO>> update(
+    public ResponseEntity<ApiResponse<StoreWebhookListItemDTO>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpsertStoreWebhookRequest request) {
         return ResponseEntity.ok(ApiResponse.success(storeWebhookService.update(id, request), "Webhook mis à jour"));

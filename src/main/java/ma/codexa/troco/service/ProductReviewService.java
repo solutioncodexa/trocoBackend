@@ -1,6 +1,7 @@
 package ma.codexa.troco.service;
 
 import lombok.RequiredArgsConstructor;
+import ma.codexa.troco.common.PageResponse;
 import ma.codexa.troco.dto.ProductReviewDTO;
 import ma.codexa.troco.dto.ProductReviewSummaryDTO;
 import ma.codexa.troco.dto.request.CreateProductReviewRequest;
@@ -8,6 +9,8 @@ import ma.codexa.troco.entity.ProductReview;
 import ma.codexa.troco.repository.ProductRepository;
 import ma.codexa.troco.repository.ProductReviewRepository;
 import ma.codexa.troco.tenant.TenantContext;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,11 +31,27 @@ public class ProductReviewService {
         if (!productRepository.existsById(productId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Produit introuvable");
         }
-        List<ProductReviewDTO> reviews = reviewRepository
-                .findByProductIdAndApprovedTrueOrderByCreatedAtDesc(productId)
-                .stream().map(this::toDto).collect(Collectors.toList());
-        double avg = reviews.stream().mapToInt(ProductReviewDTO::rating).average().orElse(0);
-        return new ProductReviewSummaryDTO(productId, Math.round(avg * 10.0) / 10.0, reviews.size(), reviews);
+        Double avg = reviewRepository.avgRating(productId);
+        long count = reviewRepository.countByProductIdAndApprovedTrue(productId);
+        double rounded = avg == null ? 0 : Math.round(avg * 10.0) / 10.0;
+        return new ProductReviewSummaryDTO(productId, rounded, count);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ProductReviewDTO> publicReviews(Long productId, int page, int size) {
+        if (!productRepository.existsById(productId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Produit introuvable");
+        }
+        int safeSize = Math.min(Math.max(size, 1), 50);
+        int safePage = Math.max(page, 0);
+        Page<ProductReview> result = reviewRepository
+                .findByProductIdAndApprovedTrueOrderByCreatedAtDesc(productId, PageRequest.of(safePage, safeSize));
+        return PageResponse.of(
+                result.getContent().stream().map(this::toDto).collect(Collectors.toList()),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements()
+        );
     }
 
     @Transactional

@@ -41,13 +41,34 @@ public class Order extends TenantScoped {
     private String status = "NEW"; // NEW, CONFIRMED, DELIVERED, CANCELLED
 
     @Column(name = "payment_method")
-    private String paymentMethod = "cash_on_delivery"; // cash_on_delivery, online
+    private String paymentMethod = "cash_on_delivery"; // cash_on_delivery, online, card_cmi, bnpl
+
+    @Column(name = "payment_status", length = 40)
+    private String paymentStatus = "pending"; // pending, paid, failed, refunded, cod
 
     @Column(name = "promo_code", length = 20)
     private String promoCode;
 
     @Column(name = "discount_amount")
     private Double discountAmount;
+
+    @Column(name = "shipping_fee")
+    private Double shippingFee = 0.0;
+
+    @Column(name = "carrier_code", length = 40)
+    private String carrierCode;
+
+    @Column(name = "tracking_number", length = 120)
+    private String trackingNumber;
+
+    @Column(name = "tracking_url", length = 1024)
+    private String trackingUrl;
+
+    @Column(name = "loyalty_points_earned")
+    private Integer loyaltyPointsEarned = 0;
+
+    @Column(name = "loyalty_points_redeemed")
+    private Integer loyaltyPointsRedeemed = 0;
 
     @Column(columnDefinition = "TEXT")
     private String notes;

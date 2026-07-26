@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
 import ma.codexa.troco.dto.StoreBlogPostDTO;
+import ma.codexa.troco.dto.StoreBlogPostListItemDTO;
 import ma.codexa.troco.dto.request.UpsertBlogPostRequest;
 import ma.codexa.troco.service.StoreBlogService;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +21,7 @@ public class StoreBlogController {
     private final StoreBlogService storeBlogService;
 
     @GetMapping("/public")
-    public ResponseEntity<ApiResponse<List<StoreBlogPostDTO>>> listPublic(
+    public ResponseEntity<ApiResponse<List<StoreBlogPostListItemDTO>>> listPublic(
             @RequestParam(required = false, defaultValue = "fr") String lang) {
         return ResponseEntity.ok(ApiResponse.success(storeBlogService.listPublic(lang)));
     }
@@ -32,7 +33,7 @@ public class StoreBlogController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    public ResponseEntity<ApiResponse<List<StoreBlogPostDTO>>> list() {
+    public ResponseEntity<ApiResponse<List<StoreBlogPostListItemDTO>>> list() {
         return ResponseEntity.ok(ApiResponse.success(storeBlogService.listAdmin()));
     }
 

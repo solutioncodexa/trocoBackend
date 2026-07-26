@@ -5,7 +5,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
+import ma.codexa.troco.dto.CategoryCardDTO;
 import ma.codexa.troco.dto.CategoryDTO;
+import ma.codexa.troco.dto.CategoryHeroDTO;
+import ma.codexa.troco.dto.CategoryNavDTO;
 import ma.codexa.troco.dto.request.CreateCategoryRequest;
 import ma.codexa.troco.dto.request.HeroCategoryPatchRequest;
 import ma.codexa.troco.dto.request.UpdateCategoryRequest;
@@ -30,9 +33,21 @@ public class CategoryController {
         return ResponseEntity.ok(ApiResponse.success(categoryService.getAllCategoryDtos()));
     }
 
+    @Operation(summary = "Nav / footer — catégories légères (sans productCount)")
+    @GetMapping("/nav")
+    public ResponseEntity<ApiResponse<List<CategoryNavDTO>>> getNavCategories() {
+        return ResponseEntity.ok(ApiResponse.success(categoryService.getNavCategoryDtos()));
+    }
+
+    @Operation(summary = "Cartes vitrine (home / page builder) — sans productCount")
+    @GetMapping("/cards")
+    public ResponseEntity<ApiResponse<List<CategoryCardDTO>>> getCardCategories() {
+        return ResponseEntity.ok(ApiResponse.success(categoryService.getCardCategoryDtos()));
+    }
+
     @Operation(summary = "Catégories affichées sur l’accueil (bandeau), triées")
     @GetMapping("/hero")
-    public ResponseEntity<ApiResponse<List<CategoryDTO>>> getHeroCategories() {
+    public ResponseEntity<ApiResponse<List<CategoryHeroDTO>>> getHeroCategories() {
         return ResponseEntity.ok(ApiResponse.success(categoryService.getHeroCategoryDtos()));
     }
 

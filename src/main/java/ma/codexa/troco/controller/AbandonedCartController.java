@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
 import ma.codexa.troco.dto.AbandonedCartDTO;
+import ma.codexa.troco.dto.AbandonedCartListItemDTO;
 import ma.codexa.troco.dto.request.CaptureAbandonedCartRequest;
 import ma.codexa.troco.service.AbandonedCartService;
 import org.springframework.http.ResponseEntity;
@@ -38,7 +39,7 @@ public class AbandonedCartController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    public ResponseEntity<ApiResponse<List<AbandonedCartDTO>>> list() {
+    public ResponseEntity<ApiResponse<List<AbandonedCartListItemDTO>>> list() {
         return ResponseEntity.ok(ApiResponse.success(abandonedCartService.listAdmin()));
     }
 }

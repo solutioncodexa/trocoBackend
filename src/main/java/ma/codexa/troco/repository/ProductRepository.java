@@ -29,6 +29,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.images LEFT JOIN FETCH p.category WHERE p.id = :id")
     Optional<Product> findByIdWithImages(@Param("id") Long id);
 
+    @EntityGraph(attributePaths = {"images", "category"})
+    @Query("SELECT p FROM Product p WHERE p.deleted = FALSE AND p.id IN :ids")
+    List<Product> findByIdInWithImages(@Param("ids") List<Long> ids);
+
     /**
      * Charge le produit avec ses variantes (managed) pour la mise à jour.
      * Images chargées séparément via {@link #findByIdWithImages} (deux bags List en un seul JOIN FETCH).
@@ -47,6 +51,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findByCategoryIdAndDeletedFalse(Long categoryId);
 
     long countByCategoryIdAndDeletedFalse(Long categoryId);
+
+    @Query("""
+            SELECT p.category.id, COUNT(p)
+            FROM Product p
+            WHERE p.deleted = FALSE AND p.category IS NOT NULL
+            GROUP BY p.category.id
+            """)
+    List<Object[]> countActiveGroupedByCategoryId();
 
     // Filtrer par plage de prix
     List<Product> findByPriceBetweenAndDeletedFalse(Double minPrice, Double maxPrice);
@@ -87,7 +99,9 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
            "(:categoryId IS NULL OR p.category.id = :categoryId) AND " +
            "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
            "(:maxPrice IS NULL OR p.price <= :maxPrice) AND " +
-           "(:inStock IS NULL OR (:inStock = TRUE AND p.stock > 0) OR (:inStock = FALSE AND p.stock <= 0))")
+           "(:inStock IS NULL OR (:inStock = TRUE AND p.stock > 0) OR (:inStock = FALSE AND p.stock <= 0)) AND " +
+           "(:size IS NULL OR EXISTS (SELECT 1 FROM ProductVariant v WHERE v.product = p AND (" +
+           "LOWER(COALESCE(v.attributeValue, '')) = LOWER(:size) OR LOWER(COALESCE(v.label, '')) = LOWER(:size))))")
     Page<Product> searchProductsWithFilters(
         @Param("applyKeywordFilter") boolean applyKeywordFilter,
         @Param("keywordPattern") String keywordPattern,
@@ -97,6 +111,32 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
         @Param("minPrice") Double minPrice,
         @Param("maxPrice") Double maxPrice,
         @Param("inStock") Boolean inStock,
+        @Param("size") String size,
         Pageable pageable
     );
+
+    @Query("""
+            SELECT COALESCE(v.attributeValue, v.label), COUNT(DISTINCT p.id)
+            FROM Product p JOIN p.variants v
+            WHERE p.deleted = FALSE
+              AND (LOWER(COALESCE(v.attributeName, '')) LIKE '%taille%'
+                   OR LOWER(COALESCE(v.attributeName, '')) LIKE '%size%'
+                   OR LOWER(COALESCE(v.attributeName, '')) LIKE '%pointure%')
+              AND COALESCE(v.attributeValue, v.label) IS NOT NULL
+            GROUP BY COALESCE(v.attributeValue, v.label)
+            ORDER BY COUNT(DISTINCT p.id) DESC
+            """)
+    List<Object[]> countSizeFacets();
+
+    @Query("""
+            SELECT c.id, c.name, COUNT(p.id)
+            FROM Product p JOIN p.category c
+            WHERE p.deleted = FALSE
+            GROUP BY c.id, c.name
+            ORDER BY COUNT(p.id) DESC
+            """)
+    List<Object[]> countCategoryFacets();
+
+    @Query("SELECT MIN(p.price), MAX(p.price), COUNT(p) FROM Product p WHERE p.deleted = FALSE")
+    List<Object[]> priceBounds();
 }

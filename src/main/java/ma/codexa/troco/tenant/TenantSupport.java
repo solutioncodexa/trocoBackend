@@ -21,11 +21,10 @@ public class TenantSupport {
             return;
         }
         Long fournisseurId = TenantContext.getFournisseurId();
-        if (fournisseurId == null) {
-            return;
-        }
+        // Sans tenant résolu : filtre impossible → aucune fuite cross-boutique.
+        long effectiveId = fournisseurId != null ? fournisseurId : -1L;
         session.enableFilter(TenantScoped.FILTER_NAME)
-                .setParameter(TenantScoped.PARAM_NAME, fournisseurId);
+                .setParameter(TenantScoped.PARAM_NAME, effectiveId);
     }
 
     public Long currentFournisseurIdOrNull() {

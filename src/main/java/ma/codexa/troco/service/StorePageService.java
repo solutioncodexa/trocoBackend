@@ -17,6 +17,7 @@ import ma.codexa.troco.repository.StorePageAnalyticsEventRepository;
 import ma.codexa.troco.repository.StorePageBlockRepository;
 import ma.codexa.troco.repository.StorePageRepository;
 import ma.codexa.troco.repository.StorePageVersionRepository;
+import ma.codexa.troco.common.exception.ResourceNotFoundException;
 import ma.codexa.troco.security.AppPermissions;
 import ma.codexa.troco.security.SecurityRoles;
 import ma.codexa.troco.security.service.PermissionCheckService;
@@ -60,11 +61,28 @@ public class StorePageService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final PermissionCheckService permissionCheckService;
     private final AuditLogService auditLogService;
+    private final PlanEntitlementService planEntitlementService;
 
+    /** Liste admin sans blocs (blockCount seulement). */
     @Transactional(readOnly = true)
-    public List<StorePageDTO> listAdmin() {
+    public List<StorePageListItemDTO> listAdmin() {
+        requireStoreTenantOrBypass();
         return pageRepository.findAllByOrderBySortOrderAscTitleAsc().stream()
-                .map(p -> toDto(p, null))
+                .map(p -> new StorePageListItemDTO(
+                        p.getId(),
+                        p.getTitle(),
+                        p.getTitleAr(),
+                        p.getSlug(),
+                        Boolean.TRUE.equals(p.getIsHome()),
+                        p.getShowInNav() == null || p.getShowInNav(),
+                        Boolean.TRUE.equals(p.getPublished()),
+                        p.getSortOrder(),
+                        isCurrentlyLive(p),
+                        p.getAbVariant(),
+                        p.getPublishAt(),
+                        p.getUnpublishAt(),
+                        (int) blockRepository.countByPageId(p.getId())
+                ))
                 .collect(Collectors.toList());
     }
 
@@ -166,6 +184,7 @@ public class StorePageService {
      */
     @Transactional
     public StorePageDTO promoteAbWinner(Long winnerPageId) {
+        planEntitlementService.assertAbTestingAllowed();
         requirePublishPermission("promouvoir une variante A/B");
         Long fid = TenantContext.requireFournisseurId();
         StorePage winner = requirePage(winnerPageId);
@@ -325,6 +344,9 @@ public class StorePageService {
 
     @Transactional(readOnly = true)
     public List<StorePageNavDTO> listPublicNav(String lang) {
+        if (TenantContext.getFournisseurId() == null) {
+            return List.of();
+        }
         boolean ar = isAr(lang);
         return pageRepository.findByPublishedTrueAndShowInNavTrueOrderBySortOrderAscTitleAsc().stream()
                 .filter(p -> !Boolean.TRUE.equals(p.getIsHome()))
@@ -338,16 +360,28 @@ public class StorePageService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Variantes A/B sans blocs — le contenu complet est chargé via {@link #getPublicHome}.
+     */
     @Transactional(readOnly = true)
-    public List<StorePageDTO> listPublicHomes(String lang) {
+    public List<PublicHomeVariantDTO> listPublicHomes(String lang) {
+        if (TenantContext.getFournisseurId() == null) {
+            return List.of();
+        }
         return pageRepository.findByIsHomeTrueAndPublishedTrueOrderByAbVariantAscIdAsc().stream()
                 .filter(this::isCurrentlyLive)
-                .map(p -> toDto(p, lang))
+                .map(p -> new PublicHomeVariantDTO(
+                        p.getId(),
+                        p.getAbVariant(),
+                        isCurrentlyLive(p)))
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public Optional<StorePageDTO> getPublicHome(String lang, String preferredVariant) {
+        if (TenantContext.getFournisseurId() == null) {
+            return Optional.empty();
+        }
         List<StorePage> homes = pageRepository.findByIsHomeTrueAndPublishedTrueOrderByAbVariantAscIdAsc().stream()
                 .filter(this::isCurrentlyLive)
                 .collect(Collectors.toList());
@@ -442,10 +476,14 @@ public class StorePageService {
 
     @Transactional(readOnly = true)
     public StorePageDTO getPublicBySlug(String slug, String lang) {
-        StorePage page = pageRepository.findBySlugIgnoreCase(normalizeSlug(slug))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Page introuvable"));
+        Long fid = TenantContext.getFournisseurId();
+        if (fid == null) {
+            throw new ResourceNotFoundException("Page introuvable");
+        }
+        StorePage page = pageRepository.findBySlugIgnoreCaseAndFournisseurId(normalizeSlug(slug), fid)
+                .orElseThrow(() -> new ResourceNotFoundException("Page introuvable"));
         if (!isCurrentlyLive(page)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Page introuvable");
+            throw new ResourceNotFoundException("Page introuvable");
         }
         return toDto(page, lang, false);
     }
@@ -559,6 +597,9 @@ public class StorePageService {
         if (Boolean.TRUE.equals(req.getClearAbVariant())) {
             page.setAbVariant(null);
         } else if (req.getAbVariant() != null) {
+            if (!req.getAbVariant().isBlank()) {
+                planEntitlementService.assertAbTestingAllowed();
+            }
             page.setAbVariant(normalizeAbVariant(req.getAbVariant()));
         }
 
@@ -646,9 +687,21 @@ public class StorePageService {
         }
     }
 
+    /** Admin boutique : tenant obligatoire. Super Admin (bypass) : accès global ou tenant ciblé. */
+    private void requireStoreTenantOrBypass() {
+        if (!TenantContext.isBypass()) {
+            TenantContext.requireFournisseurId();
+        }
+    }
+
     private StorePage requirePage(Long id) {
-        return pageRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Page introuvable"));
+        if (TenantContext.isBypass()) {
+            return pageRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Page", id));
+        }
+        Long fid = TenantContext.requireFournisseurId();
+        return pageRepository.findByIdAndFournisseurId(id, fid)
+                .orElseThrow(() -> new ResourceNotFoundException("Page", id));
     }
 
     private int nextSortOrder() {

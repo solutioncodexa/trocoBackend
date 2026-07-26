@@ -36,5 +36,21 @@ public record StoreSettingsDTO(
         String googleAnalyticsId,
         boolean abandonedCartEnabled,
         Integer abandonedCartDelayMinutes,
-        String whatsappOrderTemplate
+        String whatsappOrderTemplate,
+        String defaultLocale,
+        String supportedLocales,
+        String currency,
+        String currencyRatesJson,
+        boolean paymentCodEnabled,
+        boolean paymentCmiEnabled,
+        boolean paymentBnplEnabled,
+        String bnplProvider,
+        boolean loyaltyEnabled,
+        BigDecimal loyaltyPointsPerMad,
+        BigDecimal loyaltyMadPerPoint,
+        String privacyPolicyUrl,
+        boolean cookieConsentRequired,
+        Integer dataRetentionDays,
+        String cndpNoticeVersion,
+        String shippingDefaultCarrier
 ) {}

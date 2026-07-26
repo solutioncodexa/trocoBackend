@@ -33,6 +33,8 @@ public final class AppPermissions {
     public static final String PAGES_EDIT = "PAGES_EDIT";
     public static final String PAGES_PUBLISH = "PAGES_PUBLISH";
     public static final String WEBHOOKS_MANAGE = "WEBHOOKS_MANAGE";
+    public static final String API_KEYS_MANAGE = "API_KEYS_MANAGE";
+    public static final String PRIVACY_MANAGE = "PRIVACY_MANAGE";
 
     public static final List<String> ALL = List.of(
             PRODUCTS_VIEW, PRODUCTS_CREATE, PRODUCTS_UPDATE, PRODUCTS_DELETE,
@@ -41,7 +43,8 @@ public final class AppPermissions {
             CUSTOM_ORDERS_VIEW, CUSTOM_ORDERS_UPDATE,
             CATALOG_MANAGE, CONTENT_MANAGE, STATS_VIEW,
             MEMBERS_MANAGE, AUDIT_VIEW,
-            PAGES_EDIT, PAGES_PUBLISH, WEBHOOKS_MANAGE
+            PAGES_EDIT, PAGES_PUBLISH, WEBHOOKS_MANAGE,
+            API_KEYS_MANAGE, PRIVACY_MANAGE
     );
 
     /** Action → implied view permissions (gérer implique voir). */

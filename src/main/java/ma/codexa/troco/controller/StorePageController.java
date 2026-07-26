@@ -3,8 +3,10 @@ package ma.codexa.troco.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
+import ma.codexa.troco.dto.PublicHomeVariantDTO;
 import ma.codexa.troco.dto.StorePageAnalyticsSummaryDTO;
 import ma.codexa.troco.dto.StorePageDTO;
+import ma.codexa.troco.dto.StorePageListItemDTO;
 import ma.codexa.troco.dto.StorePageNavDTO;
 import ma.codexa.troco.dto.StorePageVersionDTO;
 import ma.codexa.troco.dto.request.ReplaceStorePageBlocksRequest;
@@ -31,8 +33,9 @@ public class StorePageController {
         return ResponseEntity.ok(ApiResponse.success(storePageService.listPublicNav(lang)));
     }
 
+    /** Variantes A/B sans blocs — contenu via /public/home. */
     @GetMapping("/public/homes")
-    public ResponseEntity<ApiResponse<List<StorePageDTO>>> publicHomes(
+    public ResponseEntity<ApiResponse<List<PublicHomeVariantDTO>>> publicHomes(
             @RequestParam(required = false, defaultValue = "fr") String lang) {
         return ResponseEntity.ok(ApiResponse.success(storePageService.listPublicHomes(lang)));
     }
@@ -87,7 +90,7 @@ public class StorePageController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    public ResponseEntity<ApiResponse<List<StorePageDTO>>> list() {
+    public ResponseEntity<ApiResponse<List<StorePageListItemDTO>>> list() {
         return ResponseEntity.ok(ApiResponse.success(storePageService.listAdmin()));
     }
 

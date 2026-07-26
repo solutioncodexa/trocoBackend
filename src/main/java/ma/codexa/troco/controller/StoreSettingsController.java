@@ -3,6 +3,7 @@ package ma.codexa.troco.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
+import ma.codexa.troco.dto.AdminStoreSummaryDTO;
 import ma.codexa.troco.dto.StoreSettingsDTO;
 import ma.codexa.troco.dto.request.UpdateStoreSettingsRequest;
 import ma.codexa.troco.service.FournisseurService;
@@ -17,6 +18,14 @@ public class StoreSettingsController {
 
     private final FournisseurService fournisseurService;
 
+    /** Shell admin (layout / dashboard) — sans config complète. */
+    @GetMapping("/me/summary")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<ApiResponse<AdminStoreSummaryDTO>> meSummary() {
+        return ResponseEntity.ok(ApiResponse.success(fournisseurService.getMyStoreSummary()));
+    }
+
+    /** Config complète — page Paramètres uniquement. */
     @GetMapping("/me")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<ApiResponse<StoreSettingsDTO>> me() {

@@ -8,7 +8,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CartItemDTO {
-    private ProductDetailDTO product;
+    /** Produit allégé (id/prix/aperçu) — pas de ProductDetailDTO. */
+    private OrderLineProductDTO product;
     private Integer quantity;
     private String selectedSize;
     private String selectedVariantId;

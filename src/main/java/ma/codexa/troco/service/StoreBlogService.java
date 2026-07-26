@@ -2,6 +2,7 @@ package ma.codexa.troco.service;
 
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.dto.StoreBlogPostDTO;
+import ma.codexa.troco.dto.StoreBlogPostListItemDTO;
 import ma.codexa.troco.dto.request.UpsertBlogPostRequest;
 import ma.codexa.troco.entity.StoreBlogPost;
 import ma.codexa.troco.repository.StoreBlogPostRepository;
@@ -28,8 +29,10 @@ public class StoreBlogService {
     private final StoreBlogPostRepository repository;
 
     @Transactional(readOnly = true)
-    public List<StoreBlogPostDTO> listAdmin() {
-        return repository.findAllByOrderByCreatedAtDesc().stream().map(this::toDto).collect(Collectors.toList());
+    public List<StoreBlogPostListItemDTO> listAdmin() {
+        return repository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toListItem)
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -38,14 +41,14 @@ public class StoreBlogService {
     }
 
     @Transactional(readOnly = true)
-    public List<StoreBlogPostDTO> listPublic(String lang) {
+    public List<StoreBlogPostListItemDTO> listPublic(String lang) {
         LocalDateTime now = LocalDateTime.now();
         return repository.findByPublishedTrueOrderByCreatedAtDesc().stream()
                 .filter(p -> p.getPublishAt() == null || !p.getPublishAt().isAfter(now))
                 .filter(p -> lang == null || lang.isBlank()
                         || lang.equalsIgnoreCase(p.getLang())
                         || "all".equalsIgnoreCase(lang))
-                .map(this::toDto)
+                .map(this::toListItem)
                 .collect(Collectors.toList());
     }
 
@@ -119,6 +122,13 @@ public class StoreBlogService {
     private StoreBlogPost require(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Article introuvable"));
+    }
+
+    private StoreBlogPostListItemDTO toListItem(StoreBlogPost p) {
+        return new StoreBlogPostListItemDTO(
+                p.getId(), p.getTitle(), p.getSlug(), p.getExcerpt(),
+                p.getCoverUrl(), p.getLang(),
+                Boolean.TRUE.equals(p.getPublished()), p.getPublishAt(), p.getCreatedAt(), p.getUpdatedAt());
     }
 
     private StoreBlogPostDTO toDto(StoreBlogPost p) {

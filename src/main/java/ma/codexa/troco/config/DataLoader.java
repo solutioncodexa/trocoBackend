@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
@@ -42,41 +43,50 @@ public class DataLoader {
     private String superAdminPassword;
 
     @Bean
+    @Order(100)
     public ApplicationRunner loadInitialData() {
         return args -> {
-            ensureDefaultPlanAndFournisseur();
-            initializeSuperAdmin();
-            initializeAdmin();
-            initializeCategories();
-            initializeTopBarMessages();
-            initializePromoModals();
-            initializePromoCodes();
-            log.info("Initial data loading completed");
+            try {
+                ensureDefaultPlanAndFournisseur();
+                initializeSuperAdmin();
+                initializeAdmin();
+                initializeCategories();
+                initializeTopBarMessages();
+                initializePromoModals();
+                initializePromoCodes();
+                log.info("Initial data loading completed");
+            } catch (Exception e) {
+                log.error("Initial data loading failed (app continues): {}", e.getMessage(), e);
+            }
         };
     }
 
     private void ensureDefaultPlanAndFournisseur() {
-        Plan plan = ensurePlan("basic", "Starter",
-                "Idéal pour démarrer — boutique complète, jusqu'à 500 produits",
-                "150.00", 500, 5);
+        ensurePlan("basic", "Basic",
+                "Idéal pour démarrer — jusqu'à 50 produits, sous-domaine Matjarona",
+                "79.00", 50, 1, false, 100, 1, 1024);
         ensurePlan("pro", "Pro",
-                "Pour les boutiques en croissance — plus de produits, équipe élargie",
-                "299.00", 2000, 15);
-        ensurePlan("business", "Business",
-                "Pour les marques ambitieuses — catalogue et staff illimités",
-                "599.00", null, null);
+                "Pour croître — 500 produits, domaine personnalisé, WhatsApp, panier abandonné",
+                "199.00", 500, 3, true, 1000, 3, 10240);
+        Plan business = ensurePlan("business", "Business",
+                "Pour scaler — illimité, A/B avancé, webhooks complets, onboarding dédié",
+                "399.00", null, 10, true, null, null, 51200);
 
         Fournisseur troco = fournisseurRepository.findBySlugIgnoreCase("troco").orElseGet(() -> {
             Fournisseur f = new Fournisseur();
             f.setName("Troco");
             f.setSlug("troco");
             f.setEmail("admin@troco.ma");
-            f.setPlan(plan);
+            f.setPlan(business);
             f.setStatus("ACTIVE");
             f.setPrimaryColor("#0F766E");
             f.setSecondaryColor("#134E4A");
             return fournisseurRepository.save(f);
         });
+        if (troco.getPlan() == null || !"business".equalsIgnoreCase(troco.getPlan().getCode())) {
+            troco.setPlan(business);
+            fournisseurRepository.save(troco);
+        }
 
         storeSettingsRepository.findByFournisseurId(troco.getId()).orElseGet(() -> {
             StoreSettings s = new StoreSettings();
@@ -90,8 +100,10 @@ public class DataLoader {
         });
     }
 
+    /** Crée le plan s'il n'existe pas — ne pas écraser la config Super Admin. */
     private Plan ensurePlan(String code, String name, String description, String price,
-                            Integer maxProducts, Integer maxStaff) {
+                            Integer maxProducts, Integer maxStaff, boolean customDomain,
+                            Integer maxOrdersPerMonth, Integer maxPixels, Integer storageMb) {
         return planRepository.findByCodeIgnoreCase(code).orElseGet(() -> {
             Plan p = new Plan();
             p.setCode(code);
@@ -102,10 +114,26 @@ public class DataLoader {
             p.setBillingPeriod("MONTHLY");
             p.setMaxProducts(maxProducts);
             p.setMaxStaff(maxStaff);
-            p.setCustomDomain(true);
+            p.setCustomDomain(customDomain);
+            p.setMaxOrdersPerMonth(maxOrdersPerMonth);
+            p.setMaxPixels(maxPixels);
+            p.setStorageMb(storageMb);
+            p.setFeaturesJson(writeFeaturesJson(code));
             p.setActive(true);
             return planRepository.save(p);
         });
+    }
+
+    private String writeFeaturesJson(String code) {
+        var f = ma.codexa.troco.plan.PlanFeatures.defaultsForCode(code);
+        return """
+                {"themes":"%s","pageBuilder":"%s","abTesting":%s,"abandonedCart":%s,"abandonedCartAdvanced":%s,\
+                "whatsappBusiness":%s,"whatsappMultiTemplates":%s,"webhooks":"%s","blogSeo":"%s","support":"%s",\
+                "apiHeadless":%s,"loyalty":%s,"multiCurrency":%s}"""
+                .formatted(
+                        f.themes(), f.pageBuilder(), f.abTesting(), f.abandonedCart(), f.abandonedCartAdvanced(),
+                        f.whatsappBusiness(), f.whatsappMultiTemplates(), f.webhooks(), f.blogSeo(), f.support(),
+                        f.apiHeadless(), f.loyalty(), f.multiCurrency());
     }
 
     private Long defaultFournisseurId() {

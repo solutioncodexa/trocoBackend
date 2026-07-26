@@ -1,10 +1,8 @@
 package ma.codexa.troco.dto;
 
-import java.util.List;
-
+/** Agrégats PDP — les avis paginés sont sur GET .../reviews. */
 public record ProductReviewSummaryDTO(
         Long productId,
         double averageRating,
-        long reviewCount,
-        List<ProductReviewDTO> reviews
+        long reviewCount
 ) {}
