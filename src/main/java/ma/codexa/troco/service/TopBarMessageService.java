@@ -35,7 +35,8 @@ public class TopBarMessageService {
     }
     
     public List<TopBarMessageDTO> getAllMessages() {
-        log.debug("topbar_messages_admin_fetch");
+        Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        log.debug("topbar_messages_admin_fetch fournisseurId={}", fid);
         return topBarMessageRepository.findAllByOrderByDisplayOrderAsc()
                 .stream()
                 .map(this::convertToDTO)
@@ -71,10 +72,15 @@ public class TopBarMessageService {
         message.setIsActive(messageDTO.getIsActive() != null ? messageDTO.getIsActive() : true);
         message.setDisplayDurationSeconds(duration);
         message.setTargetPaths(messageDTO.getTargetPaths());
+        message.setBackgroundColor(normalizeOptionalHex(messageDTO.getBackgroundColor()));
+        message.setTextColor(normalizeOptionalHex(messageDTO.getTextColor()));
+        Long fournisseurId = ma.codexa.troco.tenant.TenantContext.requireFournisseurId();
+        message.setFournisseurId(fournisseurId);
 
         TopBarMessage savedMessage = topBarMessageRepository.save(message);
-        log.info("topbar_message_created messageId={} displayOrder={} active={}",
-                savedMessage.getId(), savedMessage.getDisplayOrder(), savedMessage.getIsActive());
+        log.info("topbar_message_created messageId={} displayOrder={} active={} fournisseurId={}",
+                savedMessage.getId(), savedMessage.getDisplayOrder(), savedMessage.getIsActive(),
+                savedMessage.getFournisseurId());
         
         return convertToDTO(savedMessage);
     }
@@ -113,6 +119,9 @@ public class TopBarMessageService {
         if (messageDTO.getTargetPaths() != null) {
             existingMessage.setTargetPaths(messageDTO.getTargetPaths());
         }
+        // Toujours synchroniser les couleurs (chaîne vide = reset thème)
+        existingMessage.setBackgroundColor(normalizeOptionalHex(messageDTO.getBackgroundColor()));
+        existingMessage.setTextColor(normalizeOptionalHex(messageDTO.getTextColor()));
         
         TopBarMessage updatedMessage = topBarMessageRepository.save(existingMessage);
         log.info("topbar_message_updated messageId={}", id);
@@ -151,6 +160,23 @@ public class TopBarMessageService {
         dto.setDisplayDurationSeconds(
                 message.getDisplayDurationSeconds() != null ? message.getDisplayDurationSeconds() : 7);
         dto.setTargetPaths(message.getTargetPaths());
+        dto.setBackgroundColor(message.getBackgroundColor());
+        dto.setTextColor(message.getTextColor());
         return dto;
+    }
+
+    /** Hex #RGB / #RRGGBB / #RRGGBBAA, sinon null (style thème). */
+    private static String normalizeOptionalHex(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = raw.trim();
+        if (s.isEmpty()) {
+            return null;
+        }
+        if (s.matches("(?i)^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$")) {
+            return s.toUpperCase();
+        }
+        return null;
     }
 }

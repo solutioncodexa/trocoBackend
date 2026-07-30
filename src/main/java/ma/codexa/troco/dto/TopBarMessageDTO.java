@@ -19,6 +19,12 @@ public class TopBarMessageDTO {
     /** Chemins cibles (une ligne ou JSON), vide = toutes les pages */
     private String targetPaths;
 
+    /** Couleur de fond hex (optionnel) */
+    private String backgroundColor;
+
+    /** Couleur texte hex (optionnel) */
+    private String textColor;
+
     public TopBarMessageDTO(String message, Integer displayOrder, Boolean isActive) {
         this.message = message;
         this.displayOrder = displayOrder;

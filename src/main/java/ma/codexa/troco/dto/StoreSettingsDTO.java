@@ -1,6 +1,7 @@
 package ma.codexa.troco.dto;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 public record StoreSettingsDTO(
         Long fournisseurId,
@@ -26,6 +27,9 @@ public record StoreSettingsDTO(
         boolean categoriesEnabled,
         boolean surMesureEnabled,
         String themeKey,
+        String fontPair,
+        String radiusPreset,
+        Map<String, Object> appearance,
         String status,
         String planCode,
         String planName,
@@ -52,5 +56,6 @@ public record StoreSettingsDTO(
         boolean cookieConsentRequired,
         Integer dataRetentionDays,
         String cndpNoticeVersion,
-        String shippingDefaultCarrier
+        String shippingDefaultCarrier,
+        Map<String, Object> themePresets
 ) {}

@@ -71,6 +71,22 @@ public class StoreSettings extends TenantScoped {
     @Column(name = "theme_key", nullable = false, length = 40)
     private String themeKey = "classic";
 
+    /** display_sans | editorial_serif | modern_mono */
+    @Column(name = "font_pair", nullable = false, length = 40)
+    private String fontPair = "display_sans";
+
+    /** sharp | soft | round */
+    @Column(name = "radius_preset", nullable = false, length = 20)
+    private String radiusPreset = "soft";
+
+    /** Boutons / cards / hero / header / footer — JSON normalisé. */
+    @Column(name = "appearance_json", columnDefinition = "TEXT")
+    private String appearanceJson;
+
+    /** Snapshots look par themeKey — JSON { classic: {...}, minimal: {...} }. */
+    @Column(name = "theme_presets_json", columnDefinition = "TEXT")
+    private String themePresetsJson;
+
     @Column(name = "meta_pixel_id", length = 64)
     private String metaPixelId;
 

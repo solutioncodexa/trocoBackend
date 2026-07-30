@@ -16,6 +16,9 @@ public record AdminStoreSummaryDTO(
         String primaryColor,
         String secondaryColor,
         String themeKey,
+        String fontPair,
+        String radiusPreset,
+        java.util.Map<String, Object> appearance,
         String planCode,
         String planName
 ) {}

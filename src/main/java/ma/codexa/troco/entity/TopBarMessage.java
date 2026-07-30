@@ -36,6 +36,14 @@ public class TopBarMessage extends TenantScoped {
     @Column(name = "target_paths", columnDefinition = "TEXT")
     private String targetPaths;
 
+    /** Couleur de fond (hex). Null/vide = dégradé thème. */
+    @Column(name = "background_color", length = 32)
+    private String backgroundColor;
+
+    /** Couleur du texte (hex). Null/vide = texte thème. */
+    @Column(name = "text_color", length = 32)
+    private String textColor;
+
     public TopBarMessage(String message, Integer displayOrder, Boolean isActive) {
         this.message = message;
         this.displayOrder = displayOrder;
@@ -51,6 +59,12 @@ public class TopBarMessage extends TenantScoped {
         }
         if (isActive == null) {
             isActive = true;
+        }
+        if (getFournisseurId() == null) {
+            Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+            if (fid != null) {
+                setFournisseurId(fid);
+            }
         }
     }
 }

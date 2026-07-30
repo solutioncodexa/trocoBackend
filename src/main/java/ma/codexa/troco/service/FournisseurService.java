@@ -24,6 +24,10 @@ import ma.codexa.troco.repository.SocialNetworkRepository;
 import ma.codexa.troco.repository.StoreSettingsRepository;
 import ma.codexa.troco.repository.UserRepository;
 import ma.codexa.troco.storefront.StoreTheme;
+import ma.codexa.troco.storefront.StoreCustomization;
+import ma.codexa.troco.storefront.StoreAppearance;
+import ma.codexa.troco.storefront.ThemePresetFactory;
+import ma.codexa.troco.storefront.ThemePresets;
 import ma.codexa.troco.tenant.FournisseurStatus;
 import ma.codexa.troco.tenant.TenantContext;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -422,16 +427,9 @@ public class FournisseurService {
         if (request.getLogoUrl() != null) {
             f.setLogoUrl(blankToNull(request.getLogoUrl()));
         }
-        if (request.getPrimaryColor() != null) {
-            f.setPrimaryColor(blankToNull(request.getPrimaryColor()));
-        }
-        if (request.getSecondaryColor() != null) {
-            f.setSecondaryColor(blankToNull(request.getSecondaryColor()));
-        }
         if (request.getSiteName() != null && !request.getSiteName().isBlank()) {
             f.setName(request.getSiteName().trim());
         }
-        fournisseurRepository.save(f);
 
         StoreSettings settings = storeSettingsRepository.findByFournisseurId(fid)
                 .orElseGet(() -> {
@@ -439,6 +437,74 @@ public class FournisseurService {
                     s.setFournisseurId(fid);
                     return s;
                 });
+
+        String previousTheme = StoreTheme.normalizeOrDefault(settings.getThemeKey());
+        String nextTheme = previousTheme;
+        boolean themeSwitch = false;
+        if (request.getThemeKey() != null) {
+            nextTheme = StoreTheme.normalizeOrDefault(request.getThemeKey());
+            planEntitlementService.assertThemeAllowed(nextTheme);
+            themeSwitch = !nextTheme.equals(previousTheme);
+        }
+
+        Map<String, Object> presets = ThemePresets.parseAll(settings.getThemePresetsJson());
+
+        if (themeSwitch) {
+            // Sauver le look actif sous l'ancien thème, puis restaurer / initialiser le nouveau.
+            presets.put(previousTheme, ThemePresets.capture(f, settings));
+            Map<String, Object> restored = ThemePresets.getOrNull(presets, nextTheme);
+            if (restored == null) {
+                restored = ThemePresetFactory.defaultsFor(nextTheme);
+            }
+            ThemePresets.apply(restored, f, settings);
+            settings.setThemeKey(nextTheme);
+        } else {
+            if (request.getPrimaryColor() != null) {
+                f.setPrimaryColor(blankToNull(request.getPrimaryColor()));
+            }
+            if (request.getSecondaryColor() != null) {
+                f.setSecondaryColor(blankToNull(request.getSecondaryColor()));
+            }
+            if (request.getThemeKey() != null) {
+                settings.setThemeKey(nextTheme);
+            }
+            if (request.getHeroEnabled() != null) settings.setHeroEnabled(request.getHeroEnabled());
+            if (request.getCategoriesEnabled() != null) settings.setCategoriesEnabled(request.getCategoriesEnabled());
+            if (request.getSurMesureEnabled() != null) settings.setSurMesureEnabled(request.getSurMesureEnabled());
+            if (request.getFontPair() != null) {
+                settings.setFontPair(StoreCustomization.normalizeFontPair(request.getFontPair()));
+            }
+            if (request.getRadiusPreset() != null) {
+                settings.setRadiusPreset(StoreCustomization.normalizeRadiusPreset(request.getRadiusPreset()));
+            }
+            if (request.getAppearance() != null) {
+                settings.setAppearanceJson(StoreAppearance.toJson(request.getAppearance()));
+            }
+        }
+
+        // Après une bascule, permettre d'écraser le snapshot restauré si le client envoie aussi le look.
+        if (themeSwitch) {
+            if (request.getPrimaryColor() != null) {
+                f.setPrimaryColor(blankToNull(request.getPrimaryColor()));
+            }
+            if (request.getSecondaryColor() != null) {
+                f.setSecondaryColor(blankToNull(request.getSecondaryColor()));
+            }
+            if (request.getHeroEnabled() != null) settings.setHeroEnabled(request.getHeroEnabled());
+            if (request.getCategoriesEnabled() != null) settings.setCategoriesEnabled(request.getCategoriesEnabled());
+            if (request.getSurMesureEnabled() != null) settings.setSurMesureEnabled(request.getSurMesureEnabled());
+            if (request.getFontPair() != null) {
+                settings.setFontPair(StoreCustomization.normalizeFontPair(request.getFontPair()));
+            }
+            if (request.getRadiusPreset() != null) {
+                settings.setRadiusPreset(StoreCustomization.normalizeRadiusPreset(request.getRadiusPreset()));
+            }
+            if (request.getAppearance() != null) {
+                settings.setAppearanceJson(StoreAppearance.toJson(request.getAppearance()));
+            }
+        }
+
+        fournisseurRepository.save(f);
 
         if (request.getSiteName() != null) settings.setSiteName(blankToNull(request.getSiteName()));
         if (request.getTagline() != null) settings.setTagline(blankToNull(request.getTagline()));
@@ -452,14 +518,6 @@ public class FournisseurService {
         if (request.getInstagramUrl() != null) settings.setInstagramUrl(blankToNull(request.getInstagramUrl()));
         if (request.getTiktokUrl() != null) settings.setTiktokUrl(blankToNull(request.getTiktokUrl()));
         if (request.getFaviconUrl() != null) settings.setFaviconUrl(blankToNull(request.getFaviconUrl()));
-        if (request.getHeroEnabled() != null) settings.setHeroEnabled(request.getHeroEnabled());
-        if (request.getCategoriesEnabled() != null) settings.setCategoriesEnabled(request.getCategoriesEnabled());
-        if (request.getSurMesureEnabled() != null) settings.setSurMesureEnabled(request.getSurMesureEnabled());
-        if (request.getThemeKey() != null) {
-            String theme = StoreTheme.normalizeOrDefault(request.getThemeKey());
-            planEntitlementService.assertThemeAllowed(theme);
-            settings.setThemeKey(theme);
-        }
         if (request.getMetaPixelId() != null) settings.setMetaPixelId(blankToNull(request.getMetaPixelId()));
         if (request.getTiktokPixelId() != null) settings.setTiktokPixelId(blankToNull(request.getTiktokPixelId()));
         if (request.getGoogleAdsId() != null) settings.setGoogleAdsId(blankToNull(request.getGoogleAdsId()));
@@ -521,6 +579,11 @@ public class FournisseurService {
         if (request.getShippingDefaultCarrier() != null) {
             settings.setShippingDefaultCarrier(blankToNull(request.getShippingDefaultCarrier()));
         }
+
+        // Toujours synchroniser le snapshot du thème courant (évite de perdre des edits avant un switch).
+        String activeTheme = StoreTheme.normalizeOrDefault(settings.getThemeKey());
+        presets.put(activeTheme, ThemePresets.capture(f, settings));
+        settings.setThemePresetsJson(ThemePresets.toJson(presets));
 
         storeSettingsRepository.save(settings);
         syncSocialNetworksFromSettings(fid, request, settings);
@@ -720,6 +783,9 @@ public class FournisseurService {
                 f.getPrimaryColor(),
                 f.getSecondaryColor(),
                 StoreTheme.normalizeOrDefault(s.getThemeKey()),
+                StoreCustomization.normalizeFontPair(s.getFontPair()),
+                StoreCustomization.normalizeRadiusPreset(s.getRadiusPreset()),
+                StoreAppearance.fromJson(s.getAppearanceJson()),
                 s.getContactEmail(),
                 s.getContactPhone(),
                 s.getContactWhatsapp(),
@@ -775,6 +841,9 @@ public class FournisseurService {
                 f.getPrimaryColor(),
                 f.getSecondaryColor(),
                 StoreTheme.normalizeOrDefault(s.getThemeKey()),
+                StoreCustomization.normalizeFontPair(s.getFontPair()),
+                StoreCustomization.normalizeRadiusPreset(s.getRadiusPreset()),
+                StoreAppearance.fromJson(s.getAppearanceJson()),
                 p != null ? p.getCode() : null,
                 p != null ? p.getName() : null
         );
@@ -806,6 +875,9 @@ public class FournisseurService {
                 s.isCategoriesEnabled(),
                 s.isSurMesureEnabled(),
                 StoreTheme.normalizeOrDefault(s.getThemeKey()),
+                StoreCustomization.normalizeFontPair(s.getFontPair()),
+                StoreCustomization.normalizeRadiusPreset(s.getRadiusPreset()),
+                StoreAppearance.fromJson(s.getAppearanceJson()),
                 f.getStatus(),
                 p != null ? p.getCode() : null,
                 p != null ? p.getName() : null,
@@ -832,7 +904,8 @@ public class FournisseurService {
                 !Boolean.FALSE.equals(s.getCookieConsentRequired()),
                 s.getDataRetentionDays() != null ? s.getDataRetentionDays() : 365,
                 s.getCndpNoticeVersion(),
-                s.getShippingDefaultCarrier()
+                s.getShippingDefaultCarrier(),
+                ThemePresets.parseAll(s.getThemePresetsJson())
         );
     }
 

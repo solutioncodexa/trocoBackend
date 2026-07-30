@@ -44,10 +44,24 @@ public class PlatformGapsSchemaBootstrap implements ApplicationRunner {
                     "cookie_consent_required BOOLEAN DEFAULT TRUE",
                     "data_retention_days INT DEFAULT 365",
                     "cndp_notice_version VARCHAR(40)",
-                    "shipping_default_carrier VARCHAR(40)"
+                    "shipping_default_carrier VARCHAR(40)",
+                    // Filet si Hibernate ddl-auto échoue (NOT NULL sans DEFAULT)
+                    "font_pair VARCHAR(40) DEFAULT 'display_sans'",
+                    "radius_preset VARCHAR(20) DEFAULT 'soft'",
+                    "appearance_json TEXT"
             };
             for (String col : cols) {
                 jdbc.execute("ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS " + col);
+            }
+            jdbc.execute("UPDATE store_settings SET font_pair = 'display_sans' WHERE font_pair IS NULL");
+            jdbc.execute("UPDATE store_settings SET radius_preset = 'soft' WHERE radius_preset IS NULL");
+            try {
+                jdbc.execute("ALTER TABLE store_settings ALTER COLUMN font_pair SET DEFAULT 'display_sans'");
+                jdbc.execute("ALTER TABLE store_settings ALTER COLUMN radius_preset SET DEFAULT 'soft'");
+                jdbc.execute("ALTER TABLE store_settings ALTER COLUMN font_pair SET NOT NULL");
+                jdbc.execute("ALTER TABLE store_settings ALTER COLUMN radius_preset SET NOT NULL");
+            } catch (Exception ignored) {
+                // Neon / concurrent DDL — colonnes déjà correctes
             }
             jdbc.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_fee DOUBLE PRECISION DEFAULT 0");
             jdbc.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier_code VARCHAR(40)");

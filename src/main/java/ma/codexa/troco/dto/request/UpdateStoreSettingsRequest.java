@@ -61,6 +61,17 @@ public class UpdateStoreSettingsRequest {
     @Size(max = 40)
     private String themeKey;
 
+    /** display_sans | editorial_serif | modern_mono */
+    @Size(max = 40)
+    private String fontPair;
+
+    /** sharp | soft | round */
+    @Size(max = 20)
+    private String radiusPreset;
+
+    /** Apparence vitrine (boutons, cards, hero, header, footer). */
+    private java.util.Map<String, Object> appearance;
+
     @Size(max = 64)
     private String metaPixelId;
 
