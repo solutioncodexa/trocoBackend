@@ -8,11 +8,21 @@ import java.util.stream.Collectors;
 
 public class MapperUtils {
 
+    /** Date seule (listes produits, etc.). */
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    /** Date + heure locale (commandes) — évite le décalage UTC midnight → 01:00. */
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     public static String dateToString(java.time.LocalDateTime dateTime) {
         if (dateTime == null) return null;
         return dateTime.format(DATE_FORMATTER);
+    }
+
+    public static String dateTimeToString(java.time.LocalDateTime dateTime) {
+        if (dateTime == null) return null;
+        return dateTime.format(DATE_TIME_FORMATTER);
     }
 
     public static String productTypeToLowercase(String productType) {

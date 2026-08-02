@@ -565,6 +565,7 @@ public class FournisseurService {
         if (request.getPaymentCmiEnabled() != null) settings.setPaymentCmiEnabled(Boolean.TRUE.equals(request.getPaymentCmiEnabled()));
         if (request.getPaymentBnplEnabled() != null) settings.setPaymentBnplEnabled(Boolean.TRUE.equals(request.getPaymentBnplEnabled()));
         if (request.getBnplProvider() != null) settings.setBnplProvider(blankToNull(request.getBnplProvider()));
+        applyPaymentGatewayCredentials(settings, request);
         if (request.getLoyaltyEnabled() != null) settings.setLoyaltyEnabled(Boolean.TRUE.equals(request.getLoyaltyEnabled()));
         if (request.getLoyaltyPointsPerMad() != null) settings.setLoyaltyPointsPerMad(request.getLoyaltyPointsPerMad());
         if (request.getLoyaltyMadPerPoint() != null) settings.setLoyaltyMadPerPoint(request.getLoyaltyMadPerPoint());
@@ -812,12 +813,23 @@ public class FournisseurService {
     }
 
     private StorefrontCheckoutDTO toCheckoutDto(Fournisseur f, StoreSettings s) {
+        boolean stripeReady = StorePaymentGatewayService.isStripeReady(s);
+        boolean paypalReady = StorePaymentGatewayService.isPaypalReady(s);
+        boolean cmiReady = StorePaymentGatewayService.isCmiReady(s);
         return new StorefrontCheckoutDTO(
                 f.getSlug(),
                 !Boolean.FALSE.equals(s.getPaymentCodEnabled()),
-                Boolean.TRUE.equals(s.getPaymentCmiEnabled()),
+                cmiReady,
                 Boolean.TRUE.equals(s.getPaymentBnplEnabled()),
                 s.getBnplProvider(),
+                stripeReady,
+                paypalReady,
+                stripeReady,
+                paypalReady,
+                cmiReady,
+                stripeReady ? s.getStripePublishableKey() : null,
+                paypalReady ? s.getPaypalClientId() : null,
+                paypalReady ? normalizePaypalMode(s.getPaypalMode()) : null,
                 Boolean.TRUE.equals(s.getLoyaltyEnabled()),
                 s.getLoyaltyPointsPerMad() != null ? s.getLoyaltyPointsPerMad() : java.math.BigDecimal.ONE,
                 s.getLoyaltyMadPerPoint() != null ? s.getLoyaltyMadPerPoint() : new java.math.BigDecimal("0.10"),
@@ -845,7 +857,9 @@ public class FournisseurService {
                 StoreCustomization.normalizeRadiusPreset(s.getRadiusPreset()),
                 StoreAppearance.fromJson(s.getAppearanceJson()),
                 p != null ? p.getCode() : null,
-                p != null ? p.getName() : null
+                p != null ? p.getName() : null,
+                s.getDefaultLocale() != null ? s.getDefaultLocale() : "fr",
+                s.getSupportedLocales() != null ? s.getSupportedLocales() : "fr,ar,en"
         );
     }
 
@@ -897,6 +911,21 @@ public class FournisseurService {
                 Boolean.TRUE.equals(s.getPaymentCmiEnabled()),
                 Boolean.TRUE.equals(s.getPaymentBnplEnabled()),
                 s.getBnplProvider(),
+                Boolean.TRUE.equals(s.getPaymentStripeEnabled()),
+                s.getStripePublishableKey(),
+                notBlank(s.getStripeSecretKey()),
+                StorePaymentGatewayService.isStripeReady(s),
+                s.getStripeVerifiedAt() != null ? s.getStripeVerifiedAt().toString() : null,
+                Boolean.TRUE.equals(s.getPaymentPaypalEnabled()),
+                s.getPaypalClientId(),
+                notBlank(s.getPaypalClientSecret()),
+                normalizePaypalMode(s.getPaypalMode()),
+                StorePaymentGatewayService.isPaypalReady(s),
+                s.getPaypalVerifiedAt() != null ? s.getPaypalVerifiedAt().toString() : null,
+                s.getCmiClientId(),
+                notBlank(s.getCmiStoreKey()),
+                StorePaymentGatewayService.isCmiReady(s),
+                s.getCmiVerifiedAt() != null ? s.getCmiVerifiedAt().toString() : null,
                 Boolean.TRUE.equals(s.getLoyaltyEnabled()),
                 s.getLoyaltyPointsPerMad() != null ? s.getLoyaltyPointsPerMad() : java.math.BigDecimal.ONE,
                 s.getLoyaltyMadPerPoint() != null ? s.getLoyaltyMadPerPoint() : new java.math.BigDecimal("0.10"),
@@ -907,6 +936,75 @@ public class FournisseurService {
                 s.getShippingDefaultCarrier(),
                 ThemePresets.parseAll(s.getThemePresetsJson())
         );
+    }
+
+    private void applyPaymentGatewayCredentials(StoreSettings settings, UpdateStoreSettingsRequest request) {
+        if (request.getPaymentStripeEnabled() != null) {
+            settings.setPaymentStripeEnabled(Boolean.TRUE.equals(request.getPaymentStripeEnabled()));
+        }
+        if (request.getStripePublishableKey() != null) {
+            String next = blankToNull(request.getStripePublishableKey());
+            if (!java.util.Objects.equals(next, settings.getStripePublishableKey())) {
+                settings.setStripeVerifiedAt(null);
+            }
+            settings.setStripePublishableKey(next);
+        }
+        if (request.getStripeSecretKey() != null && !request.getStripeSecretKey().isBlank()) {
+            String next = request.getStripeSecretKey().trim();
+            if (!java.util.Objects.equals(next, settings.getStripeSecretKey())) {
+                settings.setStripeVerifiedAt(null);
+            }
+            settings.setStripeSecretKey(next);
+        }
+
+        if (request.getPaymentPaypalEnabled() != null) {
+            settings.setPaymentPaypalEnabled(Boolean.TRUE.equals(request.getPaymentPaypalEnabled()));
+        }
+        if (request.getPaypalClientId() != null) {
+            String next = blankToNull(request.getPaypalClientId());
+            if (!java.util.Objects.equals(next, settings.getPaypalClientId())) {
+                settings.setPaypalVerifiedAt(null);
+            }
+            settings.setPaypalClientId(next);
+        }
+        if (request.getPaypalClientSecret() != null && !request.getPaypalClientSecret().isBlank()) {
+            String next = request.getPaypalClientSecret().trim();
+            if (!java.util.Objects.equals(next, settings.getPaypalClientSecret())) {
+                settings.setPaypalVerifiedAt(null);
+            }
+            settings.setPaypalClientSecret(next);
+        }
+        if (request.getPaypalMode() != null) {
+            String next = normalizePaypalMode(request.getPaypalMode());
+            if (!java.util.Objects.equals(next, normalizePaypalMode(settings.getPaypalMode()))) {
+                settings.setPaypalVerifiedAt(null);
+            }
+            settings.setPaypalMode(next);
+        }
+
+        if (request.getCmiClientId() != null) {
+            String next = blankToNull(request.getCmiClientId());
+            if (!java.util.Objects.equals(next, settings.getCmiClientId())) {
+                settings.setCmiVerifiedAt(null);
+            }
+            settings.setCmiClientId(next);
+        }
+        if (request.getCmiStoreKey() != null && !request.getCmiStoreKey().isBlank()) {
+            String next = request.getCmiStoreKey().trim();
+            if (!java.util.Objects.equals(next, settings.getCmiStoreKey())) {
+                settings.setCmiVerifiedAt(null);
+            }
+            settings.setCmiStoreKey(next);
+        }
+    }
+
+    private static boolean notBlank(String v) {
+        return v != null && !v.isBlank();
+    }
+
+    static String normalizePaypalMode(String mode) {
+        if (mode != null && mode.trim().equalsIgnoreCase("live")) return "live";
+        return "sandbox";
     }
 
     private String normalizeLocale(String raw) {

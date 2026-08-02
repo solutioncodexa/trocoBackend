@@ -17,6 +17,8 @@ public class OrderListItemDTO {
     private CustomerSummaryDTO customer;
     private Double total;
     private String status;
+    private String paymentMethod;
+    private String paymentStatus;
     private String createdAt;
     private Integer itemCount;
     private String previewProductName;

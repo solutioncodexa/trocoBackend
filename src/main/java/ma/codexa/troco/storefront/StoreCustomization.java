@@ -5,8 +5,10 @@ import java.util.Set;
 
 public final class StoreCustomization {
 
-    private static final Set<String> FONT_PAIRS = Set.of("display_sans", "editorial_serif", "modern_mono");
-    private static final Set<String> RADIUS_PRESETS = Set.of("sharp", "soft", "round");
+    private static final Set<String> FONT_PAIRS = Set.of(
+            "display_sans", "editorial_serif", "modern_mono", "friendly", "jakarta");
+    private static final Set<String> RADIUS_PRESETS = Set.of(
+            "sharp", "subtle", "soft", "round", "pill");
 
     private StoreCustomization() {}
 

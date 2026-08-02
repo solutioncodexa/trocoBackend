@@ -70,7 +70,7 @@ public interface CustomOrderMapper {
 
     @Named("dateToString")
     default String dateToString(java.time.LocalDateTime dateTime) {
-        return MapperUtils.dateToString(dateTime);
+        return MapperUtils.dateTimeToString(dateTime);
     }
 
     @Named("truncateDescription")

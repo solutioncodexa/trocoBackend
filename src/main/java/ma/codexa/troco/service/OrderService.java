@@ -2,6 +2,7 @@ package ma.codexa.troco.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ma.codexa.troco.common.exception.BusinessException;
 import ma.codexa.troco.common.exception.ResourceNotFoundException;
 import ma.codexa.troco.dto.CartItemDTO;
 import ma.codexa.troco.dto.CustomerDTO;
@@ -24,6 +25,7 @@ import ma.codexa.troco.repository.StoreSettingsRepository;
 
 import java.math.BigDecimal;
 import org.hibernate.Hibernate;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,6 +58,7 @@ public class OrderService {
     private final PaymentAuditService paymentAuditService;
     private final StoreSettingsRepository storeSettingsRepository;
     private final PlanEntitlementService planEntitlementService;
+    private final StorePaymentGatewayService storePaymentGatewayService;
 
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
@@ -184,6 +187,11 @@ public class OrderService {
         planEntitlementService.assertCanCreateOrder();
         Order order = new Order();
         Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        if (fid == null) {
+            throw new BusinessException(
+                    "Boutique non résolue — impossible de créer la commande",
+                    HttpStatus.BAD_REQUEST);
+        }
         order.setFournisseurId(fid);
 
         // Create customer
@@ -199,8 +207,9 @@ public class OrderService {
 
         order.setCustomer(customer);
         String paymentMethod = normalizePaymentMethod(orderDTO.getPaymentMethod());
+        storePaymentGatewayService.assertGatewayReadyForOrder(paymentMethod);
         order.setPaymentMethod(paymentMethod);
-        order.setPaymentStatus(paymentMethod.startsWith("cash") ? "cod" : "pending");
+        order.setPaymentStatus(resolveInitialPaymentStatus(paymentMethod));
         order.setStatus("NEW");
         order.setNotes(customerDTO.getAddress() + ", " + customerDTO.getCity());
         if (orderDTO.getCarrierCode() != null && !orderDTO.getCarrierCode().isBlank()) {
@@ -339,14 +348,26 @@ public class OrderService {
         if (raw == null || raw.isBlank()) return "cash_on_delivery";
         String m = raw.trim().toLowerCase();
         return switch (m) {
-            case "online", "card_cmi", "bnpl", "cash_on_delivery" -> m;
+            case "online", "card_cmi", "bnpl", "cash_on_delivery", "card_stripe", "stripe", "paypal" ->
+                    "stripe".equals(m) ? "card_stripe" : m;
             default -> "cash_on_delivery";
         };
+    }
+
+    private static String resolveInitialPaymentStatus(String paymentMethod) {
+        if (paymentMethod.startsWith("cash")) return "cod";
+        // Stripe / PayPal : payés côté client avant création commande (capture confirmée).
+        if ("card_stripe".equals(paymentMethod) || "paypal".equals(paymentMethod)) return "paid";
+        // CMI confirmé côté client (retour ok / carte test) → traité comme payé à la création.
+        if ("card_cmi".equals(paymentMethod) || "online".equals(paymentMethod)) return "paid";
+        return "pending";
     }
 
     private static String paymentProvider(String method) {
         return switch (method) {
             case "card_cmi", "online" -> "CMI";
+            case "card_stripe" -> "STRIPE";
+            case "paypal" -> "PAYPAL";
             case "bnpl" -> "BNPL";
             default -> "COD";
         };

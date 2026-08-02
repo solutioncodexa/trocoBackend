@@ -132,6 +132,42 @@ public class StoreSettings extends TenantScoped {
     @Column(name = "bnpl_provider", length = 40)
     private String bnplProvider = "manual";
 
+    @Column(name = "payment_stripe_enabled")
+    private Boolean paymentStripeEnabled = false;
+
+    @Column(name = "stripe_publishable_key", length = 255)
+    private String stripePublishableKey;
+
+    @Column(name = "stripe_secret_key", length = 255)
+    private String stripeSecretKey;
+
+    @Column(name = "stripe_verified_at")
+    private LocalDateTime stripeVerifiedAt;
+
+    @Column(name = "payment_paypal_enabled")
+    private Boolean paymentPaypalEnabled = false;
+
+    @Column(name = "paypal_client_id", length = 255)
+    private String paypalClientId;
+
+    @Column(name = "paypal_client_secret", length = 255)
+    private String paypalClientSecret;
+
+    @Column(name = "paypal_mode", length = 20)
+    private String paypalMode = "sandbox";
+
+    @Column(name = "paypal_verified_at")
+    private LocalDateTime paypalVerifiedAt;
+
+    @Column(name = "cmi_client_id", length = 120)
+    private String cmiClientId;
+
+    @Column(name = "cmi_store_key", length = 255)
+    private String cmiStoreKey;
+
+    @Column(name = "cmi_verified_at")
+    private LocalDateTime cmiVerifiedAt;
+
     @Column(name = "loyalty_enabled")
     private Boolean loyaltyEnabled = false;
 

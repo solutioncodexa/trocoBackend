@@ -11,8 +11,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * Cache HTTP court pour la liste paginée publique GET /products (réduit la charge serveur / CDN).
- * Exclut full-page, détail, filter, search et méthodes non-GET.
+ * Cache HTTP court pour GET /products.
+ * Multi-tenant : ne jamais utiliser {@code public} sans Vary — sinon une liste vide
+ * (sans slug) est rejouée pour une boutique (ou l'admin) pendant max-age.
  */
 @Component
 @Order(2)
@@ -25,7 +26,8 @@ public class ProductListCacheHeaderFilter extends OncePerRequestFilter {
         if ("GET".equalsIgnoreCase(request.getMethod())) {
             String path = request.getServletPath();
             if ("/products".equals(path)) {
-                response.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=60");
+                response.setHeader("Cache-Control", "private, max-age=30, must-revalidate");
+                response.setHeader("Vary", "Authorization, X-Fournisseur-Slug");
             }
         }
         chain.doFilter(request, response);

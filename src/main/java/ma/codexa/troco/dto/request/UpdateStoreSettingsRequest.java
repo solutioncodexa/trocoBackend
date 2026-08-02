@@ -106,6 +106,35 @@ public class UpdateStoreSettingsRequest {
     @Size(max = 40)
     private String bnplProvider;
 
+    private Boolean paymentStripeEnabled;
+
+    @Size(max = 255)
+    private String stripePublishableKey;
+
+    /** Secret Stripe — vide = conserver l'existant. */
+    @Size(max = 255)
+    private String stripeSecretKey;
+
+    private Boolean paymentPaypalEnabled;
+
+    @Size(max = 255)
+    private String paypalClientId;
+
+    /** Secret PayPal — vide = conserver l'existant. */
+    @Size(max = 255)
+    private String paypalClientSecret;
+
+    /** sandbox | live */
+    @Size(max = 20)
+    private String paypalMode;
+
+    @Size(max = 120)
+    private String cmiClientId;
+
+    /** Store key CMI — vide = conserver l'existant. */
+    @Size(max = 255)
+    private String cmiStoreKey;
+
     private Boolean loyaltyEnabled;
     private BigDecimal loyaltyPointsPerMad;
     private BigDecimal loyaltyMadPerPoint;

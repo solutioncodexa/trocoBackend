@@ -20,5 +20,7 @@ public record AdminStoreSummaryDTO(
         String radiusPreset,
         java.util.Map<String, Object> appearance,
         String planCode,
-        String planName
+        String planName,
+        String defaultLocale,
+        String supportedLocales
 ) {}

@@ -107,6 +107,14 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/platform/themes").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/platform/store", "/platform/store/checkout").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/platform/register").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/store-payments/config").permitAll();
+                    auth.requestMatchers(HttpMethod.POST,
+                            "/store-payments/stripe/payment-intent",
+                            "/store-payments/stripe/charge",
+                            "/store-payments/paypal/create-order",
+                            "/store-payments/paypal/capture/**",
+                            "/store-payments/cmi/init"
+                    ).permitAll();
                     auth.requestMatchers("/platform/**").hasRole("SUPER_ADMIN");
 
                     // ─── Billing (test-pass + CMI ; callbacks publics) ───────
@@ -280,14 +288,10 @@ public class SecurityConfig {
                 .filter(s -> !s.isBlank())
                 .toList();
 
-        // Patterns (ex. https://*.trycloudflare.com) ou "*" → allowedOriginPatterns
-        // (compatible avec allowCredentials=true). Sinon liste exacte.
-        boolean usePatterns = origins.stream().anyMatch(o -> o.contains("*"));
-        if (usePatterns) {
-            configuration.setAllowedOriginPatterns(origins);
-        } else {
-            configuration.setAllowedOrigins(origins);
-        }
+        // Toujours via patterns : compatible allowCredentials + sous-domaines
+        // (ex. http://*.localhost:4200, https://*.troco.ma). Les URLs exactes
+        // restent valides comme patterns littéraux.
+        configuration.setAllowedOriginPatterns(origins);
 
         configuration.setAllowedMethods(Arrays.stream(allowedMethods.split(","))
                 .map(String::trim)
