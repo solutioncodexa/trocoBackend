@@ -293,6 +293,8 @@ jobs:
             set_env_key APP_CORS_ALLOWED_ORIGINS 'https://getstore.codexa-solution.com,https://*.getstore.codexa-solution.com,https://api.getstore.codexa-solution.com'
             set_env_key TROCO_MINIO_PUBLIC_ENDPOINT https://getstore.codexa-solution.com/files
             set_env_key MINIO_PUBLIC_ENDPOINT https://getstore.codexa-solution.com/files
+            set_env_key TROCO_DB_DDL_AUTO update
+            set_env_key DB_DDL_AUTO update
 
             if [ ! -f docker-compose.troco.yml ]; then
               echo "ERROR: docker-compose.troco.yml manquant sous ${DEPLOY_PATH}"

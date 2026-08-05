@@ -95,7 +95,7 @@ services:
       DB_URL: jdbc:postgresql://troco-postgres:5432/${TROCO_DB_NAME:-troco}
       DB_USERNAME: ${TROCO_DB_USERNAME:-troco}
       DB_PASSWORD: ${TROCO_DB_PASSWORD:?TROCO_DB_PASSWORD required}
-      DB_DDL_AUTO: ${TROCO_DB_DDL_AUTO:-validate}
+      DB_DDL_AUTO: ${TROCO_DB_DDL_AUTO:-update}
       STORAGE_TYPE: minio
       MINIO_ENDPOINT: http://troco-minio:9000
       MINIO_PUBLIC_ENDPOINT: ${TROCO_MINIO_PUBLIC_ENDPOINT:-https://getstore.codexa-solution.com/files}
