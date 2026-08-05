@@ -1,6 +1,7 @@
 package ma.codexa.troco.service;
 
 import lombok.extern.slf4j.Slf4j;
+import ma.codexa.troco.dto.CartResponseDTO;
 import ma.codexa.troco.entity.Cart;
 import ma.codexa.troco.entity.CartItem;
 import ma.codexa.troco.entity.Product;
@@ -10,6 +11,9 @@ import ma.codexa.troco.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -26,6 +30,10 @@ public class CartService {
     @Autowired
     private ProductRepository productRepository;
 
+    public CartResponseDTO getOrCreateCartDto(String sessionId) {
+        return toDto(getOrCreateCart(sessionId));
+    }
+
     public Cart getOrCreateCart(String sessionId) {
         Optional<Cart> existingCart = cartRepository.findBySessionId(sessionId);
         if (existingCart.isPresent()) {
@@ -37,21 +45,18 @@ public class CartService {
         return cartRepository.save(newCart);
     }
 
-    public Cart addItemToCart(String sessionId, Long productId, Integer quantity) {
+    public CartResponseDTO addItemToCart(String sessionId, Long productId, Integer quantity) {
         Cart cart = getOrCreateCart(sessionId);
         Product product = productRepository.findById(productId)
             .orElseThrow(() -> new RuntimeException("Produit non trouvé avec l'id: " + productId));
 
-        // Vérifier si le produit existe déjà dans le panier
         Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId);
 
         if (existingItem.isPresent()) {
-            // Mettre à jour la quantité
             CartItem item = existingItem.get();
             item.setQuantity(item.getQuantity() + quantity);
             cartItemRepository.save(item);
         } else {
-            // Créer un nouvel item
             CartItem newItem = new CartItem();
             newItem.setCart(cart);
             newItem.setProduct(product);
@@ -61,10 +66,10 @@ public class CartService {
         }
 
         cart.calculateTotal();
-        return cartRepository.save(cart);
+        return toDto(cartRepository.save(cart));
     }
 
-    public Cart updateItemQuantity(String sessionId, Long itemId, Integer quantity) {
+    public CartResponseDTO updateItemQuantity(String sessionId, Long itemId, Integer quantity) {
         Cart cart = getOrCreateCart(sessionId);
         CartItem item = cartItemRepository.findById(itemId)
             .orElseThrow(() -> new RuntimeException("Article du panier non trouvé avec l'id: " + itemId));
@@ -78,10 +83,10 @@ public class CartService {
         }
 
         cart.calculateTotal();
-        return cartRepository.save(cart);
+        return toDto(cartRepository.save(cart));
     }
 
-    public Cart removeItemFromCart(String sessionId, Long itemId) {
+    public CartResponseDTO removeItemFromCart(String sessionId, Long itemId) {
         Cart cart = getOrCreateCart(sessionId);
         CartItem item = cartItemRepository.findById(itemId)
             .orElseThrow(() -> new RuntimeException("Article du panier non trouvé avec l'id: " + itemId));
@@ -90,7 +95,7 @@ public class CartService {
         cart.getItems().remove(item);
         cart.calculateTotal();
 
-        return cartRepository.save(cart);
+        return toDto(cartRepository.save(cart));
     }
 
     public void clearCart(String sessionId) {
@@ -103,5 +108,33 @@ public class CartService {
             cartRepository.save(cart.get());
             log.info("cart_cleared itemsRemoved={}", removed);
         }
+    }
+
+    private CartResponseDTO toDto(Cart cart) {
+        List<CartResponseDTO.CartLineDTO> lines = new ArrayList<>();
+        if (cart.getItems() != null) {
+            for (CartItem item : cart.getItems()) {
+                Product p = item.getProduct();
+                Long pid = p != null ? p.getId() : null;
+                String name = p != null ? p.getName() : null;
+                Double price = p != null ? p.getPrice() : null;
+                lines.add(new CartResponseDTO.CartLineDTO(
+                        item.getId(),
+                        pid,
+                        name,
+                        price,
+                        item.getQuantity(),
+                        item.getSubtotal(),
+                        item.getSelectedSize(),
+                        item.getSelectedGoldType()
+                ));
+            }
+        }
+        return new CartResponseDTO(
+                cart.getId(),
+                cart.getSessionId(),
+                lines,
+                cart.getTotalAmount() != null ? cart.getTotalAmount() : 0.0
+        );
     }
 }

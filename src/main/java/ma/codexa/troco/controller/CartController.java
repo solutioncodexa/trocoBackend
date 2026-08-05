@@ -1,10 +1,11 @@
 package ma.codexa.troco.controller;
 
-import ma.codexa.troco.entity.Cart;
+import ma.codexa.troco.dto.CartResponseDTO;
 import ma.codexa.troco.service.CartService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.Map;
 
 @RestController
@@ -15,41 +16,37 @@ public class CartController {
     private CartService cartService;
 
     @GetMapping
-    public ResponseEntity<Cart> getCart(@RequestParam String sessionId) {
-        Cart cart = cartService.getOrCreateCart(sessionId);
-        return ResponseEntity.ok(cart);
+    public ResponseEntity<CartResponseDTO> getCart(@RequestParam String sessionId) {
+        return ResponseEntity.ok(cartService.getOrCreateCartDto(sessionId));
     }
 
     @PostMapping("/items")
-    public ResponseEntity<Cart> addItemToCart(
+    public ResponseEntity<CartResponseDTO> addItemToCart(
             @RequestParam String sessionId,
             @RequestBody Map<String, Object> request) {
 
         Long productId = Long.valueOf(request.get("productId").toString());
         Integer quantity = Integer.valueOf(request.get("quantity").toString());
 
-        Cart cart = cartService.addItemToCart(sessionId, productId, quantity);
-        return ResponseEntity.ok(cart);
+        return ResponseEntity.ok(cartService.addItemToCart(sessionId, productId, quantity));
     }
 
     @PutMapping("/items/{itemId}")
-    public ResponseEntity<Cart> updateItemQuantity(
+    public ResponseEntity<CartResponseDTO> updateItemQuantity(
             @PathVariable Long itemId,
             @RequestParam String sessionId,
             @RequestBody Map<String, Integer> request) {
 
         Integer quantity = request.get("quantity");
-        Cart cart = cartService.updateItemQuantity(sessionId, itemId, quantity);
-        return ResponseEntity.ok(cart);
+        return ResponseEntity.ok(cartService.updateItemQuantity(sessionId, itemId, quantity));
     }
 
     @DeleteMapping("/items/{itemId}")
-    public ResponseEntity<Cart> removeItemFromCart(
+    public ResponseEntity<CartResponseDTO> removeItemFromCart(
             @PathVariable Long itemId,
             @RequestParam String sessionId) {
 
-        Cart cart = cartService.removeItemFromCart(sessionId, itemId);
-        return ResponseEntity.ok(cart);
+        return ResponseEntity.ok(cartService.removeItemFromCart(sessionId, itemId));
     }
 
     @DeleteMapping

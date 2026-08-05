@@ -1,5 +1,6 @@
 package ma.codexa.troco.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -15,6 +16,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Cart extends TenantScoped {
 
     @Id
@@ -25,6 +27,7 @@ public class Cart extends TenantScoped {
     private String sessionId;
 
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnoreProperties("cart")
     private List<CartItem> items = new ArrayList<>();
 
     @Column(name = "total_amount")
