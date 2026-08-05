@@ -1,0 +1,152 @@
+# =============================================================================
+# Troco / Matjarona — sidecar sur le VPS GoldYara (même pattern que Codexa / Caldeals)
+# =============================================================================
+# Sur le VPS (/opt/goldyara/deployment) :
+#   cp .env.troco.example .env.troco   # puis éditer secrets
+#   mkdir -p troco/backend troco/frontend/dist docker
+#   # déposer docker-compose.troco.yml, .env.troco, nginx conf, nginx-internal
+#
+#   docker compose --env-file .env --env-file .env.troco \
+#     -f docker-compose.yml -f docker-compose.artifacts.yml -f docker-compose.troco.yml \
+#     up -d troco-postgres troco-minio troco-minio-init troco-backend troco-frontend
+#
+# CI redéploie uniquement :
+#   ... up -d --force-recreate --no-deps troco-backend
+#   ... up -d --force-recreate --no-deps troco-frontend
+# =============================================================================
+
+services:
+  troco-postgres:
+    image: postgres:16-alpine
+    container_name: troco-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${TROCO_DB_NAME:-troco}
+      POSTGRES_USER: ${TROCO_DB_USERNAME:-troco}
+      POSTGRES_PASSWORD: ${TROCO_DB_PASSWORD:?TROCO_DB_PASSWORD required}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - troco_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - goldyara-net
+
+  troco-minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    container_name: troco-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${TROCO_MINIO_ACCESS_KEY:-trocominio}
+      MINIO_ROOT_PASSWORD: ${TROCO_MINIO_SECRET_KEY:?TROCO_MINIO_SECRET_KEY required}
+    volumes:
+      - troco_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    networks:
+      - goldyara-net
+
+  troco-minio-init:
+    image: minio/mc:RELEASE.2024-11-17T19-35-56Z
+    container_name: troco-minio-init
+    depends_on:
+      troco-minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://troco-minio:9000 "$${TROCO_MINIO_ACCESS_KEY}" "$${TROCO_MINIO_SECRET_KEY}"
+        mc mb --ignore-existing "local/$${TROCO_MINIO_BUCKET}"
+        if [ "$${TROCO_MINIO_PUBLIC_READ}" = "true" ]; then
+          mc anonymous set download "local/$${TROCO_MINIO_BUCKET}"
+        fi
+        echo "Troco MinIO bucket ready: $${TROCO_MINIO_BUCKET}"
+    environment:
+      TROCO_MINIO_ACCESS_KEY: ${TROCO_MINIO_ACCESS_KEY:-trocominio}
+      TROCO_MINIO_SECRET_KEY: ${TROCO_MINIO_SECRET_KEY:?TROCO_MINIO_SECRET_KEY required}
+      TROCO_MINIO_BUCKET: ${TROCO_MINIO_BUCKET:-troco-uploads}
+      TROCO_MINIO_PUBLIC_READ: ${TROCO_MINIO_PUBLIC_READ:-true}
+    networks:
+      - goldyara-net
+    restart: "no"
+
+  troco-backend:
+    image: eclipse-temurin:21-jre
+    container_name: troco-backend
+    restart: unless-stopped
+    working_dir: /app
+    command: ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-XX:+ExitOnOutOfMemoryError", "-jar", "/app/troco-backend.jar"]
+    env_file:
+      - .env.troco
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
+      DB_URL: jdbc:postgresql://troco-postgres:5432/${TROCO_DB_NAME:-troco}
+      DB_USERNAME: ${TROCO_DB_USERNAME:-troco}
+      DB_PASSWORD: ${TROCO_DB_PASSWORD:?TROCO_DB_PASSWORD required}
+      DB_DDL_AUTO: ${TROCO_DB_DDL_AUTO:-validate}
+      STORAGE_TYPE: minio
+      MINIO_ENDPOINT: http://troco-minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${TROCO_MINIO_PUBLIC_ENDPOINT:-https://troco.ma/files}
+      MINIO_ACCESS_KEY: ${TROCO_MINIO_ACCESS_KEY:-trocominio}
+      MINIO_SECRET_KEY: ${TROCO_MINIO_SECRET_KEY:?TROCO_MINIO_SECRET_KEY required}
+      MINIO_BUCKET: ${TROCO_MINIO_BUCKET:-troco-uploads}
+      MINIO_AUTO_CREATE_BUCKET: "true"
+      MINIO_PUBLIC_READ: ${TROCO_MINIO_PUBLIC_READ:-true}
+      OTEL_SDK_DISABLED: ${TROCO_OTEL_SDK_DISABLED:-true}
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+    volumes:
+      - ./troco/backend/troco-backend.jar:/app/troco-backend.jar:ro
+      - troco_backend_logs:/app/logs
+    depends_on:
+      troco-postgres:
+        condition: service_healthy
+      troco-minio:
+        condition: service_healthy
+      troco-minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    networks:
+      - goldyara-net
+
+  troco-frontend:
+    image: nginx:alpine
+    container_name: troco-frontend
+    restart: unless-stopped
+    depends_on:
+      - troco-backend
+    volumes:
+      - ./troco/frontend/dist:/usr/share/nginx/html:ro
+      - ./docker/nginx-internal-troco.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - goldyara-net
+
+volumes:
+  troco_pg_data:
+  troco_minio_data:
+  troco_backend_logs:
+
+networks:
+  goldyara-net:
+    external: true
+    name: goldyara_goldyara-net

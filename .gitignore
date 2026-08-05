@@ -40,3 +40,7 @@ troco-dev-db.properties
 # Uploaded media (local / runtime)
 uploads/
 
+
+node_modules/
+package-lock.json
+

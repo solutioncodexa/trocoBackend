@@ -1,5 +1,8 @@
 .env
 .env.local
+.env.troco
+!.env.example
+!.env.troco.example
 certs/*.pem
 certs/*.key
 certs/*.crt

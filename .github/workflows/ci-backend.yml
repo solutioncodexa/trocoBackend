@@ -2,7 +2,17 @@ name: CI Backend (Artifacts)
 
 on:
   push:
-    branches: [main, master]
+    branches: [feature/shopify, shopify, main, master]
+    paths:
+      - "src/**"
+      - "pom.xml"
+      - "mvnw"
+      - "mvnw.cmd"
+      - ".mvn/**"
+      - "deployment/**"
+      - ".github/workflows/ci-backend.yml"
+  pull_request:
+    branches: [feature/shopify, shopify, main, master]
     paths:
       - "src/**"
       - "pom.xml"
@@ -19,8 +29,12 @@ concurrency:
   group: troco-back-artifacts-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
+
 jobs:
-  build-backend:
+  test:
+    name: Tests auto (unit + integration)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,10 +45,33 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Run unit & integration tests
+      - name: Run Maven tests
         run: |
           chmod +x mvnw
           ./mvnw -B -ntp test
+
+      - name: Publish surefire reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: "**/target/surefire-reports/**"
+          if-no-files-found: ignore
+          retention-days: 7
+
+  build-backend:
+    name: Build JAR
+    needs: test
+    runs-on: ubuntu-latest
+    # Build aussi sur PR pour valider le package, mais deploy seulement sur push
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
 
       - name: Build jar
         run: |
@@ -50,6 +87,7 @@ jobs:
             exit 1
           fi
           cp "${JAR_PATH}" troco-backend.jar
+          echo "JAR=$(du -sh troco-backend.jar | cut -f1)"
 
       - name: Upload backend artifact
         uses: actions/upload-artifact@v4
@@ -61,12 +99,17 @@ jobs:
 
   deploy-backend:
     name: Deploy backend on VPS
-    needs: build-backend
+    needs: [test, build-backend]
     runs-on: ubuntu-latest
     if: |
       success() &&
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      (
+        github.ref == 'refs/heads/feature/shopify' ||
+        github.ref == 'refs/heads/shopify' ||
+        github.ref == 'refs/heads/main' ||
+        github.ref == 'refs/heads/master'
+      ) &&
       vars.VPS_DEPLOY_DISABLED != 'true'
     steps:
       - name: Validate VPS deploy config
@@ -88,10 +131,25 @@ jobs:
           name: troco-backend-jar
           path: deploy-download
 
+      - name: Prepare VPS backend directory
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ vars.VPS_SSH_PORT || '22' }}
+          script_stop: true
+          envs: DEPLOY_PATH
+          script: |
+            set -euo pipefail
+            DEPLOY_PATH="${DEPLOY_PATH:-/opt/goldyara/deployment}"
+            mkdir -p "${DEPLOY_PATH}/troco/backend"
+            rm -rf "${DEPLOY_PATH}/troco/backend/deploy-download" || true
+
       - name: Upload jar to VPS
         uses: appleboy/scp-action@v0.1.7
-        env:
-          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/troco/deployment' }}
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
           username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
@@ -99,11 +157,12 @@ jobs:
           port: ${{ vars.VPS_SSH_PORT || '22' }}
           source: "deploy-download/troco-backend.jar"
           target: "${{ env.DEPLOY_PATH }}/troco/backend/"
+          strip_components: 1
 
-      - name: Restart backend
+      - name: Restart troco-backend
         uses: appleboy/ssh-action@v1.2.0
         env:
-          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/troco/deployment' }}
+          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
           username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
@@ -114,41 +173,69 @@ jobs:
           envs: DEPLOY_PATH
           script: |
             set -euo pipefail
-            DEPLOY_PATH="${DEPLOY_PATH:-/opt/troco/deployment}"
-            BACK_DIR="${DEPLOY_PATH}/troco/backend"
-            STAGING_DIR="${BACK_DIR}/jar-staging"
-            mkdir -p "${BACK_DIR}"
+            DEPLOY_PATH="${DEPLOY_PATH:-/opt/goldyara/deployment}"
+            FINAL_PATH="${DEPLOY_PATH}/troco/backend/troco-backend.jar"
 
-            # Normalize SCP output: appleboy/scp-action may create nested deploy-download folders.
-            rm -rf "${STAGING_DIR}"
-            mkdir -p "${STAGING_DIR}"
-
-            JAR_PATH=$(find "${BACK_DIR}" -maxdepth 5 -type f -name "troco-backend.jar" | sed -n '1p')
-            if [ -z "${JAR_PATH:-}" ]; then
-              JAR_PATH=$(find "${BACK_DIR}" -maxdepth 5 -type f -name "*.jar" | sed -n '1p')
+            if [ ! -f "${FINAL_PATH}" ]; then
+              FOUND=$(find "${DEPLOY_PATH}/troco/backend" -maxdepth 4 -type f -name "troco-backend.jar" | sed -n '1p')
+              if [ -n "${FOUND:-}" ]; then
+                mv -f "${FOUND}" "${FINAL_PATH}"
+              fi
             fi
+            rm -rf "${DEPLOY_PATH}/troco/backend/deploy-download" || true
 
-            if [ -z "${JAR_PATH:-}" ]; then
-              echo "ERROR: no jar found under ${BACK_DIR}"
-              find "${BACK_DIR}" -maxdepth 5 -type f | sort || true
+            if [ ! -f "${FINAL_PATH}" ]; then
+              echo "ERROR: JAR introuvable à ${FINAL_PATH}"
+              find "${DEPLOY_PATH}/troco/backend" -maxdepth 4 -type f | sort || true
+              exit 1
+            fi
+            echo "JAR OK: $(du -sh "${FINAL_PATH}" | cut -f1)"
+
+            cd "${DEPLOY_PATH}"
+            if [ ! -f .env.troco ]; then
+              echo "ERROR: ${DEPLOY_PATH}/.env.troco manquant — lancer bootstrap-troco-vps.sh"
+              exit 1
+            fi
+            if [ ! -f docker-compose.troco.yml ]; then
+              echo "ERROR: docker-compose.troco.yml manquant sous ${DEPLOY_PATH}"
               exit 1
             fi
 
-            cp "${JAR_PATH}" "${STAGING_DIR}/troco-backend.jar"
-            mv -f "${STAGING_DIR}/troco-backend.jar" "${BACK_DIR}/troco-backend.jar"
+            docker compose --env-file .env --env-file .env.troco \
+              -f docker-compose.yml \
+              -f docker-compose.artifacts.yml \
+              -f docker-compose.troco.yml \
+              up -d --force-recreate --no-deps troco-backend
 
-            # Cleanup known transient folders from artifact download/copy.
-            rm -rf "${BACK_DIR}/deploy-download" "${STAGING_DIR}"
-            test -f "${BACK_DIR}/troco-backend.jar"
-
-            cd "${DEPLOY_PATH}"
-            docker compose -f docker-compose.yml -f docker-compose.artifacts.yml up -d --force-recreate --no-deps backend
+            echo "Attente healthcheck troco-backend..."
+            for i in $(seq 1 24); do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' troco-backend 2>/dev/null || echo "unknown")
+              echo "  [${i}/24] status=${STATUS}"
+              if [ "${STATUS}" = "healthy" ]; then
+                echo "troco-backend healthy"
+                exit 0
+              fi
+              if [ "${STATUS}" = "unhealthy" ]; then
+                docker logs troco-backend --tail 80
+                exit 1
+              fi
+              sleep 5
+            done
+            echo "Timeout healthcheck — logs:"
+            docker logs troco-backend --tail 80
+            exit 1
 
       - name: Deploy summary
+        if: success()
         run: |
           {
-            echo "### Backend artifact deployed"
+            echo "### Troco backend déployé"
             echo ""
-            echo "- Path: \`${{ vars.VPS_DEPLOY_PATH || '/opt/troco/deployment' }}/troco/backend/troco-backend.jar\`"
-            echo "- Service: \`backend\`"
+            echo "| Champ | Valeur |"
+            echo "|-------|--------|"
+            echo "| Commit | \`${{ github.sha }}\` |"
+            echo "| Branch | \`${{ github.ref_name }}\` |"
+            echo "| Path | \`${{ env.DEPLOY_PATH }}/troco/backend/troco-backend.jar\` |"
+            echo "| Service | \`troco-backend\` |"
+            echo "| Gate | Tests Maven OK |"
           } >> "$GITHUB_STEP_SUMMARY"
