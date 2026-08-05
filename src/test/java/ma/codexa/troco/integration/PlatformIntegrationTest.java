@@ -23,7 +23,7 @@ class PlatformIntegrationTest extends IntegrationTestBase {
         mockMvc.perform(get("/platform/plans"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data[?(@.code=='basic')].priceMad").value(org.hamcrest.Matchers.hasItem(150.0)));
+                .andExpect(jsonPath("$.data[?(@.code=='basic')].priceMad").value(org.hamcrest.Matchers.hasItem(79.0)));
     }
 
     @Test

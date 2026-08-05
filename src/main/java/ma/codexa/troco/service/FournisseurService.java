@@ -30,6 +30,7 @@ import ma.codexa.troco.storefront.ThemePresetFactory;
 import ma.codexa.troco.storefront.ThemePresets;
 import ma.codexa.troco.tenant.FournisseurStatus;
 import ma.codexa.troco.tenant.TenantContext;
+import ma.codexa.troco.tenant.TenantSupport;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -56,6 +57,7 @@ public class FournisseurService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final PlanEntitlementService planEntitlementService;
+    private final TenantSupport tenantSupport;
 
     @Value("${app.platform.default-plan-code:basic}")
     private String defaultPlanCode;
@@ -341,18 +343,51 @@ public class FournisseurService {
     @Transactional(readOnly = true)
     public StorefrontBootstrapDTO getPublicStore(String slugOrNull) {
         Fournisseur f = resolveAccessibleFournisseur(slugOrNull);
-        StoreSettings settings = storeSettingsRepository.findByFournisseurId(f.getId())
-                .orElseGet(() -> emptySettings(f.getId(), f.getName()));
-        return toBootstrapDto(f, settings);
+        // /platform/store?slug=… n'active pas le tenant via le filtre HTTP →
+        // sans réalignement Hibernate, findByFournisseurId voit fournisseur_id=-1.
+        return withResolvedTenant(f.getId(), () -> {
+            StoreSettings settings = storeSettingsRepository.findByFournisseurId(f.getId())
+                    .orElseGet(() -> emptySettings(f.getId(), f.getName()));
+            return toBootstrapDto(f, settings);
+        });
     }
 
     /** Checkout à la demande. */
     @Transactional(readOnly = true)
     public StorefrontCheckoutDTO getPublicStoreCheckout(String slugOrNull) {
         Fournisseur f = resolveAccessibleFournisseur(slugOrNull);
-        StoreSettings settings = storeSettingsRepository.findByFournisseurId(f.getId())
-                .orElseGet(() -> emptySettings(f.getId(), f.getName()));
-        return toCheckoutDto(f, settings);
+        return withResolvedTenant(f.getId(), () -> {
+            StoreSettings settings = storeSettingsRepository.findByFournisseurId(f.getId())
+                    .orElseGet(() -> emptySettings(f.getId(), f.getName()));
+            return toCheckoutDto(f, settings);
+        });
+    }
+
+    /**
+     * Réapplique le filtre Hibernate après résolution explicite d'une boutique
+     * (slug query / domaine) alors que {@link TenantContext} était encore vide.
+     */
+    private <T> T withResolvedTenant(Long fournisseurId, java.util.function.Supplier<T> action) {
+        Long previousFid = TenantContext.getFournisseurId();
+        boolean previousBypass = TenantContext.isBypass();
+        try {
+            TenantContext.setFournisseurId(fournisseurId);
+            TenantContext.setBypass(false);
+            tenantSupport.applyHibernateFilter();
+            return action.get();
+        } finally {
+            if (previousFid != null) {
+                TenantContext.setFournisseurId(previousFid);
+            } else {
+                TenantContext.setFournisseurId(null);
+            }
+            TenantContext.setBypass(previousBypass);
+            try {
+                tenantSupport.applyHibernateFilter();
+            } catch (Exception ignored) {
+                // session déjà fermée / hors tx
+            }
+        }
     }
 
     private Fournisseur resolveAccessibleFournisseur(String slugOrNull) {

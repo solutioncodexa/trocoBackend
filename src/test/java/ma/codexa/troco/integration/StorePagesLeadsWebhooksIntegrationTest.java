@@ -149,10 +149,11 @@ class StorePagesLeadsWebhooksIntegrationTest extends IntegrationTestBase {
     void webhooksSectionsAi() throws Exception {
         SeededStore store = seedStore("hooks");
 
+        // Plan Pro : order.created uniquement (lead.created → Business)
         authPost("/store-webhooks", store.token(), store.slug(), Map.of(
                 "name", "Zapier commandes",
                 "targetUrl", "https://hooks.zapier.com/hooks/catch/test/abc",
-                "events", List.of("order.created", "lead.created"),
+                "events", List.of("order.created"),
                 "enabled", true
         )).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("Zapier commandes"));

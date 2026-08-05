@@ -103,7 +103,7 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-troco-uploads}
       MINIO_AUTO_CREATE_BUCKET: "true"
       MINIO_PUBLIC_READ: ${MINIO_PUBLIC_READ:-true}
-      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-https://troco.ma,https://www.troco.ma}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-https://troco.ma,https://www.troco.ma,https://*.troco.ma}
       APP_PUBLIC_SITE_URL: ${APP_PUBLIC_SITE_URL:-https://troco.ma}
       MAIL_HOST: ${MAIL_HOST:-}
       MAIL_PORT: ${MAIL_PORT:-587}

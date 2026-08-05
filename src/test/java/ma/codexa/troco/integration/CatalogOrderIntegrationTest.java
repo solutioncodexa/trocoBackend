@@ -53,7 +53,13 @@ class CatalogOrderIntegrationTest extends IntegrationTestBase {
                 .andReturn());
 
         assertThat(createdOrder.path("status").asText()).isNotBlank();
-        assertThat(createdOrder.path("customer").path("fullName").asText()).isEqualTo("Client COD");
+        assertThat(createdOrder.path("orderNumber").asText()).isNotBlank();
+        // OrderCreatedDTO est allégé (pas de customer) — vérifier le client via GET détail
+        mockMvc.perform(get("/orders/" + createdOrder.path("id").asText())
+                        .header("Authorization", "Bearer " + token)
+                        .header(TenantResolutionFilter.HEADER_SLUG, slug))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.customer.fullName").value("Client COD"));
 
         mockMvc.perform(get("/orders")
                         .header("Authorization", "Bearer " + token)
