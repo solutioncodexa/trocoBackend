@@ -41,5 +41,7 @@ if docker ps --format '{{.Names}}' | grep -qx goldyara-nginx; then
 fi
 
 echo "==> Certificat Let's Encrypt (si domaine pointé)"
-echo "  docker compose exec certbot certbot certonly --webroot -w /var/www/certbot -d troco.ma -d www.troco.ma --email contact@goldyara.com --agree-tos --non-interactive"
+echo "  docker compose exec certbot certbot certonly --webroot -w /var/www/certbot \\"
+echo "    -d getstore.codexa-solution.com -d api.getstore.codexa-solution.com \\"
+echo "    --email contact@codexa-solution.com --agree-tos --non-interactive"
 echo "DONE."

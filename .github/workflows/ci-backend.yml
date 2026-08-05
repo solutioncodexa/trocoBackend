@@ -226,9 +226,8 @@ jobs:
             if [ -f "${UPLOAD}/nginx/conf.d/troco.ma.vps.conf" ]; then
               mkdir -p nginx/conf.d
               cp -f "${UPLOAD}/nginx/conf.d/troco.ma.vps.conf" ./nginx/conf.d/troco.ma.vps.conf
-              if [ ! -f nginx/conf.d/troco.ma.conf ]; then
-                cp -f nginx/conf.d/troco.ma.vps.conf nginx/conf.d/troco.ma.conf
-              fi
+              cp -f nginx/conf.d/troco.ma.vps.conf nginx/conf.d/troco.ma.conf
+              echo "nginx conf Troco mis à jour (getstore.codexa-solution.com)"
             fi
             if [ -f "${UPLOAD}/scripts/bootstrap-troco-vps.sh" ]; then
               mkdir -p scripts
@@ -278,6 +277,23 @@ jobs:
               echo "WARN: .env.troco créé — changez APP_ADMIN_PASSWORD / APP_SUPER_ADMIN_PASSWORD dès que possible"
             fi
 
+            # Aligner domaines getstore (sans écraser secrets)
+            set_env_key() {
+              local key="$1" val="$2"
+              if grep -qE "^${key}=" .env.troco; then
+                sed -i "s|^${key}=.*|${key}=${val}|" .env.troco
+              else
+                echo "${key}=${val}" >> .env.troco
+              fi
+            }
+            set_env_key TROCO_DOMAIN getstore.codexa-solution.com
+            set_env_key TROCO_WWW_DOMAIN getstore.codexa-solution.com
+            set_env_key APP_PUBLIC_SITE_URL https://getstore.codexa-solution.com
+            set_env_key APP_PLATFORM_DOMAIN getstore.codexa-solution.com
+            set_env_key APP_CORS_ALLOWED_ORIGINS 'https://getstore.codexa-solution.com,https://*.getstore.codexa-solution.com,https://api.getstore.codexa-solution.com'
+            set_env_key TROCO_MINIO_PUBLIC_ENDPOINT https://getstore.codexa-solution.com/files
+            set_env_key MINIO_PUBLIC_ENDPOINT https://getstore.codexa-solution.com/files
+
             if [ ! -f docker-compose.troco.yml ]; then
               echo "ERROR: docker-compose.troco.yml manquant sous ${DEPLOY_PATH}"
               exit 1
@@ -299,6 +315,10 @@ jobs:
               -f docker-compose.artifacts.yml \
               -f docker-compose.troco.yml \
               up -d --force-recreate --no-deps troco-backend
+
+            if docker ps --format '{{.Names}}' | grep -qx goldyara-nginx; then
+              docker exec goldyara-nginx nginx -t && docker exec goldyara-nginx nginx -s reload || true
+            fi
 
             echo "Attente healthcheck troco-backend..."
             for i in $(seq 1 36); do

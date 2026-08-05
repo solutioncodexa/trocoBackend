@@ -31,7 +31,7 @@ services:
       - troco-net
 
   minio:
-    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: troco-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -52,7 +52,7 @@ services:
       - troco-net
 
   minio-init:
-    image: minio/mc:RELEASE.2024-11-17T19-35-56Z
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: troco-minio-init
     depends_on:
       minio:

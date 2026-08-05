@@ -36,7 +36,8 @@ services:
       - goldyara-net
 
   troco-minio:
-    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    # quay.io : tags Docker Hub minio/* souvent retirés / introuvables
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: troco-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -55,7 +56,7 @@ services:
       - goldyara-net
 
   troco-minio-init:
-    image: minio/mc:RELEASE.2024-11-17T19-35-56Z
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: troco-minio-init
     depends_on:
       troco-minio:
@@ -97,7 +98,10 @@ services:
       DB_DDL_AUTO: ${TROCO_DB_DDL_AUTO:-validate}
       STORAGE_TYPE: minio
       MINIO_ENDPOINT: http://troco-minio:9000
-      MINIO_PUBLIC_ENDPOINT: ${TROCO_MINIO_PUBLIC_ENDPOINT:-https://troco.ma/files}
+      MINIO_PUBLIC_ENDPOINT: ${TROCO_MINIO_PUBLIC_ENDPOINT:-https://getstore.codexa-solution.com/files}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-https://getstore.codexa-solution.com,https://*.getstore.codexa-solution.com,https://api.getstore.codexa-solution.com}
+      APP_PUBLIC_SITE_URL: ${APP_PUBLIC_SITE_URL:-https://getstore.codexa-solution.com}
+      APP_PLATFORM_DOMAIN: ${APP_PLATFORM_DOMAIN:-getstore.codexa-solution.com}
       MINIO_ACCESS_KEY: ${TROCO_MINIO_ACCESS_KEY:-trocominio}
       MINIO_SECRET_KEY: ${TROCO_MINIO_SECRET_KEY:?TROCO_MINIO_SECRET_KEY required}
       MINIO_BUCKET: ${TROCO_MINIO_BUCKET:-troco-uploads}
