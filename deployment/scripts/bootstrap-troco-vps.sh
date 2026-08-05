@@ -40,8 +40,14 @@ if docker ps --format '{{.Names}}' | grep -qx goldyara-nginx; then
   docker exec goldyara-nginx nginx -t && docker exec goldyara-nginx nginx -s reload || true
 fi
 
+# Certificat :
+#   docker compose exec certbot certbot certonly --webroot -w /var/www/certbot \
+#     -d getstore.codexa-solution.com -d api.getstore.codexa-solution.com \
+#     --email contact@codexa-solution.com --agree-tos --non-interactive \
+#     --account 8a26
 echo "==> Certificat Let's Encrypt (si domaine pointé)"
 echo "  docker compose exec certbot certbot certonly --webroot -w /var/www/certbot \\"
 echo "    -d getstore.codexa-solution.com -d api.getstore.codexa-solution.com \\"
-echo "    --email contact@codexa-solution.com --agree-tos --non-interactive"
+echo "    --email contact@codexa-solution.com --agree-tos --non-interactive \\"
+echo "    --account 8a26"
 echo "DONE."
