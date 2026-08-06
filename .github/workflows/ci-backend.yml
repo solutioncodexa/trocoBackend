@@ -225,8 +225,9 @@ jobs:
             fi
             if [ -f "${UPLOAD}/nginx/conf.d/troco.ma.vps.conf" ]; then
               mkdir -p nginx/conf.d
-              cp -f "${UPLOAD}/nginx/conf.d/troco.ma.vps.conf" ./nginx/conf.d/troco.ma.vps.conf
-              cp -f nginx/conf.d/troco.ma.vps.conf nginx/conf.d/troco.ma.conf
+              # Une seule conf active : nginx charge TOUS les *.conf
+              rm -f nginx/conf.d/troco.ma.vps.conf nginx/conf.d/troco*.vps.conf
+              cp -f "${UPLOAD}/nginx/conf.d/troco.ma.vps.conf" nginx/conf.d/troco.ma.conf
               echo "nginx conf Troco mis à jour (getstore.codexa-solution.com)"
             fi
             if [ -f "${UPLOAD}/scripts/bootstrap-troco-vps.sh" ]; then
@@ -255,36 +256,36 @@ jobs:
                 -e "s|__CHANGE_ME_STRONG_DB_PASSWORD__|${DBPASS}|g" \
                 -e "s|__CHANGE_ME_STRONG_MINIO_SECRET__|${MINIOPASS}|g" \
                 .env.troco
-              # Align DB_PASSWORD / MINIO_SECRET_KEY aliases
               sed -i -e "s|^DB_PASSWORD=.*|DB_PASSWORD=${DBPASS}|" \
                      -e "s|^MINIO_SECRET_KEY=.*|MINIO_SECRET_KEY=${MINIOPASS}|" \
                      .env.troco || true
-              # Réutiliser SMTP GoldYara si présent dans .env partagé
               if [ -f .env ]; then
                 for key in MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_SSL MAIL_STARTTLS MAIL_SENDER_NAME; do
                   val=$(grep -E "^${key}=" .env | head -1 | cut -d= -f2- || true)
                   if [ -n "${val:-}" ]; then
                     if grep -qE "^${key}=" .env.troco; then
-                      sed -i "s|^${key}=.*|${key}=${val}|" .env.troco
-                    else
-                      echo "${key}=${val}" >> .env.troco
+                      # Évite sed si valeur contient des métacaractères
+                      grep -vE "^${key}=" .env.troco > .env.troco.tmp && mv .env.troco.tmp .env.troco
                     fi
+                    echo "${key}=${val}" >> .env.troco
                   fi
                 done
-                # Nettoyer placeholder SMTP
                 sed -i 's|__SAME_AS_GOLDYARA_MAIL_PASSWORD__||g' .env.troco || true
               fi
               echo "WARN: .env.troco créé — changez APP_ADMIN_PASSWORD / APP_SUPER_ADMIN_PASSWORD dès que possible"
             fi
 
-            # Aligner domaines getstore (sans écraser secrets)
+            echo "Sync domaines getstore dans .env.troco..."
+            # Remplacement sûr (pas de sed avec * dans la valeur CORS)
             set_env_key() {
-              local key="$1" val="$2"
-              if grep -qE "^${key}=" .env.troco; then
-                sed -i "s|^${key}=.*|${key}=${val}|" .env.troco
-              else
-                echo "${key}=${val}" >> .env.troco
+              key="$1"
+              val="$2"
+              # grep -v exit 1 si aucune ligne restante → ne pas tuer le script (set -e)
+              if grep -qE "^${key}=" .env.troco 2>/dev/null; then
+                grep -vE "^${key}=" .env.troco > .env.troco.tmp || true
+                mv .env.troco.tmp .env.troco
               fi
+              printf '%s=%s\n' "$key" "$val" >> .env.troco
             }
             set_env_key TROCO_DOMAIN getstore.codexa-solution.com
             set_env_key TROCO_WWW_DOMAIN getstore.codexa-solution.com
@@ -295,6 +296,7 @@ jobs:
             set_env_key MINIO_PUBLIC_ENDPOINT https://getstore.codexa-solution.com/files
             set_env_key TROCO_DB_DDL_AUTO update
             set_env_key DB_DDL_AUTO update
+            echo "Domaines synchronisés"
 
             if [ ! -f docker-compose.troco.yml ]; then
               echo "ERROR: docker-compose.troco.yml manquant sous ${DEPLOY_PATH}"
@@ -305,13 +307,14 @@ jobs:
               exit 1
             fi
 
-            # Dépendances (postgres/minio) puis backend
+            echo "Démarrage troco-postgres / troco-minio..."
             docker compose --env-file .env --env-file .env.troco \
               -f docker-compose.yml \
               -f docker-compose.artifacts.yml \
               -f docker-compose.troco.yml \
               up -d troco-postgres troco-minio troco-minio-init
 
+            echo "Recreate troco-backend..."
             docker compose --env-file .env --env-file .env.troco \
               -f docker-compose.yml \
               -f docker-compose.artifacts.yml \
@@ -319,7 +322,9 @@ jobs:
               up -d --force-recreate --no-deps troco-backend
 
             if docker ps --format '{{.Names}}' | grep -qx goldyara-nginx; then
-              docker exec goldyara-nginx nginx -t && docker exec goldyara-nginx nginx -s reload || true
+              echo "Reload nginx (ignore erreur SSL tant que cert absent)..."
+              docker exec goldyara-nginx nginx -t && docker exec goldyara-nginx nginx -s reload \
+                || echo "WARN: nginx -t/reload échoué (cert getstore manquant ?)"
             fi
 
             echo "Attente healthcheck troco-backend..."
@@ -331,13 +336,13 @@ jobs:
                 exit 0
               fi
               if [ "${STATUS}" = "unhealthy" ]; then
-                docker logs troco-backend --tail 100
+                docker logs troco-backend --tail 120 || true
                 exit 1
               fi
               sleep 5
             done
             echo "Timeout healthcheck — logs:"
-            docker logs troco-backend --tail 100
+            docker logs troco-backend --tail 120 || true
             exit 1
 
       - name: Deploy summary
