@@ -3,6 +3,7 @@
 # Bootstrap Troco sur le VPS GoldYara (à lancer une fois en SSH)
 # Usage (depuis /opt/goldyara/deployment) :
 #   bash scripts/bootstrap-troco-vps.sh
+# (CI redeploy also syncs this script from the sidecar upload.)
 # =============================================================================
 set -euo pipefail
 
