@@ -1,25 +1,11 @@
 name: CI Backend (Artifacts)
 
 on:
+  # Pas de filtre paths : les pushes récents (da513b4+) n'ont créé aucun run Actions.
   push:
     branches: [feature/shopify, shopify, main, master]
-    paths:
-      - "src/**"
-      - "pom.xml"
-      - "mvnw"
-      - "mvnw.cmd"
-      - ".mvn/**"
-      - "deployment/**"
-      - ".github/workflows/ci-backend.yml"
   pull_request:
     branches: [feature/shopify, shopify, main, master]
-    paths:
-      - "src/**"
-      - "pom.xml"
-      - "mvnw"
-      - "mvnw.cmd"
-      - ".mvn/**"
-      - ".github/workflows/ci-backend.yml"
   workflow_dispatch:
 
 permissions:
