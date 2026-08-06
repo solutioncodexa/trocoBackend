@@ -1,0 +1,12 @@
+name: Ping
+
+on:
+  push:
+    branches: [feature/shopify]
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ping ok ${{ github.sha }}"
