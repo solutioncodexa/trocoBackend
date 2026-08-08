@@ -81,7 +81,7 @@ public class UserService {
                     auditLog.log(AuditLogService.Action.LOGIN, AuditLogService.Outcome.DENIED,
                             user.getEmail(), "store status=" + boutique.getStatus());
                     throw new BusinessException(
-                            "Boutique suspendue ou annulée — contactez Matjarona",
+                            "Boutique suspendue ou annulée — contactez Get STORE",
                             HttpStatus.FORBIDDEN);
                 }
             }

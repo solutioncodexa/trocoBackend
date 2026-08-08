@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Capacités d'un plan Matjarona (parsées depuis {@code plans.features_json}).
+ * Capacités d'un plan Get STORE (parsées depuis {@code plans.features_json}).
  */
 public record PlanFeatures(
         String themes,

@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import ma.codexa.troco.security.ApiKeyAuthenticationFilter;
 import ma.codexa.troco.security.JwtAuthenticationFilter;
 import ma.codexa.troco.security.RateLimitingFilter;
+import ma.codexa.troco.security.RestAuthenticationEntryPoint;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -60,16 +61,19 @@ public class SecurityConfig {
     private final RateLimitingFilter rateLimitingFilter;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final UserDetailsService userDetailsService;
+    private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
             RateLimitingFilter rateLimitingFilter,
             @Lazy ApiKeyAuthenticationFilter apiKeyAuthenticationFilter,
-            UserDetailsService userDetailsService) {
+            UserDetailsService userDetailsService,
+            RestAuthenticationEntryPoint restAuthenticationEntryPoint) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.rateLimitingFilter = rateLimitingFilter;
         this.apiKeyAuthenticationFilter = apiKeyAuthenticationFilter;
         this.userDetailsService = userDetailsService;
+        this.restAuthenticationEntryPoint = restAuthenticationEntryPoint;
     }
 
     @Value("${app.swagger.enabled:false}")
@@ -97,12 +101,15 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 401 pour requête non authentifiée (JWT absent/expiré) → le front tente un refresh.
+                // Les refus métier (plan, activation) restent en 403 via GlobalExceptionHandler.
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(restAuthenticationEntryPoint))
                 .headers(this::configureSecurityHeaders)
                 .authorizeHttpRequests(auth -> {
                     // ─── Auth public ──────────────────────────────────────────
                     auth.requestMatchers("/auth/**").permitAll();
 
-                    // ─── Plateforme Matjarona (plans + store public + inscription) ──
+                    // ─── Plateforme Get STORE (plans + store public + inscription) ──
                     auth.requestMatchers(HttpMethod.GET, "/platform/plans").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/platform/themes").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/platform/store", "/platform/store/checkout").permitAll();
@@ -209,6 +216,9 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.PUT, "/categories/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers(HttpMethod.PATCH, "/categories/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers(HttpMethod.DELETE, "/categories/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+
+                    // ─── Modèles d'attributs de variantes (config back-office) ──
+                    auth.requestMatchers("/attribute-templates", "/attribute-templates/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Top-bar / promo / social / home hero ─────────────────
                     auth.requestMatchers("/top-bar-messages/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");

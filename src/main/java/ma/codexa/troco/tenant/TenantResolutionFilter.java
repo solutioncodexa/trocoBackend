@@ -84,7 +84,7 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
             return byDomain;
         }
 
-        // Sous-domaine : {slug}.matjarona.ma ou {slug}.localhost
+        // Sous-domaine : {slug}.getstore.com ou {slug}.localhost
         String platform = platformDomain.toLowerCase(Locale.ROOT);
         String hostLower = host.toLowerCase(Locale.ROOT);
         if (hostLower.endsWith("." + platform)) {
@@ -94,7 +94,7 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
             }
         }
 
-        // Dev local / plateforme : pas de tenant boutique (landing Matjarona)
+        // Dev local / plateforme : pas de tenant boutique (landing Get STORE)
         if ("localhost".equals(hostLower) || "127.0.0.1".equals(hostLower) || hostLower.equals(platform)
                 || hostLower.equals("www." + platform)) {
             return Optional.empty();

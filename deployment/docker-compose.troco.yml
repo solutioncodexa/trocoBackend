@@ -1,5 +1,5 @@
 # =============================================================================
-# Troco / Matjarona — sidecar sur le VPS GoldYara (même pattern que Codexa / Caldeals)
+# Troco / Get STORE — sidecar sur le VPS GoldYara (même pattern que Codexa / Caldeals)
 # =============================================================================
 # Sur le VPS (/opt/goldyara/deployment) :
 #   cp .env.troco.example .env.troco   # puis éditer secrets

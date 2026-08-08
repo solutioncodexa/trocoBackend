@@ -63,7 +63,7 @@ public class DataLoader {
 
     private void ensureDefaultPlanAndFournisseur() {
         ensurePlan("basic", "Basic",
-                "Idéal pour démarrer — jusqu'à 50 produits, sous-domaine Matjarona",
+                "Idéal pour démarrer — jusqu'à 50 produits, sous-domaine Get STORE",
                 "79.00", 50, 1, false, 100, 1, 1024);
         ensurePlan("pro", "Pro",
                 "Pour croître — 500 produits, domaine personnalisé, WhatsApp, panier abandonné",

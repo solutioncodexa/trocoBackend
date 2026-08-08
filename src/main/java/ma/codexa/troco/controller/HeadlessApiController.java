@@ -31,7 +31,7 @@ public class HeadlessApiController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String keyword) {
         Page<Product> productPage = productService.searchProductsWithFilters(
-                keyword, null, null, null, null, null, null, PageRequest.of(page, Math.min(size, 100)));
+                keyword, null, null, null, null, null, PageRequest.of(page, Math.min(size, 100)));
         return ResponseEntity.ok(ApiResponse.success(PageResponse.of(
                 productMapper.toListItemDTOList(productPage.getContent()),
                 productPage.getNumber(),

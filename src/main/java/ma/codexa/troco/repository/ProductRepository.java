@@ -44,9 +44,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     boolean existsByExternalWooId(Long externalWooId);
 
-    // Filtrer par style
-    List<Product> findByStyleAndDeletedFalse(String style);
-
     // Filtrer par catégorie
     List<Product> findByCategoryIdAndDeletedFalse(Long categoryId);
 
@@ -76,13 +73,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @EntityGraph(attributePaths = {"images", "category"})
     @Query("SELECT p FROM Product p WHERE " +
            "p.deleted = FALSE AND " +
-           "(:style IS NULL OR p.style = :style) AND " +
            "(:goldType IS NULL OR p.goldType = :goldType) AND " +
            "(:categoryId IS NULL OR p.category.id = :categoryId) AND " +
            "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
            "(:maxPrice IS NULL OR p.price <= :maxPrice)")
     List<Product> findByFilters(
-        @Param("style") String style,
         @Param("goldType") String goldType,
         @Param("categoryId") Long categoryId,
         @Param("minPrice") Double minPrice,
@@ -94,7 +89,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT p FROM Product p WHERE " +
            "p.deleted = FALSE AND " +
            "(:applyKeywordFilter = FALSE OR LOWER(p.name) LIKE :keywordPattern OR LOWER(COALESCE(p.description, '')) LIKE :keywordPattern) AND " +
-           "(:style IS NULL OR p.style = :style) AND " +
            "(:goldType IS NULL OR p.goldType = :goldType) AND " +
            "(:categoryId IS NULL OR p.category.id = :categoryId) AND " +
            "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
@@ -105,7 +99,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Page<Product> searchProductsWithFilters(
         @Param("applyKeywordFilter") boolean applyKeywordFilter,
         @Param("keywordPattern") String keywordPattern,
-        @Param("style") String style,
         @Param("goldType") String goldType,
         @Param("categoryId") Long categoryId,
         @Param("minPrice") Double minPrice,

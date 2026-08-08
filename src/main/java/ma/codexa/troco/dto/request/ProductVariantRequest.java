@@ -19,6 +19,9 @@ public class ProductVariantRequest {
     /** Valeur d'attribut (ex. 1 kg). */
     private String attributeValue;
 
+    /** Attributs multi-axes (ex. Taille + Couleur). Priment sur attributeName/attributeValue. */
+    private java.util.List<ma.codexa.troco.dto.VariantAttributeDTO> attributes;
+
     private String label;
 
     @NotNull(message = "Le prix de la variante est obligatoire")

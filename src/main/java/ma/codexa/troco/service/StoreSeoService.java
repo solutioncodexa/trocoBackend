@@ -30,7 +30,7 @@ public class StoreSeoService {
     private final StoreBlogPostRepository blogRepository;
     private final ProductRepository productRepository;
 
-    @Value("${app.platform.domain:matjarona.ma}")
+    @Value("${app.platform.domain:getstore.com}")
     private String platformDomain;
 
     @Transactional(readOnly = true)
@@ -105,7 +105,7 @@ public class StoreSeoService {
         if (f.getCustomDomain() != null && !f.getCustomDomain().isBlank() && f.isDomainVerified()) {
             return "https://" + f.getCustomDomain().trim().toLowerCase();
         }
-        String domain = platformDomain == null ? "matjarona.ma" : platformDomain.trim();
+        String domain = platformDomain == null ? "getstore.com" : platformDomain.trim();
         if ("localhost".equalsIgnoreCase(domain) || domain.contains("localhost")) {
             String proto = request != null && request.isSecure() ? "https" : "http";
             String host = request != null ? request.getServerName() : "localhost";

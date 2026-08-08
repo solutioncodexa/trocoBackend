@@ -29,7 +29,6 @@ public class ProductDetailDTO {
     private List<String> availableSizes;
     private Double weight;
     private Double marginGain;
-    private Boolean showWeight;
     /** Produit personnalisable : upload logo client sur la boutique. */
     private Boolean customizable;
 }

@@ -62,7 +62,7 @@ public class FournisseurService {
     @Value("${app.platform.default-plan-code:basic}")
     private String defaultPlanCode;
 
-    @Value("${app.platform.domain:matjarona.ma}")
+    @Value("${app.platform.domain:getstore.com}")
     private String platformDomain;
 
     /** Landing / inscription — DTO marketing (sans flag admin). */
@@ -394,7 +394,7 @@ public class FournisseurService {
         Fournisseur f = resolveFournisseur(slugOrNull);
         if (!FournisseurStatus.isStorefrontAccessible(f.getStatus())) {
             String msg = FournisseurStatus.PENDING.equalsIgnoreCase(f.getStatus())
-                    ? "Boutique en attente d'activation par Matjarona"
+                    ? "Boutique en attente d'activation par Get STORE"
                     : "Boutique temporairement indisponible";
             throw new BusinessException(msg, HttpStatus.FORBIDDEN);
         }
@@ -558,10 +558,13 @@ public class FournisseurService {
         if (request.getGoogleAdsId() != null) settings.setGoogleAdsId(blankToNull(request.getGoogleAdsId()));
         if (request.getGoogleAnalyticsId() != null) settings.setGoogleAnalyticsId(blankToNull(request.getGoogleAnalyticsId()));
         if (request.getAbandonedCartEnabled() != null) {
-            if (Boolean.TRUE.equals(request.getAbandonedCartEnabled())) {
+            boolean requested = Boolean.TRUE.equals(request.getAbandonedCartEnabled());
+            // Le flag est activé par défaut : ne bloquer que l'activation réelle
+            // (false -> true) pour ne pas empêcher la sauvegarde des autres réglages.
+            if (requested && !settings.isAbandonedCartEnabled()) {
                 planEntitlementService.assertAbandonedCartAllowed();
             }
-            settings.setAbandonedCartEnabled(request.getAbandonedCartEnabled());
+            settings.setAbandonedCartEnabled(requested);
         }
         if (request.getAbandonedCartDelayMinutes() != null) {
             int delay = Math.max(15, Math.min(request.getAbandonedCartDelayMinutes(), 7 * 24 * 60));

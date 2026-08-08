@@ -110,7 +110,6 @@ public class ProductService {
         if (product.getPrice() == null) {
             product.setPrice(0.0);
         }
-        product.setShowWeight(false);
         boolean isPromo = productVariantService.hasPromoBadge(product.getBadges());
         if (variantRequests != null && !variantRequests.isEmpty()) {
             productVariantService.applyVariants(product, variantRequests, isPromo);
@@ -155,10 +154,8 @@ public class ProductService {
         product.setStock(productDetails.getStock() != null ? productDetails.getStock() : 0);
         product.setCategory(productDetails.getCategory());
         product.setGoldType(productDetails.getGoldType());
-        product.setStyle(productDetails.getStyle());
         product.setBadges(productDetails.getBadges());
         product.setAvailableSizes(productDetails.getAvailableSizes());
-        product.setShowWeight(false);
         product.setCustomizable(productDetails.isCustomizable());
 
         // Remplacer les images par celles du DTO (nouvelles entités Image à persister)
@@ -195,11 +192,6 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public List<Product> getProductsByStyle(String style) {
-        return productRepository.findByStyleAndDeletedFalse(style);
-    }
-
-    @Transactional(readOnly = true)
     public List<Product> getProductsByCategory(Long categoryId) {
         return productRepository.findByCategoryIdAndDeletedFalse(categoryId);
     }
@@ -217,29 +209,27 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public List<Product> filterProducts(String style, String goldType,
+    public List<Product> filterProducts(String goldType,
                                        Long categoryId, Double minPrice, Double maxPrice) {
-        return productRepository.findByFilters(style, goldType,
+        return productRepository.findByFilters(goldType,
                                                categoryId, minPrice, maxPrice);
     }
 
     @Transactional(readOnly = true)
     public Page<Product> searchProductsWithFilters(
             String keyword,
-            String style,
             String goldType,
             Long categoryId,
             Double minPrice,
             Double maxPrice,
             Boolean inStock,
             Pageable pageable) {
-        return searchProductsWithFilters(keyword, style, goldType, categoryId, minPrice, maxPrice, inStock, null, pageable);
+        return searchProductsWithFilters(keyword, goldType, categoryId, minPrice, maxPrice, inStock, null, pageable);
     }
 
     @Transactional(readOnly = true)
     public Page<Product> searchProductsWithFilters(
             String keyword,
-            String style,
             String goldType,
             Long categoryId,
             Double minPrice,
@@ -254,7 +244,6 @@ public class ProductService {
         Page<Product> page = productRepository.searchProductsWithFilters(
                 applyKeywordFilter,
                 keywordPattern,
-                style,
                 goldType,
                 categoryId,
                 minPrice,

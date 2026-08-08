@@ -48,6 +48,5 @@ public class CreateProductRequest {
     private List<String> availableSizes;
     private Double weight;
     private Double marginGain;
-    private Boolean showWeight;
     private Boolean customizable;
 }

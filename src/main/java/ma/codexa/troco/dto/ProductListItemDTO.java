@@ -21,7 +21,6 @@ public class ProductListItemDTO {
     private Integer stockQuantity;
     private List<String> badges;
     private String createdAt;
-    private Boolean showWeight;
     /** Produit personnalisable (upload logo). */
     private Boolean customizable;
     private String goldType;

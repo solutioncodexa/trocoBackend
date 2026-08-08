@@ -1,4 +1,4 @@
-# Troco / Matjarona — déploiement
+# Troco / Get STORE — déploiement
 
 Deux modes :
 

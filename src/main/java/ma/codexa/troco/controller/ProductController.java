@@ -192,14 +192,12 @@ public class ProductController {
         Long categoryId = (category != null && !category.isBlank())
                 ? categoryService.getCategoryBySlug(category).map(Category::getId).orElse(null)
                 : null;
-        String style = null;
 
         String goldTypeBackend = (goldType != null && !goldType.isBlank())
                 ? MapperUtils.goldTypeToBackend(goldType)
                 : null;
 
         List<Product> products = productService.filterProducts(
-                style,
                 goldTypeBackend,
                 categoryId, minPrice, maxPrice);
 
@@ -400,7 +398,6 @@ public class ProductController {
                 .orElseThrow(() -> new IllegalArgumentException("Catégorie non trouvée: " + request.getCategory())));
         product.setShortDescription(request.getShortDescription());
         product.setSku(request.getSku());
-        product.setShowWeight(false);
         product.setCustomizable(Boolean.TRUE.equals(request.getCustomizable()));
         setProductImages(product, imageUrls);
         Product createdProduct = productService.createProduct(product, request.getVariants());
@@ -448,7 +445,6 @@ public class ProductController {
                 .orElseThrow(() -> new IllegalArgumentException("Catégorie non trouvée: " + request.getCategory())));
         updatedProduct.setShortDescription(request.getShortDescription());
         updatedProduct.setSku(request.getSku());
-        updatedProduct.setShowWeight(false);
         updatedProduct.setCustomizable(Boolean.TRUE.equals(request.getCustomizable()));
         setProductImages(updatedProduct, imageUrls);
         Product savedProduct = productService.updateProduct(id, updatedProduct, request.getVariants());
@@ -518,14 +514,12 @@ public class ProductController {
             Long categoryId = (category != null && !category.isBlank())
                     ? categoryService.getCategoryBySlug(category).map(Category::getId).orElse(null)
                     : null;
-            String style = null;
             String goldTypeBackend = (goldType != null && !goldType.isBlank())
                     ? MapperUtils.goldTypeToBackend(goldType)
                     : null;
 
             return productService.searchProductsWithFilters(
                     kw,
-                    style,
                     goldTypeBackend,
                     categoryId,
                     minPrice,
@@ -552,7 +546,6 @@ public class ProductController {
         dto.setMarginGain(request.getMarginGain());
         dto.setWeight(request.getWeight());
         dto.setBadges(request.getBadges());
-        dto.setShowWeight(false);
         dto.setCustomizable(Boolean.TRUE.equals(request.getCustomizable()));
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
             dto.setVariants(request.getVariants().stream().map(v -> {

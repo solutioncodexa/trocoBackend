@@ -65,8 +65,6 @@ public class Product extends TenantScoped {
     @Column(name = "gold_type")
     private String goldType;
 
-    private String style;
-
     @Column(name = "badges")
     private String badges;
 
@@ -81,9 +79,6 @@ public class Product extends TenantScoped {
 
     @Column(nullable = false)
     private boolean deleted = false;
-
-    @Column(name = "show_weight", nullable = false)
-    private boolean showWeight = false;
 
     /** Si true, le client peut uploader son logo sur la fiche produit. */
     @Column(name = "customizable", nullable = false)

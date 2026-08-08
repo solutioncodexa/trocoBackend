@@ -155,6 +155,19 @@ public class ProductVariantService {
             boolean hasDefault) {
         String attrValue = req.getAttributeValue() != null ? req.getAttributeValue().trim() : null;
         String attrName = req.getAttributeName() != null ? req.getAttributeName().trim() : null;
+
+        // Multi-axes : si des attributs détaillés sont fournis, ils priment et sont
+        // sérialisés dans attributes_json. Le mono-axe (name/value) reste alimenté par
+        // le 1er axe pour compat filtres/vues existantes.
+        List<VariantAttributeDTO> cleanedAttrs = cleanAttributes(req.getAttributes());
+        if (!cleanedAttrs.isEmpty()) {
+            variant.setAttributesJson(writeAttributes(cleanedAttrs));
+            attrName = cleanedAttrs.get(0).getName();
+            attrValue = cleanedAttrs.get(0).getValue();
+        } else {
+            variant.setAttributesJson(null);
+        }
+
         variant.setAttributeName(attrName);
         variant.setAttributeValue(attrValue);
         variant.setSku(req.getSku());
@@ -174,7 +187,13 @@ public class ProductVariantService {
 
         String label = req.getLabel();
         if (label == null || label.isBlank()) {
-            label = attrValue != null && !attrValue.isBlank() ? attrValue : "Standard";
+            if (!cleanedAttrs.isEmpty()) {
+                label = cleanedAttrs.stream()
+                        .map(VariantAttributeDTO::getValue)
+                        .collect(Collectors.joining(" · "));
+            } else {
+                label = attrValue != null && !attrValue.isBlank() ? attrValue : "Standard";
+            }
         }
         variant.setLabel(label.trim());
 
@@ -255,6 +274,26 @@ public class ProductVariantService {
             fallback.add(new VariantAttributeDTO(v.getAttributeName(), v.getAttributeValue()));
         }
         return fallback;
+    }
+
+    private List<VariantAttributeDTO> cleanAttributes(List<VariantAttributeDTO> attrs) {
+        if (attrs == null || attrs.isEmpty()) {
+            return List.of();
+        }
+        return attrs.stream()
+                .filter(a -> a != null
+                        && a.getName() != null && !a.getName().isBlank()
+                        && a.getValue() != null && !a.getValue().isBlank())
+                .map(a -> new VariantAttributeDTO(a.getName().trim(), a.getValue().trim()))
+                .toList();
+    }
+
+    private String writeAttributes(List<VariantAttributeDTO> attrs) {
+        try {
+            return objectMapper.writeValueAsString(attrs);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private double round2(double value) {

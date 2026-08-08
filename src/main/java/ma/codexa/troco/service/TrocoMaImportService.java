@@ -154,7 +154,6 @@ public class TrocoMaImportService {
         }
         product.setSku(textOrNull(sp.path("sku")));
         product.setDeleted(false);
-        product.setShowWeight(false);
         product.setStock(0);
 
         Category category = resolveCategory(sp, catsByWooId);
