@@ -33,7 +33,7 @@ public class FeaturedProductDTO {
         private Double price;
         private String imageUrl;
         private String category;
-        private String goldType;
+        private String marque;
         private Double weight;
         private Boolean isActive;
     }

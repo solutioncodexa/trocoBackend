@@ -25,7 +25,8 @@ public class ProductDetailDTO {
     private String createdAt;
     private Boolean deleted;
     private List<ProductVariantDTO> variants;
-    private String goldType;
+    /** Marque / label produit (optionnel). */
+    private String marque;
     private List<String> availableSizes;
     private Double weight;
     private Double marginGain;

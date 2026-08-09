@@ -51,6 +51,10 @@ public class Product extends TenantScoped {
     @Column(length = 100)
     private String sku;
 
+    /** Marque / label produit (ex. Apple, Samsung) — filtre catalogue. */
+    @Column(length = 120)
+    private String marque;
+
     /** ID produit WooCommerce source (import troco.ma), pour idempotence. */
     @Column(name = "external_woo_id")
     private Long externalWooId;
@@ -61,9 +65,6 @@ public class Product extends TenantScoped {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
-
-    @Column(name = "gold_type")
-    private String goldType;
 
     @Column(name = "badges")
     private String badges;

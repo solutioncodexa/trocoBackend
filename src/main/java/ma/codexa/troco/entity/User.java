@@ -45,6 +45,13 @@ public class User {
     @Column(name = "permission_code", nullable = false, length = 80)
     private Set<String> permissionCodes = new HashSet<>();
 
+    /**
+     * Préférences UI JSON (guide admin, etc.).
+     * Ex. {@code {"adminGuideVersion":1,"adminGuideCompleted":true}}
+     */
+    @Column(name = "ui_preferences_json", columnDefinition = "TEXT")
+    private String uiPreferencesJson;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

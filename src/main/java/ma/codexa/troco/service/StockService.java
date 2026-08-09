@@ -39,6 +39,25 @@ public class StockService {
     private final NotificationService notificationService;
     private final AuditLogService auditLog;
 
+    /**
+     * Lecture seule : settings existants ou defaults en mémoire (pas d'INSERT).
+     * Évite « cannot execute INSERT in a read-only transaction » depuis /stats/dashboard.
+     */
+    @Transactional(readOnly = true)
+    public StockSettings resolveSettings() {
+        Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        if (fid != null) {
+            return stockSettingsRepository.findFirstByFournisseurId(fid).orElseGet(() -> {
+                StockSettings s = newStockDefaults();
+                s.setFournisseurId(fid);
+                return s;
+            });
+        }
+        return stockSettingsRepository.findAll().stream().findFirst().orElseGet(StockService::newStockDefaults);
+    }
+
+    /** Persiste les settings s'ils n'existent pas (chemins en écriture uniquement). */
+    @Transactional
     public StockSettings getOrCreateSettings() {
         Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
         if (fid != null) {
@@ -64,7 +83,7 @@ public class StockService {
 
     @Transactional(readOnly = true)
     public StockSettingsDTO getSettings() {
-        return toSettingsDto(getOrCreateSettings());
+        return toSettingsDto(resolveSettings());
     }
 
     @Transactional
@@ -103,7 +122,7 @@ public class StockService {
 
     @Transactional(readOnly = true)
     public StockOverviewDTO getOverview() {
-        StockSettings settings = getOrCreateSettings();
+        StockSettings settings = resolveSettings();
         List<StockVariantRowDTO> rows = listVariantRows(null);
         long low = rows.stream().filter(r -> "LOW".equals(r.getStatus())).count();
         long out = rows.stream().filter(r -> "OUT".equals(r.getStatus())).count();
@@ -136,8 +155,9 @@ public class StockService {
     }
 
     /** Liste paginée des variantes stock. */
+    @Transactional(readOnly = true)
     public PageResponse<StockVariantRowDTO> listVariantRows(String filter, int page, int size) {
-        StockSettings settings = getOrCreateSettings();
+        StockSettings settings = resolveSettings();
         LocalDate expiryLimit = LocalDate.now().plusDays(settings.getExpiryAlertDays());
         String f = filter != null ? filter.trim().toLowerCase(Locale.ROOT) : "all";
         List<StockVariantRowDTO> result = new ArrayList<>();

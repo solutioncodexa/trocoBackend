@@ -41,28 +41,6 @@ public class MapperUtils {
         return category != null && category.equalsIgnoreCase("beldi") ? "BELDI" : "MODERNE";
     }
 
-    public static String goldTypeToFrontend(String goldType) {
-        if (goldType == null) return null;
-        return switch (goldType.toUpperCase()) {
-            case "BLANC" -> "white";
-            case "ROUGE" -> "rose";
-            case "DOREE", "JAUNE", "YELLOW" -> "yellow";
-            case "WHITE" -> "white";
-            case "ROSE" -> "rose";
-            default -> goldType.toLowerCase();
-        };
-    }
-
-    public static String goldTypeToBackend(String goldType) {
-        if (goldType == null) return null;
-        return switch (goldType.toLowerCase()) {
-            case "white" -> "WHITE";
-            case "rose" -> "ROSE";
-            case "yellow" -> "YELLOW";
-            default -> goldType.toUpperCase();
-        };
-    }
-
     public static List<String> imagesToList(List<Image> images) {
         if (images == null || images.isEmpty()) {
             return List.of();

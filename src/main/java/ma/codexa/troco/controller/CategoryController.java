@@ -5,10 +5,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
+import ma.codexa.troco.dto.BulkCategoryResultDTO;
 import ma.codexa.troco.dto.CategoryCardDTO;
 import ma.codexa.troco.dto.CategoryDTO;
 import ma.codexa.troco.dto.CategoryHeroDTO;
 import ma.codexa.troco.dto.CategoryNavDTO;
+import ma.codexa.troco.dto.request.BulkCategoryActiveRequest;
+import ma.codexa.troco.dto.request.BulkCategoryIdsRequest;
 import ma.codexa.troco.dto.request.CreateCategoryRequest;
 import ma.codexa.troco.dto.request.HeroCategoryPatchRequest;
 import ma.codexa.troco.dto.request.UpdateCategoryRequest;
@@ -100,5 +103,35 @@ public class CategoryController {
     public ResponseEntity<Void> deleteCategory(@PathVariable Long id) {
         categoryService.deleteCategory(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Supprimer plusieurs catégories (enfants d’abord)")
+    @PostMapping("/bulk-delete")
+    public ResponseEntity<ApiResponse<BulkCategoryResultDTO>> bulkDelete(
+            @Valid @RequestBody BulkCategoryIdsRequest request) {
+        BulkCategoryResultDTO result = categoryService.deleteCategories(request.getIds());
+        return ResponseEntity.ok(ApiResponse.success(result,
+                result.getFailureCount() == 0 ? "Suppression terminée" : "Suppression partielle"));
+    }
+
+    @Operation(summary = "Activer / désactiver plusieurs catégories")
+    @PostMapping("/bulk-active")
+    public ResponseEntity<ApiResponse<BulkCategoryResultDTO>> bulkActive(
+            @Valid @RequestBody BulkCategoryActiveRequest request) {
+        BulkCategoryResultDTO result = categoryService.setCategoriesActive(
+                request.getIds(), Boolean.TRUE.equals(request.getActive()));
+        String msg = Boolean.TRUE.equals(request.getActive()) ? "Activation terminée" : "Désactivation terminée";
+        return ResponseEntity.ok(ApiResponse.success(result,
+                result.getFailureCount() == 0 ? msg : msg + " (partielle)"));
+    }
+
+    @Operation(summary = "Activer / désactiver une catégorie")
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<ApiResponse<CategoryDTO>> setActive(
+            @PathVariable Long id,
+            @RequestParam boolean active) {
+        return ResponseEntity.ok(ApiResponse.success(
+                categoryService.setCategoryActive(id, active),
+                active ? "Catégorie activée" : "Catégorie désactivée"));
     }
 }

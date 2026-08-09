@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.codexa.troco.common.exception.BusinessException;
 import ma.codexa.troco.common.exception.ResourceNotFoundException;
+import ma.codexa.troco.dto.BulkCategoryResultDTO;
 import ma.codexa.troco.dto.CategoryCardDTO;
 import ma.codexa.troco.dto.CategoryDTO;
 import ma.codexa.troco.dto.CategoryHeroDTO;
@@ -60,10 +61,11 @@ public class CategoryService {
                 .toList();
     }
 
-    /** Footer / nav — sans description ni productCount (évite N+1). */
+    /** Footer / nav — sans description ni productCount (évite N+1). Actives seulement. */
     @Transactional(readOnly = true)
     public List<CategoryNavDTO> getNavCategoryDtos() {
         return categoryRepository.findAll().stream()
+                .filter(this::isActive)
                 .map(c -> new CategoryNavDTO(
                         c.getId(),
                         c.getName(),
@@ -74,10 +76,11 @@ public class CategoryService {
                 .toList();
     }
 
-    /** Cartes vitrine (home / page builder) — sans productCount. */
+    /** Cartes vitrine (home / page builder) — sans productCount. Actives seulement. */
     @Transactional(readOnly = true)
     public List<CategoryCardDTO> getCardCategoryDtos() {
         return categoryRepository.findAll().stream()
+                .filter(this::isActive)
                 .map(c -> new CategoryCardDTO(
                         c.getId(),
                         c.getName(),
@@ -159,6 +162,7 @@ public class CategoryService {
         category.setDescription(blankToNull(request.getDescription()));
         category.setParent(resolveParent(request.getParentId(), null));
         category.setShowOnHero(false);
+        category.setActive(true);
         Category saved = categoryRepository.save(category);
         log.info("Creating category: {}", saved.getSlug());
         return toDto(saved);
@@ -238,6 +242,75 @@ public class CategoryService {
         log.info("Deleted category with id: {}", id);
     }
 
+    /**
+     * Suppression en masse : enfants d’abord, puis parents.
+     * Continue sur les autres en cas d’échec partiel.
+     */
+    @CacheEvict(cacheNames = {"categories", "heroCategories"}, allEntries = true)
+    public BulkCategoryResultDTO deleteCategories(List<Long> ids) {
+        List<Long> ordered = orderForDeletion(ids);
+        int ok = 0;
+        List<String> errors = new java.util.ArrayList<>();
+        for (Long id : ordered) {
+            try {
+                deleteCategory(id);
+                ok += 1;
+            } catch (BusinessException ex) {
+                errors.add(ex.getMessage());
+            } catch (Exception ex) {
+                errors.add("Catégorie " + id + " : " + ex.getMessage());
+            }
+        }
+        return BulkCategoryResultDTO.builder()
+                .successCount(ok)
+                .failureCount(errors.size())
+                .errors(errors)
+                .build();
+    }
+
+    @CacheEvict(cacheNames = {"categories", "heroCategories"}, allEntries = true)
+    public BulkCategoryResultDTO setCategoriesActive(List<Long> ids, boolean active) {
+        int ok = 0;
+        List<String> errors = new java.util.ArrayList<>();
+        for (Long id : ids) {
+            if (id == null) continue;
+            try {
+                Category category = categoryRepository.findById(id)
+                        .orElseThrow(() -> new ResourceNotFoundException("Catégorie", id));
+                category.setActive(active);
+                if (!active) {
+                    category.setShowOnHero(false);
+                }
+                categoryRepository.save(category);
+                ok += 1;
+            } catch (ResourceNotFoundException ex) {
+                errors.add(ex.getMessage());
+            } catch (Exception ex) {
+                errors.add("Catégorie " + id + " : " + ex.getMessage());
+            }
+        }
+        return BulkCategoryResultDTO.builder()
+                .successCount(ok)
+                .failureCount(errors.size())
+                .errors(errors)
+                .build();
+    }
+
+    @CacheEvict(cacheNames = {"categories", "heroCategories"}, allEntries = true)
+    public CategoryDTO setCategoryActive(Long id, boolean active) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Catégorie", id));
+        category.setActive(active);
+        if (!active) {
+            category.setShowOnHero(false);
+        }
+        Category saved = categoryRepository.save(category);
+        if (saved.getParent() != null) {
+            Hibernate.initialize(saved.getParent());
+        }
+        return toDto(saved);
+    }
+
     @CacheEvict(cacheNames = {"categories", "heroCategories"}, allEntries = true)
     public CategoryDTO patchHeroCategory(Long id, HeroCategoryPatchRequest patch) {
         Category category = categoryRepository.findById(id)
@@ -305,7 +378,36 @@ public class CategoryService {
                 .showOnHero(Boolean.TRUE.equals(category.getShowOnHero()))
                 .heroSortOrder(category.getHeroSortOrder())
                 .productCount(productCount)
+                .active(isActive(category))
                 .build();
+    }
+
+    private boolean isActive(Category category) {
+        return category.getActive() == null || Boolean.TRUE.equals(category.getActive());
+    }
+
+    /** Enfants avant parents pour permettre la suppression groupée d’une branche. */
+    private List<Long> orderForDeletion(List<Long> ids) {
+        java.util.Set<Long> wanted = new java.util.LinkedHashSet<>();
+        for (Long id : ids) {
+            if (id != null) wanted.add(id);
+        }
+        Map<Long, Category> byId = new HashMap<>();
+        for (Category c : categoryRepository.findAll()) {
+            byId.put(c.getId(), c);
+        }
+        return wanted.stream()
+                .sorted((a, b) -> {
+                    Category ca = byId.get(a);
+                    Category cb = byId.get(b);
+                    boolean aChild = ca != null && ca.getParent() != null;
+                    boolean bChild = cb != null && cb.getParent() != null;
+                    if (aChild != bChild) {
+                        return aChild ? -1 : 1; // children first
+                    }
+                    return Long.compare(a, b);
+                })
+                .toList();
     }
 
     private Map<Long, Long> loadProductCountsByCategory() {

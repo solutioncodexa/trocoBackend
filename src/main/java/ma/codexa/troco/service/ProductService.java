@@ -153,7 +153,7 @@ public class ProductService {
 
         product.setStock(productDetails.getStock() != null ? productDetails.getStock() : 0);
         product.setCategory(productDetails.getCategory());
-        product.setGoldType(productDetails.getGoldType());
+        product.setMarque(productDetails.getMarque());
         product.setBadges(productDetails.getBadges());
         product.setAvailableSizes(productDetails.getAvailableSizes());
         product.setCustomizable(productDetails.isCustomizable());
@@ -209,28 +209,29 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public List<Product> filterProducts(String goldType,
+    public List<Product> filterProducts(String marque,
                                        Long categoryId, Double minPrice, Double maxPrice) {
-        return productRepository.findByFilters(goldType,
+        String marqueFilter = marque != null && !marque.isBlank() ? marque.trim().toLowerCase() : null;
+        return productRepository.findByFilters(marqueFilter,
                                                categoryId, minPrice, maxPrice);
     }
 
     @Transactional(readOnly = true)
     public Page<Product> searchProductsWithFilters(
             String keyword,
-            String goldType,
+            String marque,
             Long categoryId,
             Double minPrice,
             Double maxPrice,
             Boolean inStock,
             Pageable pageable) {
-        return searchProductsWithFilters(keyword, goldType, categoryId, minPrice, maxPrice, inStock, null, pageable);
+        return searchProductsWithFilters(keyword, marque, categoryId, minPrice, maxPrice, inStock, null, pageable);
     }
 
     @Transactional(readOnly = true)
     public Page<Product> searchProductsWithFilters(
             String keyword,
-            String goldType,
+            String marque,
             Long categoryId,
             Double minPrice,
             Double maxPrice,
@@ -239,12 +240,14 @@ public class ProductService {
             Pageable pageable) {
         boolean applyKeywordFilter = keyword != null && !keyword.isBlank();
         String keywordPattern = applyKeywordFilter ? "%" + keyword.toLowerCase() + "%" : "%";
-        String sizeFilter = size != null && !size.isBlank() ? size.trim() : null;
+        // Lowercase ici : la requête compare à LOWER(colonne) sans LOWER(:param) (évite lower(bytea))
+        String sizeFilter = size != null && !size.isBlank() ? size.trim().toLowerCase() : null;
+        String marqueFilter = marque != null && !marque.isBlank() ? marque.trim().toLowerCase() : null;
 
         Page<Product> page = productRepository.searchProductsWithFilters(
                 applyKeywordFilter,
                 keywordPattern,
-                goldType,
+                marqueFilter,
                 categoryId,
                 minPrice,
                 maxPrice,

@@ -15,7 +15,6 @@ public interface ProductMapper {
 
     @Mapping(target = "id", expression = "java(product.getId() != null ? product.getId().toString() : null)")
     @Mapping(target = "category", source = "category", qualifiedByName = "categoryToSlug")
-    @Mapping(target = "goldType", source = "goldType", qualifiedByName = "goldTypeToFrontend")
     @Mapping(target = "stockQuantity", source = "stock")
     @Mapping(target = "images", source = "images", qualifiedByName = "imagesToList")
     @Mapping(target = "availableSizes", source = "availableSizes", qualifiedByName = "stringToList")
@@ -28,7 +27,6 @@ public interface ProductMapper {
 
     @Mapping(target = "id", expression = "java(product.getId() != null ? product.getId().toString() : null)")
     @Mapping(target = "category", source = "category", qualifiedByName = "categoryToSlug")
-    @Mapping(target = "goldType", source = "goldType", qualifiedByName = "goldTypeToFrontend")
     @Mapping(target = "stockQuantity", source = "stock")
     @Mapping(target = "images", source = "images", qualifiedByName = "imagesToListFirst")
     @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToList")
@@ -40,7 +38,6 @@ public interface ProductMapper {
     List<ProductListItemDTO> toListItemDTOList(List<Product> products);
 
     @Mapping(target = "id", expression = "java(dto.getId() != null && !dto.getId().isEmpty() ? Long.parseLong(dto.getId()) : null)")
-    @Mapping(target = "goldType", source = "goldType", qualifiedByName = "goldTypeToBackend")
     @Mapping(target = "stock", source = "stockQuantity")
     @Mapping(target = "availableSizes", source = "availableSizes", qualifiedByName = "listToString")
     @Mapping(target = "badges", source = "badges", qualifiedByName = "badgesToString")
@@ -58,16 +55,6 @@ public interface ProductMapper {
     @Named("categoryToSlug")
     default String categoryToSlug(ma.codexa.troco.entity.Category category) {
         return category != null ? category.getSlug() : null;
-    }
-
-    @Named("goldTypeToFrontend")
-    default String goldTypeToFrontend(String goldType) {
-        return MapperUtils.goldTypeToFrontend(goldType);
-    }
-
-    @Named("goldTypeToBackend")
-    default String goldTypeToBackend(String goldType) {
-        return MapperUtils.goldTypeToBackend(goldType);
     }
 
     @Named("imagesToList")

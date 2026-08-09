@@ -20,4 +20,6 @@ public class CategoryDTO {
     private Boolean showOnHero;
     private Integer heroSortOrder;
     private Long productCount;
+    /** false = désactivée (masquée vitrine). */
+    private Boolean active;
 }

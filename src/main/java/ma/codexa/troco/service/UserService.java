@@ -1,5 +1,8 @@
 package ma.codexa.troco.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.codexa.troco.common.exception.BusinessException;
@@ -7,6 +10,7 @@ import ma.codexa.troco.config.JwtProperties;
 import ma.codexa.troco.dto.AuthResponse;
 import ma.codexa.troco.dto.RefreshTokenRequest;
 import ma.codexa.troco.dto.UserInfoDTO;
+import ma.codexa.troco.dto.request.AdminGuidePreferenceRequest;
 import ma.codexa.troco.dto.request.LoginRequest;
 import ma.codexa.troco.dto.request.RegisterRequest;
 import ma.codexa.troco.entity.RefreshToken;
@@ -45,6 +49,10 @@ public class UserService {
     private final JwtProperties jwtProperties;
     private final AuditLogService auditLog;
     private final PermissionCheckService permissionCheckService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /** Version du guide : incrémenter pour réafficher après une grosse refonte UI. */
+    public static final int ADMIN_GUIDE_VERSION = 1;
 
     private static final String ROLE_CUSTOMER = "CUSTOMER";
     private static final String ROLE_ADMIN = "ADMIN";
@@ -212,15 +220,63 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserInfoDTO getCurrentUser(String email) {
         return userRepository.findByEmail(email)
-                .map(u -> new UserInfoDTO(
-                        u.getId(),
-                        u.getEmail(),
-                        u.getRole(),
-                        u.getFullName(),
-                        u.isActive(),
-                        u.getFournisseurId(),
-                        permissionCheckService.resolvePermissions(u)))
+                .map(this::toUserInfo)
                 .orElse(null);
+    }
+
+    /**
+     * Persiste l’état du guide 1ère utilisation admin (ne plus l’afficher à chaque visite).
+     */
+    @Transactional
+    public UserInfoDTO updateAdminGuidePreference(String email, AdminGuidePreferenceRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException("Utilisateur non trouvé", HttpStatus.NOT_FOUND));
+        try {
+            ObjectNode root;
+            if (user.getUiPreferencesJson() != null && !user.getUiPreferencesJson().isBlank()) {
+                JsonNode parsed = objectMapper.readTree(user.getUiPreferencesJson());
+                root = parsed.isObject() ? (ObjectNode) parsed : objectMapper.createObjectNode();
+            } else {
+                root = objectMapper.createObjectNode();
+            }
+            root.put("adminGuideVersion", ADMIN_GUIDE_VERSION);
+            root.put("adminGuideCompleted", Boolean.TRUE.equals(request.completed()));
+            user.setUiPreferencesJson(objectMapper.writeValueAsString(root));
+            userRepository.save(user);
+            log.info("admin_guide_preference userId={} completed={}", user.getId(), request.completed());
+            return toUserInfo(user);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("Impossible d’enregistrer la préférence guide", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private UserInfoDTO toUserInfo(User u) {
+        return new UserInfoDTO(
+                u.getId(),
+                u.getEmail(),
+                u.getRole(),
+                u.getFullName(),
+                u.isActive(),
+                u.getFournisseurId(),
+                permissionCheckService.resolvePermissions(u),
+                isAdminGuideCompleted(u));
+    }
+
+    private boolean isAdminGuideCompleted(User u) {
+        String json = u.getUiPreferencesJson();
+        if (json == null || json.isBlank()) {
+            return false;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            int version = root.path("adminGuideVersion").asInt(0);
+            boolean completed = root.path("adminGuideCompleted").asBoolean(false);
+            return completed && version >= ADMIN_GUIDE_VERSION;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private String createRefreshToken(User user) {

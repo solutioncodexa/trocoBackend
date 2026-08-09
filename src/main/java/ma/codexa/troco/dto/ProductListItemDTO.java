@@ -23,6 +23,7 @@ public class ProductListItemDTO {
     private String createdAt;
     /** Produit personnalisable (upload logo). */
     private Boolean customizable;
-    private String goldType;
+    /** Marque / label produit (optionnel). */
+    private String marque;
     private Double weight;
 }

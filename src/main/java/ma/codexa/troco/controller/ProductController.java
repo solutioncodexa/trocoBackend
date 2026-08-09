@@ -21,7 +21,6 @@ import ma.codexa.troco.dto.request.CreateProductRequest;
 import ma.codexa.troco.entity.Category;
 import ma.codexa.troco.entity.Image;
 import ma.codexa.troco.entity.Product;
-import ma.codexa.troco.mapper.MapperUtils;
 import ma.codexa.troco.mapper.ProductDtoMapper;
 import ma.codexa.troco.mapper.ProductMapper;
 import ma.codexa.troco.service.CategoryService;
@@ -113,7 +112,7 @@ public class ProductController {
             @Parameter(description = "Direction de tri (ASC ou DESC)", example = "DESC")
             @RequestParam(defaultValue = ApiConstants.DEFAULT_SORT_DIRECTION) String sortDir,
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String goldType,
+            @RequestParam(required = false) String marque,
             @RequestParam(required = false) Double minPrice,
             @RequestParam(required = false) Double maxPrice,
             @RequestParam(required = false) Boolean inStock,
@@ -124,7 +123,7 @@ public class ProductController {
                 page, size, sortBy, sortDir);
 
         Page<Product> productPage = loadProductPage(page, size, sortBy, sortDir,
-                category, goldType, minPrice, maxPrice, inStock, keyword, facetSize);
+                category, marque, minPrice, maxPrice, inStock, keyword, facetSize);
 
         PageResponse<ProductListItemDTO> pageResponse = PageResponse.of(
                 productMapper.toListItemDTOList(productPage.getContent()),
@@ -143,7 +142,7 @@ public class ProductController {
             @RequestParam(defaultValue = ApiConstants.DEFAULT_SORT_BY) String sortBy,
             @RequestParam(defaultValue = ApiConstants.DEFAULT_SORT_DIRECTION) String sortDir,
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String goldType,
+            @RequestParam(required = false) String marque,
             @RequestParam(required = false) Double minPrice,
             @RequestParam(required = false) Double maxPrice,
             @RequestParam(required = false) Boolean inStock,
@@ -151,7 +150,7 @@ public class ProductController {
             @RequestParam(required = false) String facetSize) {
 
         Page<Product> productPage = loadProductPage(page, size, sortBy, sortDir,
-                category, goldType, minPrice, maxPrice, inStock, keyword, facetSize);
+                category, marque, minPrice, maxPrice, inStock, keyword, facetSize);
 
         PageResponse<ProductDetailDTO> pageResponse = PageResponse.of(
                 productDtoMapper.toDetailDTOList(productPage.getContent()),
@@ -182,23 +181,21 @@ public class ProductController {
     @GetMapping("/filter")
     public ResponseEntity<ApiResponse<List<ProductListItemDTO>>> filterProducts(
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String goldType,
+            @RequestParam(required = false) String marque,
             @RequestParam(required = false) Double minPrice,
             @RequestParam(required = false) Double maxPrice,
             @RequestParam(required = false) Boolean inStock) {
 
-        log.debug("Filtrage des produits - category: {}, goldType: {}", category, goldType);
+        log.debug("Filtrage des produits - category: {}, marque: {}", category, marque);
 
         Long categoryId = (category != null && !category.isBlank())
                 ? categoryService.getCategoryBySlug(category).map(Category::getId).orElse(null)
                 : null;
 
-        String goldTypeBackend = (goldType != null && !goldType.isBlank())
-                ? MapperUtils.goldTypeToBackend(goldType)
-                : null;
+        String marqueFilter = (marque != null && !marque.isBlank()) ? marque.trim() : null;
 
         List<Product> products = productService.filterProducts(
-                goldTypeBackend,
+                marqueFilter,
                 categoryId, minPrice, maxPrice);
 
         List<Product> filteredProducts = products.stream()
@@ -261,7 +258,7 @@ public class ProductController {
                         productInfo.put("name", product.getName());
                         productInfo.put("description", product.getDescription());
                         productInfo.put("price", product.getPrice());
-                        productInfo.put("goldType", product.getGoldType());
+                        productInfo.put("marque", product.getMarque());
                         
                         // Image du produit
                         if (!product.getImages().isEmpty()) {
@@ -398,6 +395,8 @@ public class ProductController {
                 .orElseThrow(() -> new IllegalArgumentException("Catégorie non trouvée: " + request.getCategory())));
         product.setShortDescription(request.getShortDescription());
         product.setSku(request.getSku());
+        product.setMarque(request.getMarque() != null && !request.getMarque().isBlank()
+                ? request.getMarque().trim() : null);
         product.setCustomizable(Boolean.TRUE.equals(request.getCustomizable()));
         setProductImages(product, imageUrls);
         Product createdProduct = productService.createProduct(product, request.getVariants());
@@ -445,6 +444,8 @@ public class ProductController {
                 .orElseThrow(() -> new IllegalArgumentException("Catégorie non trouvée: " + request.getCategory())));
         updatedProduct.setShortDescription(request.getShortDescription());
         updatedProduct.setSku(request.getSku());
+        updatedProduct.setMarque(request.getMarque() != null && !request.getMarque().isBlank()
+                ? request.getMarque().trim() : null);
         updatedProduct.setCustomizable(Boolean.TRUE.equals(request.getCustomizable()));
         setProductImages(updatedProduct, imageUrls);
         Product savedProduct = productService.updateProduct(id, updatedProduct, request.getVariants());
@@ -479,7 +480,7 @@ public class ProductController {
             String sortBy,
             String sortDir,
             String category,
-            String goldType,
+            String marque,
             Double minPrice,
             Double maxPrice,
             Boolean inStock,
@@ -502,9 +503,10 @@ public class ProductController {
 
         String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
         String sizeFacet = (facetSize != null && !facetSize.isBlank()) ? facetSize.trim() : null;
+        String marqueFilter = (marque != null && !marque.isBlank()) ? marque.trim() : null;
         boolean useFilters = kw != null
                 || (category != null && !category.isBlank())
-                || (goldType != null && !goldType.isBlank())
+                || marqueFilter != null
                 || minPrice != null
                 || maxPrice != null
                 || Boolean.TRUE.equals(inStock)
@@ -514,13 +516,10 @@ public class ProductController {
             Long categoryId = (category != null && !category.isBlank())
                     ? categoryService.getCategoryBySlug(category).map(Category::getId).orElse(null)
                     : null;
-            String goldTypeBackend = (goldType != null && !goldType.isBlank())
-                    ? MapperUtils.goldTypeToBackend(goldType)
-                    : null;
 
             return productService.searchProductsWithFilters(
                     kw,
-                    goldTypeBackend,
+                    marqueFilter,
                     categoryId,
                     minPrice,
                     maxPrice,
@@ -540,7 +539,7 @@ public class ProductController {
         dto.setOriginalPrice(request.getOriginalPrice());
         dto.setCategory(request.getCategory());
         dto.setSku(request.getSku());
-        dto.setGoldType(request.getGoldType());
+        dto.setMarque(request.getMarque());
         dto.setAvailableSizes(request.getAvailableSizes());
         dto.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 0);
         dto.setMarginGain(request.getMarginGain());

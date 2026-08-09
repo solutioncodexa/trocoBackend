@@ -57,11 +57,22 @@ public class Category extends TenantScoped {
     @Column(name = "hero_sort_order")
     private Integer heroSortOrder;
 
+    /**
+     * Si false, la catégorie est masquée de la vitrine (nav / cartes / hero)
+     * mais reste visible et éditable en admin.
+     * Nullable en base pour compat ddl-auto / Neon ; défaut applicatif = true.
+     */
+    @Column(name = "active")
+    private Boolean active = Boolean.TRUE;
+
     @PrePersist
     @PreUpdate
     void normalizeHeroDefaults() {
         if (showOnHero == null) {
             showOnHero = Boolean.FALSE;
+        }
+        if (active == null) {
+            active = Boolean.TRUE;
         }
     }
 }

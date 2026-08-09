@@ -21,9 +21,34 @@ public class PlatformGapsSchemaBootstrap implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        bootstrapDropLegacyProductColumns();
+        bootstrapUserUiPreferences();
         bootstrapStoreSettingsAndOrders();
         bootstrapCommerceTables();
         bootstrapPlanMatrix();
+    }
+
+    private void bootstrapUserUiPreferences() {
+        try {
+            jdbc.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_preferences_json TEXT");
+            log.info("bootstrap_user_ui_preferences_ok");
+        } catch (Exception e) {
+            log.warn("bootstrap_user_ui_preferences_failed: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * show_weight / style retirés du modèle Product — Hibernate ddl-auto=update ne drop pas.
+     * Sans ça, INSERT produit échoue (NOT NULL show_weight) si Flyway V42 n'a pas tourné.
+     */
+    private void bootstrapDropLegacyProductColumns() {
+        try {
+            jdbc.execute("ALTER TABLE products DROP COLUMN IF EXISTS show_weight");
+            jdbc.execute("ALTER TABLE products DROP COLUMN IF EXISTS style");
+            log.info("bootstrap_drop_legacy_product_columns_ok");
+        } catch (Exception e) {
+            log.warn("bootstrap_drop_legacy_product_columns_failed: {}", e.getMessage());
+        }
     }
 
     private void bootstrapStoreSettingsAndOrders() {

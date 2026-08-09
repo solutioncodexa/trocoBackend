@@ -43,8 +43,11 @@ public class CreateProductRequest {
     private List<@Pattern(regexp = "new|bestseller|promo",
                          message = "Les badges valides sont: new, bestseller, promo") String> badges;
 
+    /** Marque / label produit (ex. Apple, Nike). */
+    @Size(max = 120)
+    private String marque;
+
     /** Champs legacy optionnels (compat). */
-    private String goldType;
     private List<String> availableSizes;
     private Double weight;
     private Double marginGain;

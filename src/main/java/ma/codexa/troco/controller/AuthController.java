@@ -8,6 +8,7 @@ import ma.codexa.troco.common.ApiResponse;
 import ma.codexa.troco.dto.AuthResponse;
 import ma.codexa.troco.dto.RefreshTokenRequest;
 import ma.codexa.troco.dto.UserInfoDTO;
+import ma.codexa.troco.dto.request.AdminGuidePreferenceRequest;
 import ma.codexa.troco.dto.request.LoginRequest;
 import ma.codexa.troco.dto.request.RegisterRequest;
 import ma.codexa.troco.security.UserDetailsImpl;
@@ -62,5 +63,17 @@ public class AuthController {
         return user != null
                 ? ResponseEntity.ok(ApiResponse.success(user))
                 : ResponseEntity.status(404).body(ApiResponse.error("Utilisateur non trouvé", 404));
+    }
+
+    @Operation(summary = "Marquer le guide 1ère utilisation admin (persisté en base)")
+    @PatchMapping("/me/admin-guide")
+    public ResponseEntity<ApiResponse<UserInfoDTO>> updateAdminGuide(
+            @AuthenticationPrincipal UserDetailsImpl userDetails,
+            @Valid @RequestBody AdminGuidePreferenceRequest request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(401).body(ApiResponse.error("Non authentifié", 401));
+        }
+        UserInfoDTO user = userService.updateAdminGuidePreference(userDetails.getUsername(), request);
+        return ResponseEntity.ok(ApiResponse.success(user));
     }
 }

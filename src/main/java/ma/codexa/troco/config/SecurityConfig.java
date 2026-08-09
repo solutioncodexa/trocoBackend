@@ -109,6 +109,9 @@ public class SecurityConfig {
                     // ─── Auth public ──────────────────────────────────────────
                     auth.requestMatchers("/auth/**").permitAll();
 
+                    // ─── WebSocket STOMP : JWT au handshake + CONNECT (pas le filtre HTTP) ──
+                    auth.requestMatchers("/ws", "/ws/**").permitAll();
+
                     // ─── Plateforme Get STORE (plans + store public + inscription) ──
                     auth.requestMatchers(HttpMethod.GET, "/platform/plans").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/platform/themes").permitAll();

@@ -35,7 +35,7 @@ public class FeaturedProductMapper {
             productInfo.setDescription(null);
             productInfo.setPrice(product.getPrice());
             productInfo.setCategory(product.getCategory() != null ? product.getCategory().getName() : null);
-            productInfo.setGoldType(product.getGoldType());
+            productInfo.setMarque(product.getMarque());
             productInfo.setWeight(product.getWeight());
             productInfo.setIsActive(product.isInStock());
 

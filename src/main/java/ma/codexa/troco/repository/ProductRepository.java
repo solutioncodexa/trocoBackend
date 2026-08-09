@@ -73,12 +73,13 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @EntityGraph(attributePaths = {"images", "category"})
     @Query("SELECT p FROM Product p WHERE " +
            "p.deleted = FALSE AND " +
-           "(:goldType IS NULL OR p.goldType = :goldType) AND " +
+           // Ne pas LOWER(:param) : Hibernate peut lier null en bytea → lower(bytea) sous Postgres
+           "(:marque IS NULL OR LOWER(p.marque) = :marque) AND " +
            "(:categoryId IS NULL OR p.category.id = :categoryId) AND " +
            "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
            "(:maxPrice IS NULL OR p.price <= :maxPrice)")
     List<Product> findByFilters(
-        @Param("goldType") String goldType,
+        @Param("marque") String marque,
         @Param("categoryId") Long categoryId,
         @Param("minPrice") Double minPrice,
         @Param("maxPrice") Double maxPrice
@@ -88,18 +89,20 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @EntityGraph(attributePaths = {"images", "category"})
     @Query("SELECT p FROM Product p WHERE " +
            "p.deleted = FALSE AND " +
-           "(:applyKeywordFilter = FALSE OR LOWER(p.name) LIKE :keywordPattern OR LOWER(COALESCE(p.description, '')) LIKE :keywordPattern) AND " +
-           "(:goldType IS NULL OR p.goldType = :goldType) AND " +
+           "(:applyKeywordFilter = FALSE OR LOWER(p.name) LIKE :keywordPattern OR " +
+           "(p.description IS NOT NULL AND LOWER(p.description) LIKE :keywordPattern)) AND " +
+           "(:marque IS NULL OR LOWER(p.marque) = :marque) AND " +
            "(:categoryId IS NULL OR p.category.id = :categoryId) AND " +
            "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
            "(:maxPrice IS NULL OR p.price <= :maxPrice) AND " +
            "(:inStock IS NULL OR (:inStock = TRUE AND p.stock > 0) OR (:inStock = FALSE AND p.stock <= 0)) AND " +
            "(:size IS NULL OR EXISTS (SELECT 1 FROM ProductVariant v WHERE v.product = p AND (" +
-           "LOWER(COALESCE(v.attributeValue, '')) = LOWER(:size) OR LOWER(COALESCE(v.label, '')) = LOWER(:size))))")
+           "(v.attributeValue IS NOT NULL AND LOWER(v.attributeValue) = :size) OR " +
+           "(v.label IS NOT NULL AND LOWER(v.label) = :size))))")
     Page<Product> searchProductsWithFilters(
         @Param("applyKeywordFilter") boolean applyKeywordFilter,
         @Param("keywordPattern") String keywordPattern,
-        @Param("goldType") String goldType,
+        @Param("marque") String marque,
         @Param("categoryId") Long categoryId,
         @Param("minPrice") Double minPrice,
         @Param("maxPrice") Double maxPrice,
@@ -112,9 +115,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             SELECT COALESCE(v.attributeValue, v.label), COUNT(DISTINCT p.id)
             FROM Product p JOIN p.variants v
             WHERE p.deleted = FALSE
-              AND (LOWER(COALESCE(v.attributeName, '')) LIKE '%taille%'
-                   OR LOWER(COALESCE(v.attributeName, '')) LIKE '%size%'
-                   OR LOWER(COALESCE(v.attributeName, '')) LIKE '%pointure%')
+              AND v.attributeName IS NOT NULL
+              AND (LOWER(v.attributeName) LIKE '%taille%'
+                   OR LOWER(v.attributeName) LIKE '%size%'
+                   OR LOWER(v.attributeName) LIKE '%pointure%')
               AND COALESCE(v.attributeValue, v.label) IS NOT NULL
             GROUP BY COALESCE(v.attributeValue, v.label)
             ORDER BY COUNT(DISTINCT p.id) DESC

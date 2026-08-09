@@ -17,6 +17,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     Optional<Category> findByExternalWooId(Long externalWooId);
 
-    @Query("select c from Category c where c.showOnHero = true order by c.heroSortOrder asc nulls last, c.name asc")
+    @Query("select c from Category c where c.showOnHero = true and (c.active is null or c.active = true) order by c.heroSortOrder asc nulls last, c.name asc")
     List<Category> findHeroCategoriesOrdered();
+
+    @Query("select c from Category c where c.parent.id = :parentId")
+    List<Category> findByParentId(@org.springframework.data.repository.query.Param("parentId") Long parentId);
 }
