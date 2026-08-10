@@ -14,6 +14,7 @@ import ma.codexa.troco.repository.ProductRepository;
 import ma.codexa.troco.repository.ProductVariantRepository;
 import ma.codexa.troco.repository.StockMovementRepository;
 import ma.codexa.troco.repository.StockSettingsRepository;
+import ma.codexa.troco.tenant.TenantContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -45,7 +47,7 @@ public class StockService {
      */
     @Transactional(readOnly = true)
     public StockSettings resolveSettings() {
-        Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        Long fid = TenantContext.getFournisseurId();
         if (fid != null) {
             return stockSettingsRepository.findFirstByFournisseurId(fid).orElseGet(() -> {
                 StockSettings s = newStockDefaults();
@@ -59,7 +61,7 @@ public class StockService {
     /** Persiste les settings s'ils n'existent pas (chemins en écriture uniquement). */
     @Transactional
     public StockSettings getOrCreateSettings() {
-        Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+        Long fid = TenantContext.getFournisseurId();
         if (fid != null) {
             return stockSettingsRepository.findFirstByFournisseurId(fid).orElseGet(() -> {
                 StockSettings s = newStockDefaults();
@@ -69,6 +71,41 @@ public class StockService {
         }
         return stockSettingsRepository.findAll().stream().findFirst().orElseGet(() ->
                 stockSettingsRepository.save(newStockDefaults()));
+    }
+
+    /** Variantes actives du tenant courant (jamais cross-tenant). */
+    private List<ProductVariant> loadTenantVariants() {
+        Long fid = TenantContext.getFournisseurId();
+        if (fid == null) {
+            return Collections.emptyList();
+        }
+        return productVariantRepository.findAllActiveWithProductForTenant(fid);
+    }
+
+    /**
+     * Charge une variante appartenant au fournisseur courant.
+     * Renvoie 404 (sans fuite d'existence) si hors tenant ou produit soft-deleted.
+     */
+    private ProductVariant requireVariantForTenant(Long variantId) {
+        Long fid = TenantContext.getFournisseurId();
+        if (fid != null) {
+            return productVariantRepository.findByIdAndFournisseurId(variantId, fid)
+                    .orElseThrow(() -> new ResourceNotFoundException("Variante", variantId));
+        }
+        ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Variante", variantId));
+        if (variant.getProduct() == null || variant.getProduct().isDeleted()) {
+            throw new ResourceNotFoundException("Variante", variantId);
+        }
+        return variant;
+    }
+
+    private StockMovement saveMovement(StockMovement movement) {
+        Long fid = TenantContext.getFournisseurId();
+        if (fid != null && movement.getFournisseurId() == null) {
+            movement.setFournisseurId(fid);
+        }
+        return stockMovementRepository.save(movement);
     }
 
     private static StockSettings newStockDefaults() {
@@ -154,14 +191,14 @@ public class StockService {
         return listVariantRows(filter, 0, Integer.MAX_VALUE).getContent();
     }
 
-    /** Liste paginée des variantes stock. */
+    /** Liste paginée des variantes stock (scoped au fournisseur courant). */
     @Transactional(readOnly = true)
     public PageResponse<StockVariantRowDTO> listVariantRows(String filter, int page, int size) {
         StockSettings settings = resolveSettings();
         LocalDate expiryLimit = LocalDate.now().plusDays(settings.getExpiryAlertDays());
         String f = filter != null ? filter.trim().toLowerCase(Locale.ROOT) : "all";
         List<StockVariantRowDTO> result = new ArrayList<>();
-        for (ProductVariant v : productVariantRepository.findAllActiveWithProduct()) {
+        for (ProductVariant v : loadTenantVariants()) {
             StockVariantRowDTO row = toRow(v, settings, expiryLimit);
             if (matchesFilter(row, f, expiryLimit)) {
                 result.add(row);
@@ -205,8 +242,7 @@ public class StockService {
 
     @Transactional
     public StockVariantRowDTO adjust(StockAdjustRequest request, String createdBy) {
-        ProductVariant variant = productVariantRepository.findById(request.getVariantId())
-                .orElseThrow(() -> new ResourceNotFoundException("Variante", request.getVariantId()));
+        ProductVariant variant = requireVariantForTenant(request.getVariantId());
         String type = request.getType().trim().toUpperCase(Locale.ROOT);
         int before = variant.getStock() != null ? variant.getStock() : 0;
         int after;
@@ -247,7 +283,7 @@ public class StockService {
         syncProductStock(variant);
 
         int moved = Math.abs(after - before);
-        stockMovementRepository.save(StockMovement.builder()
+        saveMovement(StockMovement.builder()
                 .variantId(variant.getId())
                 .productId(variant.getProduct() != null ? variant.getProduct().getId() : null)
                 .type(movementType)
@@ -270,8 +306,7 @@ public class StockService {
 
     @Transactional
     public StockVariantRowDTO patchVariant(Long variantId, StockVariantPatchRequest request) {
-        ProductVariant variant = productVariantRepository.findById(variantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Variante", variantId));
+        ProductVariant variant = requireVariantForTenant(variantId);
         if (Boolean.TRUE.equals(request.getClearSafetyStock())) {
             variant.setSafetyStock(null);
         } else if (request.getSafetyStock() != null) {
@@ -296,9 +331,8 @@ public class StockService {
 
     @Transactional
     public int bulkSafety(BulkSafetyStockRequest request) {
+        List<ProductVariant> all = loadTenantVariants();
         if (Boolean.TRUE.equals(request.getClearOverrides())) {
-            // Via produit (TenantScoped) — jamais findAll() brut cross-tenant.
-            List<ProductVariant> all = productVariantRepository.findAllActiveWithProduct();
             int n = 0;
             for (ProductVariant v : all) {
                 if (v.getSafetyStock() != null) {
@@ -315,7 +349,6 @@ public class StockService {
         if (request.getSafetyStock() < 0) {
             throw new BusinessException("Le seuil d'alerte doit être ≥ 0", HttpStatus.BAD_REQUEST);
         }
-        List<ProductVariant> all = productVariantRepository.findAllActiveWithProduct();
         for (ProductVariant v : all) {
             v.setSafetyStock(request.getSafetyStock());
         }
@@ -346,7 +379,7 @@ public class StockService {
                 variant.setStock(after);
                 productVariantRepository.save(variant);
                 syncProductStock(variant);
-                stockMovementRepository.save(StockMovement.builder()
+                saveMovement(StockMovement.builder()
                         .variantId(variant.getId())
                         .productId(variant.getProduct() != null ? variant.getProduct().getId() : item.getProduct().getId())
                         .type("OUT")
@@ -369,7 +402,7 @@ public class StockService {
                 int after = before - qty;
                 product.setStock(after);
                 productRepository.save(product);
-                stockMovementRepository.save(StockMovement.builder()
+                saveMovement(StockMovement.builder()
                         .variantId(null)
                         .productId(product.getId())
                         .type("OUT")
@@ -412,7 +445,7 @@ public class StockService {
                 variant.setStock(after);
                 productVariantRepository.save(variant);
                 syncProductStock(variant);
-                stockMovementRepository.save(StockMovement.builder()
+                saveMovement(StockMovement.builder()
                         .variantId(variant.getId())
                         .productId(variant.getProduct() != null ? variant.getProduct().getId() : item.getProduct().getId())
                         .type("RESTORE")
@@ -429,7 +462,7 @@ public class StockService {
                 int after = before + qty;
                 product.setStock(after);
                 productRepository.save(product);
-                stockMovementRepository.save(StockMovement.builder()
+                saveMovement(StockMovement.builder()
                         .variantId(null)
                         .productId(product.getId())
                         .type("RESTORE")
