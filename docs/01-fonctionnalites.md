@@ -67,7 +67,7 @@ Plateforme multi-tenant type Shopify : chaque boutique (`fournisseur`) a sa vitr
 - Paiements boutique : COD, CMI (flag), BNPL (flag) + journal d’audit paiement
 
 ### Ops & conformité
-- **Onboarding** : secteur (6 packs) → thème conseillé, produits d’exemple supprimables (SKU `DEMO-`), pages légales générées (mentions, CGV, retours, confidentialité — modèles à faire valider)
+- **Onboarding** : secteur (6 packs) → thème conseillé, produits d’exemple supprimables (SKU `DEMO-`), pages légales générées (mentions, CGV, retours, confidentialité — modèles à faire valider, liées dans le pied de page)
 - **Emails clients** : confirmation de commande, expédition (suivi), statut confirmée / livrée / annulée
 - **SEO produit** : titre et description meta personnalisables ; canonical = domaine réel de la boutique
 - Paramètres boutique (marque, thème, contact, domaine, pixels, **langue/devise**, paiements, fidélité, CNDP)
@@ -91,6 +91,7 @@ Plateforme multi-tenant type Shopify : chaque boutique (`fournisseur`) a sa vitr
 | Pages CMS | `/page/:slug`, `/preview/:token` |
 | Blog | `/blog`, `/blog/:slug` |
 | Infos | `/contact`, `/faq`, `/livraison-retours` |
+| Légal (CMS) | `/page/mentions-legales`, `/page/conditions-generales-de-vente`, `/page/retours-remboursements`, `/page/politique-de-confidentialite` |
 | Sur-mesure / devis | `/sur-mesure`, `/devis` |
 | Codes promo | `/codes-promo` |
 | SEO | `/sitemap.xml`, `/robots.txt` |

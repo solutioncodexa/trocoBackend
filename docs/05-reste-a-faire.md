@@ -76,7 +76,7 @@ Liens PR (à finaliser après `gh auth login`) :
 | Item | Notes |
 |---|---|
 | Aperçu responsive fidèle du builder | L’aperçu mobile/tablette est un conteneur à largeur fixe : les classes Tailwind `sm:/md:` suivent la fenêtre réelle. Rendre le canvas dans un iframe (portail React) |
-| Liens pages légales dans le pied de page | Pages créées (`/page/mentions-legales`…) mais pas listées automatiquement dans le footer |
+| Liens pages légales dans le pied de page | Mentions, confidentialité, CGV (`/page/…`) + retours CMS si pas de page `livraison-retours` |
 | Builder pour pages boutique | Fiche produit, liste, panier, checkout : réglages d’apparence seulement |
 | SEO catégories / blog | SEO personnalisé disponible pour produits et pages uniquement |
 | Activation auto + paiement plan (CMI) | Volontairement non appliqué : fin d’essai → activation manuelle Super Admin |
