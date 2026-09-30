@@ -51,6 +51,11 @@ public class FournisseurService {
 
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9]+(?:-[a-z0-9]+)*$");
 
+    /** Sous-domaines réservés à la plateforme. */
+    private static final java.util.Set<String> RESERVED_SLUGS = java.util.Set.of(
+            "www", "admin", "api", "app", "mail", "smtp", "static", "cdn", "assets", "support",
+            "getstore", "matjarona", "super-admin", "superadmin", "demo", "test", "blog", "status");
+
     private final FournisseurRepository fournisseurRepository;
     private final PlanRepository planRepository;
     private final StoreSettingsRepository storeSettingsRepository;
@@ -75,6 +80,40 @@ public class FournisseurService {
 
     private final EmailService emailService;
     private final EmailVerificationService emailVerificationService;
+
+    /**
+     * Disponibilité d'un slug (inscription) : format valide, non réservé, non déjà pris.
+     * Retourne le slug normalisé, et une suggestion libre si indisponible.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> checkSlugAvailability(String rawSlug) {
+        String slug = rawSlug == null ? "" : normalizeSlug(rawSlug);
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("slug", slug);
+        if (slug.length() < 3 || slug.length() > 60 || !SLUG_PATTERN.matcher(slug).matches()) {
+            out.put("available", false);
+            out.put("reason", "invalid");
+            return out;
+        }
+        TenantContext.setBypass(true);
+        try {
+            boolean taken = RESERVED_SLUGS.contains(slug) || fournisseurRepository.existsBySlugIgnoreCase(slug);
+            out.put("available", !taken);
+            if (taken) {
+                out.put("reason", RESERVED_SLUGS.contains(slug) ? "reserved" : "taken");
+                for (int i = 2; i < 50; i++) {
+                    String candidate = slug + "-" + i;
+                    if (!fournisseurRepository.existsBySlugIgnoreCase(candidate)) {
+                        out.put("suggestion", candidate);
+                        break;
+                    }
+                }
+            }
+            return out;
+        } finally {
+            TenantContext.setBypass(false);
+        }
+    }
 
     /** Landing / inscription — DTO marketing (sans flag admin). */
     @Transactional(readOnly = true)
@@ -246,7 +285,7 @@ public class FournisseurService {
             if (!SLUG_PATTERN.matcher(slug).matches()) {
                 throw new BusinessException("Slug invalide (lettres minuscules, chiffres, tirets)", HttpStatus.BAD_REQUEST);
             }
-            if (fournisseurRepository.existsBySlugIgnoreCase(slug)) {
+            if (RESERVED_SLUGS.contains(slug) || fournisseurRepository.existsBySlugIgnoreCase(slug)) {
                 throw new BusinessException("Ce slug est déjà utilisé", HttpStatus.CONFLICT);
             }
             if (userRepository.existsByEmail(request.getAdminEmail())) {

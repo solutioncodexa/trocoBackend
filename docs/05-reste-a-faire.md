@@ -75,7 +75,6 @@ Liens PR (à finaliser après `gh auth login`) :
 
 | Item | Notes |
 |---|---|
-| Aperçu responsive fidèle du builder | L’aperçu mobile/tablette est un conteneur à largeur fixe : les classes Tailwind `sm:/md:` suivent la fenêtre réelle. Rendre le canvas dans un iframe (portail React) |
 | Liens pages légales dans le pied de page | Mentions, confidentialité, CGV (`/page/…`) + retours CMS si pas de page `livraison-retours` |
 | Builder pour pages boutique | Fiche produit, liste, panier, checkout : réglages d’apparence seulement |
 | SEO catégories / blog | SEO personnalisé disponible pour produits et pages uniquement |
@@ -85,6 +84,7 @@ Liens PR (à finaliser après `gh auth login`) :
 
 ## Déjà livré récemment
 
+- **Aperçu du builder dans un iframe** (bureau 1100 / tablette 768 / mobile 390 : les media queries s’appliquent réellement), zoom auto-ajusté
 - **Essai gratuit 30 j**, vérification email, onboarding (secteur, produits démo, pages légales), 6 nouveaux blocs + 3 modèles, emails clients, SEO produit  
 
 - Page builder, SEO, sections globales, A/B home  

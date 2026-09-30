@@ -67,7 +67,8 @@ Plateforme multi-tenant type Shopify : chaque boutique (`fournisseur`) a sa vitr
 - Paiements boutique : COD, CMI (flag), BNPL (flag) + journal d’audit paiement
 
 ### Ops & conformité
-- **Onboarding** : secteur (6 packs) → thème conseillé, produits d’exemple supprimables (SKU `DEMO-`), pages légales générées (mentions, CGV, retours, confidentialité — modèles à faire valider, liées dans le pied de page)
+- **Styles complets** : 6 styles en un clic dans l’assistant (Classique, Éditorial, Minimal, Artisan, Flash, Marché) = thème + couleurs + polices + arrondis + agencement ; style conseillé selon le secteur ; réglages détaillés repliés
+- **Création rapide** : inscription en un écran (adresse vérifiée en direct, secteur) → assistant en 4 étapes avec aperçu en direct (Style + logo, Contact, Catalogue avec produits d’exemple supprimables, Publication : accueil complet + pages légales) → écran « en ligne » (lien, copie, partage WhatsApp) ; checklist du tableau de bord avec progression ; pages légales (modèles à faire valider) liées dans le pied de page seulement si elles existent
 - **Emails clients** : confirmation de commande, expédition (suivi), statut confirmée / livrée / annulée
 - **SEO produit** : titre et description meta personnalisables ; canonical = domaine réel de la boutique
 - Paramètres boutique (marque, thème, contact, domaine, pixels, **langue/devise**, paiements, fidélité, CNDP)

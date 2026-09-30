@@ -33,6 +33,11 @@ public class StorePageController {
         return ResponseEntity.ok(ApiResponse.success(storePageService.listPublicNav(lang)));
     }
 
+    @GetMapping("/public/slugs")
+    public ResponseEntity<ApiResponse<List<String>>> publicSlugs() {
+        return ResponseEntity.ok(ApiResponse.success(storePageService.listPublicSlugs()));
+    }
+
     /** Variantes A/B sans blocs — contenu via /public/home. */
     @GetMapping("/public/homes")
     public ResponseEntity<ApiResponse<List<PublicHomeVariantDTO>>> publicHomes(

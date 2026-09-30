@@ -361,6 +361,19 @@ public class StorePageService {
                 .collect(Collectors.toList());
     }
 
+    /** Slugs des pages publiées et visibles (le pied de page n'affiche que les liens qui existent). */
+    @Transactional(readOnly = true)
+    public List<String> listPublicSlugs() {
+        if (TenantContext.getFournisseurId() == null) {
+            return List.of();
+        }
+        return pageRepository.findByPublishedTrueOrderBySortOrderAscTitleAsc().stream()
+                .filter(p -> !Boolean.TRUE.equals(p.getIsHome()))
+                .filter(this::isCurrentlyLive)
+                .map(StorePage::getSlug)
+                .collect(Collectors.toList());
+    }
+
     /**
      * Variantes A/B sans blocs — le contenu complet est chargé via {@link #getPublicHome}.
      */

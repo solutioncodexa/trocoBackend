@@ -57,6 +57,12 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.success(fournisseurService.listThemes()));
     }
 
+    /** Disponibilité d'une adresse (slug) pendant l'inscription. */
+    @GetMapping("/slug-available")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> slugAvailable(@RequestParam String slug) {
+        return ResponseEntity.ok(ApiResponse.success(fournisseurService.checkSlugAvailability(slug)));
+    }
+
     /** Bootstrap vitrine — branding / tracking / i18n (léger). */
     @GetMapping("/store")
     public ResponseEntity<ApiResponse<StorefrontBootstrapDTO>> publicStore(

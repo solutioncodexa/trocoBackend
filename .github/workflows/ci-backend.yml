@@ -1,347 +1,347 @@
-name: CI Backend (Artifacts)
-
-on:
-  # Pas de filtre paths : les pushes récents (da513b4+) n'ont créé aucun run Actions.
-  push:
-    branches: [feature/shopify, shopify, main, master]
-  pull_request:
-    branches: [feature/shopify, shopify, main, master]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-concurrency:
-  group: troco-back-artifacts-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
-
-jobs:
-  test:
-    name: Tests auto (unit + integration)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-
-      - name: Run Maven tests
-        run: |
-          chmod +x mvnw
-          ./mvnw -B -ntp test
-
-      - name: Publish surefire reports
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: surefire-reports
-          path: "**/target/surefire-reports/**"
-          if-no-files-found: ignore
-          retention-days: 7
-
-  build-backend:
-    name: Build JAR
-    needs: test
-    runs-on: ubuntu-latest
-    # Build aussi sur PR pour valider le package, mais deploy seulement sur push
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-
-      - name: Build jar
-        run: |
-          chmod +x mvnw
-          ./mvnw -B -ntp package -DskipTests
-
-      - name: Select artifact jar
-        run: |
-          JAR_PATH=$(find target -maxdepth 1 -type f -name "*.jar" ! -name "original-*.jar" | sed -n '1p')
-          if [ -z "${JAR_PATH:-}" ]; then
-            echo "ERROR: no jar produced in target/"
-            ls -la target || true
-            exit 1
-          fi
-          cp "${JAR_PATH}" troco-backend.jar
-          echo "JAR=$(du -sh troco-backend.jar | cut -f1)"
-
-      - name: Upload backend artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: troco-backend-jar
-          path: troco-backend.jar
-          if-no-files-found: error
-          retention-days: 7
-
-  deploy-backend:
-    name: Deploy backend on VPS
-    needs: [test, build-backend]
-    runs-on: ubuntu-latest
-    if: |
-      success() &&
-      github.event_name == 'push' &&
-      (
-        github.ref == 'refs/heads/feature/shopify' ||
-        github.ref == 'refs/heads/shopify' ||
-        github.ref == 'refs/heads/main' ||
-        github.ref == 'refs/heads/master'
-      ) &&
-      vars.VPS_DEPLOY_DISABLED != 'true'
-    steps:
-      - name: Validate VPS deploy config
-        env:
-          H: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
-          U: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
-          K: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-        run: |
-          set -e
-          rc=0
-          [ -z "${H:-}" ] && echo "::error::Missing VPS_HOST or VPS_IP" && rc=1
-          [ -z "${U:-}" ] && echo "::error::Missing VPS_USER" && rc=1
-          [ -z "${K:-}" ] && echo "::error::Missing VPS_SSH_PRIVATE_KEY" && rc=1
-          exit "$rc"
-
-      - uses: actions/checkout@v4
-
-      - name: Download backend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: troco-backend-jar
-          path: deploy-download
-
-      - name: Prepare VPS directories + sidecar files
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
-        with:
-          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
-          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: ${{ vars.VPS_SSH_PORT || '22' }}
-          script_stop: true
-          envs: DEPLOY_PATH
-          script: |
-            set -euo pipefail
-            DEPLOY_PATH="${DEPLOY_PATH:-/opt/goldyara/deployment}"
-            mkdir -p "${DEPLOY_PATH}/troco/backend" \
-                     "${DEPLOY_PATH}/troco/frontend/dist" \
-                     "${DEPLOY_PATH}/docker" \
-                     "${DEPLOY_PATH}/nginx/conf.d" \
-                     "${DEPLOY_PATH}/scripts" \
-                     "${DEPLOY_PATH}/_troco_upload"
-            rm -rf "${DEPLOY_PATH}/troco/backend/deploy-download" || true
-
-      - name: Upload jar to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
-          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: ${{ vars.VPS_SSH_PORT || '22' }}
-          source: "deploy-download/troco-backend.jar"
-          target: "${{ env.DEPLOY_PATH }}/troco/backend/"
-          strip_components: 1
-
-      - name: Upload Troco deployment sidecar
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
-          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: ${{ vars.VPS_SSH_PORT || '22' }}
-          source: "deployment/docker-compose.troco.yml,deployment/.env.troco.example,deployment/docker/nginx-internal-troco.conf,deployment/nginx/conf.d/troco.ma.vps.conf,deployment/scripts/bootstrap-troco-vps.sh"
-          target: "${{ env.DEPLOY_PATH }}/_troco_upload/"
-          strip_components: 1
-
-      - name: Bootstrap env + restart troco-backend
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
-        with:
-          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
-          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          port: ${{ vars.VPS_SSH_PORT || '22' }}
-          command_timeout: 20m
-          script_stop: true
-          envs: DEPLOY_PATH
-          script: |
-            set -euo pipefail
-            DEPLOY_PATH="${DEPLOY_PATH:-/opt/goldyara/deployment}"
-            FINAL_PATH="${DEPLOY_PATH}/troco/backend/troco-backend.jar"
-            UPLOAD="${DEPLOY_PATH}/_troco_upload"
-
-            if [ ! -f "${FINAL_PATH}" ]; then
-              FOUND=$(find "${DEPLOY_PATH}/troco/backend" -maxdepth 4 -type f -name "troco-backend.jar" | sed -n '1p')
-              if [ -n "${FOUND:-}" ]; then
-                mv -f "${FOUND}" "${FINAL_PATH}"
-              fi
-            fi
-            rm -rf "${DEPLOY_PATH}/troco/backend/deploy-download" || true
-
-            if [ ! -f "${FINAL_PATH}" ]; then
-              echo "ERROR: JAR introuvable à ${FINAL_PATH}"
-              find "${DEPLOY_PATH}/troco/backend" -maxdepth 4 -type f | sort || true
-              exit 1
-            fi
-            echo "JAR OK: $(du -sh "${FINAL_PATH}" | cut -f1)"
-
-            cd "${DEPLOY_PATH}"
-
-            # Sidecar files from CI upload
-            if [ -f "${UPLOAD}/docker-compose.troco.yml" ]; then
-              cp -f "${UPLOAD}/docker-compose.troco.yml" ./docker-compose.troco.yml
-            fi
-            if [ -f "${UPLOAD}/.env.troco.example" ]; then
-              cp -f "${UPLOAD}/.env.troco.example" ./.env.troco.example
-            fi
-            if [ -f "${UPLOAD}/docker/nginx-internal-troco.conf" ]; then
-              mkdir -p docker
-              cp -f "${UPLOAD}/docker/nginx-internal-troco.conf" ./docker/nginx-internal-troco.conf
-            fi
-            if [ -f "${UPLOAD}/nginx/conf.d/troco.ma.vps.conf" ]; then
-              mkdir -p nginx/conf.d
-              # Une seule conf active : nginx charge TOUS les *.conf
-              rm -f nginx/conf.d/troco.ma.vps.conf nginx/conf.d/troco*.vps.conf
-              cp -f "${UPLOAD}/nginx/conf.d/troco.ma.vps.conf" nginx/conf.d/troco.ma.conf
-              echo "nginx conf Troco mis à jour (getstore.codexa-solution.com)"
-            fi
-            if [ -f "${UPLOAD}/scripts/bootstrap-troco-vps.sh" ]; then
-              mkdir -p scripts
-              cp -f "${UPLOAD}/scripts/bootstrap-troco-vps.sh" ./scripts/bootstrap-troco-vps.sh
-              chmod +x ./scripts/bootstrap-troco-vps.sh || true
-            fi
-
-            # First-time .env.troco : copy example + generate secrets (SMTP from shared .env if present)
-            if [ ! -f .env.troco ]; then
-              if [ ! -f .env.troco.example ]; then
-                echo "ERROR: .env.troco.example manquant — impossible de bootstrap"
-                exit 1
-              fi
-              echo "Bootstrap .env.troco depuis example (secrets auto-générés)"
-              cp .env.troco.example .env.troco
-              JWT=$(openssl rand -hex 32)
-              DBPASS=$(openssl rand -hex 18)
-              MINIOPASS=$(openssl rand -hex 18)
-              ADMINPASS=$(openssl rand -hex 12)
-              SAPASS=$(openssl rand -hex 12)
-              sed -i \
-                -e "s|__CHANGE_ME_LONG_RANDOM_BASE64_OR_HEX__|${JWT}|g" \
-                -e "s|__CHANGE_ME_ADMIN__|${ADMINPASS}|g" \
-                -e "s|__CHANGE_ME_SUPER_ADMIN__|${SAPASS}|g" \
-                -e "s|__CHANGE_ME_STRONG_DB_PASSWORD__|${DBPASS}|g" \
-                -e "s|__CHANGE_ME_STRONG_MINIO_SECRET__|${MINIOPASS}|g" \
-                .env.troco
-              sed -i -e "s|^DB_PASSWORD=.*|DB_PASSWORD=${DBPASS}|" \
-                     -e "s|^MINIO_SECRET_KEY=.*|MINIO_SECRET_KEY=${MINIOPASS}|" \
-                     .env.troco || true
-              if [ -f .env ]; then
-                for key in MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_SSL MAIL_STARTTLS MAIL_SENDER_NAME; do
-                  val=$(grep -E "^${key}=" .env | head -1 | cut -d= -f2- || true)
-                  if [ -n "${val:-}" ]; then
-                    if grep -qE "^${key}=" .env.troco; then
-                      # Évite sed si valeur contient des métacaractères
-                      grep -vE "^${key}=" .env.troco > .env.troco.tmp && mv .env.troco.tmp .env.troco
-                    fi
-                    echo "${key}=${val}" >> .env.troco
-                  fi
-                done
-                sed -i 's|__SAME_AS_GOLDYARA_MAIL_PASSWORD__||g' .env.troco || true
-              fi
-              echo "WARN: .env.troco créé — changez APP_ADMIN_PASSWORD / APP_SUPER_ADMIN_PASSWORD dès que possible"
-            fi
-
-            echo "Sync domaines getstore dans .env.troco..."
-            # Remplacement sûr (pas de sed avec * dans la valeur CORS)
-            set_env_key() {
-              key="$1"
-              val="$2"
-              # grep -v exit 1 si aucune ligne restante → ne pas tuer le script (set -e)
-              if grep -qE "^${key}=" .env.troco 2>/dev/null; then
-                grep -vE "^${key}=" .env.troco > .env.troco.tmp || true
-                mv .env.troco.tmp .env.troco
-              fi
-              printf '%s=%s\n' "$key" "$val" >> .env.troco
-            }
-            set_env_key TROCO_DOMAIN getstore.codexa-solution.com
-            set_env_key TROCO_WWW_DOMAIN getstore.codexa-solution.com
-            set_env_key APP_PUBLIC_SITE_URL https://getstore.codexa-solution.com
-            set_env_key APP_PLATFORM_DOMAIN getstore.codexa-solution.com
-            set_env_key APP_CORS_ALLOWED_ORIGINS 'https://getstore.codexa-solution.com,https://*.getstore.codexa-solution.com,https://api.getstore.codexa-solution.com'
-            set_env_key TROCO_MINIO_PUBLIC_ENDPOINT https://getstore.codexa-solution.com/files
-            set_env_key MINIO_PUBLIC_ENDPOINT https://getstore.codexa-solution.com/files
-            set_env_key TROCO_DB_DDL_AUTO update
-            set_env_key DB_DDL_AUTO update
-            echo "Domaines synchronisés"
-
-            if [ ! -f docker-compose.troco.yml ]; then
-              echo "ERROR: docker-compose.troco.yml manquant sous ${DEPLOY_PATH}"
-              exit 1
-            fi
-            if [ ! -f .env ]; then
-              echo "ERROR: ${DEPLOY_PATH}/.env (GoldYara partagé) manquant"
-              exit 1
-            fi
-
-            echo "Démarrage troco-postgres / troco-minio..."
-            docker compose --env-file .env --env-file .env.troco \
-              -f docker-compose.yml \
-              -f docker-compose.artifacts.yml \
-              -f docker-compose.troco.yml \
-              up -d troco-postgres troco-minio troco-minio-init
-
-            echo "Recreate troco-backend..."
-            docker compose --env-file .env --env-file .env.troco \
-              -f docker-compose.yml \
-              -f docker-compose.artifacts.yml \
-              -f docker-compose.troco.yml \
-              up -d --force-recreate --no-deps troco-backend
-
-            if docker ps --format '{{.Names}}' | grep -qx goldyara-nginx; then
-              echo "Reload nginx (ignore erreur SSL tant que cert absent)..."
-              docker exec goldyara-nginx nginx -t && docker exec goldyara-nginx nginx -s reload \
-                || echo "WARN: nginx -t/reload échoué (cert getstore manquant ?)"
-            fi
-
-            echo "Attente healthcheck troco-backend..."
-            for i in $(seq 1 36); do
-              STATUS=$(docker inspect --format='{{.State.Health.Status}}' troco-backend 2>/dev/null || echo "unknown")
-              echo "  [${i}/36] status=${STATUS}"
-              if [ "${STATUS}" = "healthy" ]; then
-                echo "troco-backend healthy"
-                exit 0
-              fi
-              if [ "${STATUS}" = "unhealthy" ]; then
-                docker logs troco-backend --tail 120 || true
-                exit 1
-              fi
-              sleep 5
-            done
-            echo "Timeout healthcheck — logs:"
-            docker logs troco-backend --tail 120 || true
-            exit 1
-
-      - name: Deploy summary
-        if: success()
-        run: |
-          {
-            echo "### Troco backend déployé"
-            echo ""
-            echo "| Champ | Valeur |"
-            echo "|-------|--------|"
-            echo "| Commit | \`${{ github.sha }}\` |"
-            echo "| Branch | \`${{ github.ref_name }}\` |"
-            echo "| Path | \`${{ env.DEPLOY_PATH }}/troco/backend/troco-backend.jar\` |"
-            echo "| Service | \`troco-backend\` |"
-            echo "| Gate | Tests Maven OK |"
-          } >> "$GITHUB_STEP_SUMMARY"
+#name: CI Backend (Artifacts)
+#
+#on:
+#  # Pas de filtre paths : les pushes récents (da513b4+) n'ont créé aucun run Actions.
+#  push:
+#    branches: [feature/shopify, shopify, main, master]
+#  pull_request:
+#    branches: [feature/shopify, shopify, main, master]
+#  workflow_dispatch:
+#
+#permissions:
+#  contents: read
+#
+#concurrency:
+#  group: troco-back-artifacts-${{ github.ref }}
+#  cancel-in-progress: true
+#
+#env:
+#  DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/opt/goldyara/deployment' }}
+#
+#jobs:
+#  test:
+#    name: Tests auto (unit + integration)
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - uses: actions/setup-java@v4
+#        with:
+#          distribution: temurin
+#          java-version: "21"
+#          cache: maven
+#
+#      - name: Run Maven tests
+#        run: |
+#          chmod +x mvnw
+#          ./mvnw -B -ntp test
+#
+#      - name: Publish surefire reports
+#        if: failure()
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: surefire-reports
+#          path: "**/target/surefire-reports/**"
+#          if-no-files-found: ignore
+#          retention-days: 7
+#
+#  build-backend:
+#    name: Build JAR
+#    needs: test
+#    runs-on: ubuntu-latest
+#    # Build aussi sur PR pour valider le package, mais deploy seulement sur push
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - uses: actions/setup-java@v4
+#        with:
+#          distribution: temurin
+#          java-version: "21"
+#          cache: maven
+#
+#      - name: Build jar
+#        run: |
+#          chmod +x mvnw
+#          ./mvnw -B -ntp package -DskipTests
+#
+#      - name: Select artifact jar
+#        run: |
+#          JAR_PATH=$(find target -maxdepth 1 -type f -name "*.jar" ! -name "original-*.jar" | sed -n '1p')
+#          if [ -z "${JAR_PATH:-}" ]; then
+#            echo "ERROR: no jar produced in target/"
+#            ls -la target || true
+#            exit 1
+#          fi
+#          cp "${JAR_PATH}" troco-backend.jar
+#          echo "JAR=$(du -sh troco-backend.jar | cut -f1)"
+#
+#      - name: Upload backend artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: troco-backend-jar
+#          path: troco-backend.jar
+#          if-no-files-found: error
+#          retention-days: 7
+#
+#  deploy-backend:
+#    name: Deploy backend on VPS
+#    needs: [test, build-backend]
+#    runs-on: ubuntu-latest
+#    if: |
+#      success() &&
+#      github.event_name == 'push' &&
+#      (
+#        github.ref == 'refs/heads/feature/shopify' ||
+#        github.ref == 'refs/heads/shopify' ||
+#        github.ref == 'refs/heads/main' ||
+#        github.ref == 'refs/heads/master'
+#      ) &&
+#      vars.VPS_DEPLOY_DISABLED != 'true'
+#    steps:
+#      - name: Validate VPS deploy config
+#        env:
+#          H: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+#          U: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+#          K: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+#        run: |
+#          set -e
+#          rc=0
+#          [ -z "${H:-}" ] && echo "::error::Missing VPS_HOST or VPS_IP" && rc=1
+#          [ -z "${U:-}" ] && echo "::error::Missing VPS_USER" && rc=1
+#          [ -z "${K:-}" ] && echo "::error::Missing VPS_SSH_PRIVATE_KEY" && rc=1
+#          exit "$rc"
+#
+#      - uses: actions/checkout@v4
+#
+#      - name: Download backend artifact
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: troco-backend-jar
+#          path: deploy-download
+#
+#      - name: Prepare VPS directories + sidecar files
+#        uses: appleboy/ssh-action@v1.2.0
+#        env:
+#          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+#        with:
+#          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+#          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+#          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+#          port: ${{ vars.VPS_SSH_PORT || '22' }}
+#          script_stop: true
+#          envs: DEPLOY_PATH
+#          script: |
+#            set -euo pipefail
+#            DEPLOY_PATH="${DEPLOY_PATH:-/opt/goldyara/deployment}"
+#            mkdir -p "${DEPLOY_PATH}/troco/backend" \
+#                     "${DEPLOY_PATH}/troco/frontend/dist" \
+#                     "${DEPLOY_PATH}/docker" \
+#                     "${DEPLOY_PATH}/nginx/conf.d" \
+#                     "${DEPLOY_PATH}/scripts" \
+#                     "${DEPLOY_PATH}/_troco_upload"
+#            rm -rf "${DEPLOY_PATH}/troco/backend/deploy-download" || true
+#
+#      - name: Upload jar to VPS
+#        uses: appleboy/scp-action@v0.1.7
+#        with:
+#          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+#          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+#          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+#          port: ${{ vars.VPS_SSH_PORT || '22' }}
+#          source: "deploy-download/troco-backend.jar"
+#          target: "${{ env.DEPLOY_PATH }}/troco/backend/"
+#          strip_components: 1
+#
+#      - name: Upload Troco deployment sidecar
+#        uses: appleboy/scp-action@v0.1.7
+#        with:
+#          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+#          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+#          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+#          port: ${{ vars.VPS_SSH_PORT || '22' }}
+#          source: "deployment/docker-compose.troco.yml,deployment/.env.troco.example,deployment/docker/nginx-internal-troco.conf,deployment/nginx/conf.d/troco.ma.vps.conf,deployment/scripts/bootstrap-troco-vps.sh"
+#          target: "${{ env.DEPLOY_PATH }}/_troco_upload/"
+#          strip_components: 1
+#
+#      - name: Bootstrap env + restart troco-backend
+#        uses: appleboy/ssh-action@v1.2.0
+#        env:
+#          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+#        with:
+#          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || vars.VPS_IP }}
+#          username: ${{ secrets.VPS_USER || vars.VPS_USER || vars.VPS_SSH_USER }}
+#          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+#          port: ${{ vars.VPS_SSH_PORT || '22' }}
+#          command_timeout: 20m
+#          script_stop: true
+#          envs: DEPLOY_PATH
+#          script: |
+#            set -euo pipefail
+#            DEPLOY_PATH="${DEPLOY_PATH:-/opt/goldyara/deployment}"
+#            FINAL_PATH="${DEPLOY_PATH}/troco/backend/troco-backend.jar"
+#            UPLOAD="${DEPLOY_PATH}/_troco_upload"
+#
+#            if [ ! -f "${FINAL_PATH}" ]; then
+#              FOUND=$(find "${DEPLOY_PATH}/troco/backend" -maxdepth 4 -type f -name "troco-backend.jar" | sed -n '1p')
+#              if [ -n "${FOUND:-}" ]; then
+#                mv -f "${FOUND}" "${FINAL_PATH}"
+#              fi
+#            fi
+#            rm -rf "${DEPLOY_PATH}/troco/backend/deploy-download" || true
+#
+#            if [ ! -f "${FINAL_PATH}" ]; then
+#              echo "ERROR: JAR introuvable à ${FINAL_PATH}"
+#              find "${DEPLOY_PATH}/troco/backend" -maxdepth 4 -type f | sort || true
+#              exit 1
+#            fi
+#            echo "JAR OK: $(du -sh "${FINAL_PATH}" | cut -f1)"
+#
+#            cd "${DEPLOY_PATH}"
+#
+#            # Sidecar files from CI upload
+#            if [ -f "${UPLOAD}/docker-compose.troco.yml" ]; then
+#              cp -f "${UPLOAD}/docker-compose.troco.yml" ./docker-compose.troco.yml
+#            fi
+#            if [ -f "${UPLOAD}/.env.troco.example" ]; then
+#              cp -f "${UPLOAD}/.env.troco.example" ./.env.troco.example
+#            fi
+#            if [ -f "${UPLOAD}/docker/nginx-internal-troco.conf" ]; then
+#              mkdir -p docker
+#              cp -f "${UPLOAD}/docker/nginx-internal-troco.conf" ./docker/nginx-internal-troco.conf
+#            fi
+#            if [ -f "${UPLOAD}/nginx/conf.d/troco.ma.vps.conf" ]; then
+#              mkdir -p nginx/conf.d
+#              # Une seule conf active : nginx charge TOUS les *.conf
+#              rm -f nginx/conf.d/troco.ma.vps.conf nginx/conf.d/troco*.vps.conf
+#              cp -f "${UPLOAD}/nginx/conf.d/troco.ma.vps.conf" nginx/conf.d/troco.ma.conf
+#              echo "nginx conf Troco mis à jour (getstore.codexa-solution.com)"
+#            fi
+#            if [ -f "${UPLOAD}/scripts/bootstrap-troco-vps.sh" ]; then
+#              mkdir -p scripts
+#              cp -f "${UPLOAD}/scripts/bootstrap-troco-vps.sh" ./scripts/bootstrap-troco-vps.sh
+#              chmod +x ./scripts/bootstrap-troco-vps.sh || true
+#            fi
+#
+#            # First-time .env.troco : copy example + generate secrets (SMTP from shared .env if present)
+#            if [ ! -f .env.troco ]; then
+#              if [ ! -f .env.troco.example ]; then
+#                echo "ERROR: .env.troco.example manquant — impossible de bootstrap"
+#                exit 1
+#              fi
+#              echo "Bootstrap .env.troco depuis example (secrets auto-générés)"
+#              cp .env.troco.example .env.troco
+#              JWT=$(openssl rand -hex 32)
+#              DBPASS=$(openssl rand -hex 18)
+#              MINIOPASS=$(openssl rand -hex 18)
+#              ADMINPASS=$(openssl rand -hex 12)
+#              SAPASS=$(openssl rand -hex 12)
+#              sed -i \
+#                -e "s|__CHANGE_ME_LONG_RANDOM_BASE64_OR_HEX__|${JWT}|g" \
+#                -e "s|__CHANGE_ME_ADMIN__|${ADMINPASS}|g" \
+#                -e "s|__CHANGE_ME_SUPER_ADMIN__|${SAPASS}|g" \
+#                -e "s|__CHANGE_ME_STRONG_DB_PASSWORD__|${DBPASS}|g" \
+#                -e "s|__CHANGE_ME_STRONG_MINIO_SECRET__|${MINIOPASS}|g" \
+#                .env.troco
+#              sed -i -e "s|^DB_PASSWORD=.*|DB_PASSWORD=${DBPASS}|" \
+#                     -e "s|^MINIO_SECRET_KEY=.*|MINIO_SECRET_KEY=${MINIOPASS}|" \
+#                     .env.troco || true
+#              if [ -f .env ]; then
+#                for key in MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_SSL MAIL_STARTTLS MAIL_SENDER_NAME; do
+#                  val=$(grep -E "^${key}=" .env | head -1 | cut -d= -f2- || true)
+#                  if [ -n "${val:-}" ]; then
+#                    if grep -qE "^${key}=" .env.troco; then
+#                      # Évite sed si valeur contient des métacaractères
+#                      grep -vE "^${key}=" .env.troco > .env.troco.tmp && mv .env.troco.tmp .env.troco
+#                    fi
+#                    echo "${key}=${val}" >> .env.troco
+#                  fi
+#                done
+#                sed -i 's|__SAME_AS_GOLDYARA_MAIL_PASSWORD__||g' .env.troco || true
+#              fi
+#              echo "WARN: .env.troco créé — changez APP_ADMIN_PASSWORD / APP_SUPER_ADMIN_PASSWORD dès que possible"
+#            fi
+#
+#            echo "Sync domaines getstore dans .env.troco..."
+#            # Remplacement sûr (pas de sed avec * dans la valeur CORS)
+#            set_env_key() {
+#              key="$1"
+#              val="$2"
+#              # grep -v exit 1 si aucune ligne restante → ne pas tuer le script (set -e)
+#              if grep -qE "^${key}=" .env.troco 2>/dev/null; then
+#                grep -vE "^${key}=" .env.troco > .env.troco.tmp || true
+#                mv .env.troco.tmp .env.troco
+#              fi
+#              printf '%s=%s\n' "$key" "$val" >> .env.troco
+#            }
+#            set_env_key TROCO_DOMAIN getstore.codexa-solution.com
+#            set_env_key TROCO_WWW_DOMAIN getstore.codexa-solution.com
+#            set_env_key APP_PUBLIC_SITE_URL https://getstore.codexa-solution.com
+#            set_env_key APP_PLATFORM_DOMAIN getstore.codexa-solution.com
+#            set_env_key APP_CORS_ALLOWED_ORIGINS 'https://getstore.codexa-solution.com,https://*.getstore.codexa-solution.com,https://api.getstore.codexa-solution.com'
+#            set_env_key TROCO_MINIO_PUBLIC_ENDPOINT https://getstore.codexa-solution.com/files
+#            set_env_key MINIO_PUBLIC_ENDPOINT https://getstore.codexa-solution.com/files
+#            set_env_key TROCO_DB_DDL_AUTO update
+#            set_env_key DB_DDL_AUTO update
+#            echo "Domaines synchronisés"
+#
+#            if [ ! -f docker-compose.troco.yml ]; then
+#              echo "ERROR: docker-compose.troco.yml manquant sous ${DEPLOY_PATH}"
+#              exit 1
+#            fi
+#            if [ ! -f .env ]; then
+#              echo "ERROR: ${DEPLOY_PATH}/.env (GoldYara partagé) manquant"
+#              exit 1
+#            fi
+#
+#            echo "Démarrage troco-postgres / troco-minio..."
+#            docker compose --env-file .env --env-file .env.troco \
+#              -f docker-compose.yml \
+#              -f docker-compose.artifacts.yml \
+#              -f docker-compose.troco.yml \
+#              up -d troco-postgres troco-minio troco-minio-init
+#
+#            echo "Recreate troco-backend..."
+#            docker compose --env-file .env --env-file .env.troco \
+#              -f docker-compose.yml \
+#              -f docker-compose.artifacts.yml \
+#              -f docker-compose.troco.yml \
+#              up -d --force-recreate --no-deps troco-backend
+#
+#            if docker ps --format '{{.Names}}' | grep -qx goldyara-nginx; then
+#              echo "Reload nginx (ignore erreur SSL tant que cert absent)..."
+#              docker exec goldyara-nginx nginx -t && docker exec goldyara-nginx nginx -s reload \
+#                || echo "WARN: nginx -t/reload échoué (cert getstore manquant ?)"
+#            fi
+#
+#            echo "Attente healthcheck troco-backend..."
+#            for i in $(seq 1 36); do
+#              STATUS=$(docker inspect --format='{{.State.Health.Status}}' troco-backend 2>/dev/null || echo "unknown")
+#              echo "  [${i}/36] status=${STATUS}"
+#              if [ "${STATUS}" = "healthy" ]; then
+#                echo "troco-backend healthy"
+#                exit 0
+#              fi
+#              if [ "${STATUS}" = "unhealthy" ]; then
+#                docker logs troco-backend --tail 120 || true
+#                exit 1
+#              fi
+#              sleep 5
+#            done
+#            echo "Timeout healthcheck — logs:"
+#            docker logs troco-backend --tail 120 || true
+#            exit 1
+#
+#      - name: Deploy summary
+#        if: success()
+#        run: |
+#          {
+#            echo "### Troco backend déployé"
+#            echo ""
+#            echo "| Champ | Valeur |"
+#            echo "|-------|--------|"
+#            echo "| Commit | \`${{ github.sha }}\` |"
+#            echo "| Branch | \`${{ github.ref_name }}\` |"
+#            echo "| Path | \`${{ env.DEPLOY_PATH }}/troco/backend/troco-backend.jar\` |"
+#            echo "| Service | \`troco-backend\` |"
+#            echo "| Gate | Tests Maven OK |"
+#          } >> "$GITHUB_STEP_SUMMARY"

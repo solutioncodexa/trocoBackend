@@ -115,6 +115,7 @@ public class SecurityConfig {
                     // ─── Plateforme Get STORE (plans + store public + inscription) ──
                     auth.requestMatchers(HttpMethod.GET, "/platform/plans").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/platform/themes").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/platform/slug-available").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/platform/store", "/platform/store/checkout").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/platform/register").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/store-payments/config").permitAll();
