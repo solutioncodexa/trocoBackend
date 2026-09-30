@@ -55,6 +55,14 @@ public class Product extends TenantScoped {
     @Column(length = 120)
     private String marque;
 
+    /** Titre SEO personnalisé (balise title / og:title) — sinon nom du produit. */
+    @Column(name = "seo_title", length = 200)
+    private String seoTitle;
+
+    /** Description SEO personnalisée (meta description / og:description). */
+    @Column(name = "seo_description", length = 500)
+    private String seoDescription;
+
     /** ID produit WooCommerce source (import troco.ma), pour idempotence. */
     @Column(name = "external_woo_id")
     private Long externalWooId;

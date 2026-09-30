@@ -52,6 +52,16 @@ public class User {
     @Column(name = "ui_preferences_json", columnDefinition = "TEXT")
     private String uiPreferencesJson;
 
+    /** false tant que l'email d'un admin inscrit publiquement n'est pas confirmé. */
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = true;
+
+    @Column(name = "email_verification_token", length = 80)
+    private String emailVerificationToken;
+
+    @Column(name = "email_verification_expires_at")
+    private LocalDateTime emailVerificationExpiresAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

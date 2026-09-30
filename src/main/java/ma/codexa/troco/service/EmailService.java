@@ -102,6 +102,72 @@ public class EmailService {
         }
     }
 
+    @Async
+    public void sendTrialEndingSoon(String to, String storeName, long daysLeft) {
+        sendPlain(to, "Votre essai gratuit Get STORE se termine bientôt",
+                String.format("Bonjour,\n\nL'essai gratuit de votre boutique « %s » se termine dans %d jour(s).\n\n"
+                        + "Pour garder votre boutique en ligne, contactez-nous afin de choisir votre plan.\n\n"
+                        + "L'équipe Get STORE", storeName, daysLeft));
+    }
+
+    @Async
+    public void sendTrialEnded(String to, String storeName) {
+        sendPlain(to, "Votre essai gratuit Get STORE est terminé",
+                String.format("Bonjour,\n\nL'essai gratuit de votre boutique « %s » est terminé : la vitrine est "
+                        + "temporairement fermée. Vos données sont conservées.\n\n"
+                        + "Connectez-vous à votre espace admin ou contactez-nous pour choisir votre plan et réactiver la boutique.\n\n"
+                        + "L'équipe Get STORE", storeName));
+    }
+
+    @Async
+    public void sendEmailVerification(String to, String fullName, String storeName, String link) {
+        String hello = fullName != null && !fullName.isBlank() ? "Bonjour " + fullName.trim() + "," : "Bonjour,";
+        String shop = storeName != null && !storeName.isBlank() ? " de votre boutique « " + storeName.trim() + " »" : "";
+        sendPlain(to, "Confirmez votre adresse email — Get STORE",
+                hello + "\n\nPour sécuriser le compte" + shop + " et recevoir nos notifications, "
+                        + "confirmez votre adresse email en cliquant sur ce lien (valable 48 h) :\n\n"
+                        + link + "\n\nSi vous n'êtes pas à l'origine de cette inscription, ignorez ce message.\n\n"
+                        + "L'équipe Get STORE");
+    }
+
+    /**
+     * Email transactionnel à un client de boutique : expéditeur au nom de la boutique
+     * (adresse SMTP de la plateforme), réponses dirigées vers l'email de contact de la boutique.
+     */
+    @Async
+    public void sendCustomerMail(String to, String subject, String text, String storeName, String replyTo) {
+        if (to == null || to.isBlank()) return;
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            String display = storeName != null && !storeName.isBlank() ? storeName.trim() : senderDisplayName.trim();
+            String address = mailUsername != null && !mailUsername.isBlank() ? mailUsername.trim() : "noreply@localhost";
+            message.setFrom(String.format("%s <%s>", display, address));
+            if (replyTo != null && !replyTo.isBlank()) message.setReplyTo(replyTo.trim());
+            message.setTo(to.trim());
+            message.setSubject(subject);
+            message.setText(text);
+            mailSender.send(message);
+            log.info("customer_email_sent subject={} to={}", subject, to);
+        } catch (Exception e) {
+            log.error("Failed to send customer email '{}': {}", subject, e.getMessage());
+        }
+    }
+
+    private void sendPlain(String to, String subject, String text) {
+        if (to == null || to.isBlank()) return;
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromHeader());
+            message.setTo(to.trim());
+            message.setSubject(subject);
+            message.setText(text);
+            mailSender.send(message);
+            log.info("email_sent subject={} to={}", subject, to);
+        } catch (Exception e) {
+            log.error("Failed to send email '{}': {}", subject, e.getMessage());
+        }
+    }
+
     private void sendToAdmins(List<String> emails, String subject, String text) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();

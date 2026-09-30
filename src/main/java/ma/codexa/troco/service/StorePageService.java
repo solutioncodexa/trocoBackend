@@ -46,7 +46,8 @@ public class StorePageService {
 
     private static final Set<String> ALLOWED_BLOCK_TYPES = Set.of(
             "hero", "rich_text", "products", "categories", "cta", "image", "faq", "spacer", "contact",
-            "video", "testimonials", "countdown", "instagram"
+            "video", "testimonials", "countdown", "instagram",
+            "features", "newsletter", "gallery", "split", "blog_posts", "logos"
     );
 
     private static final Set<String> ANALYTICS_EVENTS = Set.of("view", "cta_click");

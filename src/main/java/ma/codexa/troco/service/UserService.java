@@ -261,7 +261,8 @@ public class UserService {
                 u.isActive(),
                 u.getFournisseurId(),
                 permissionCheckService.resolvePermissions(u),
-                isAdminGuideCompleted(u));
+                isAdminGuideCompleted(u),
+                u.isEmailVerified());
     }
 
     private boolean isAdminGuideCompleted(User u) {

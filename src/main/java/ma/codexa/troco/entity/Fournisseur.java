@@ -63,6 +63,10 @@ public class Fournisseur {
     @Column(name = "trial_ends_at")
     private LocalDateTime trialEndsAt;
 
+    /** Rappel « fin d'essai proche » déjà envoyé (évite les doublons). */
+    @Column(name = "trial_reminder_sent_at")
+    private LocalDateTime trialReminderSentAt;
+
     @Column(name = "subscription_ends_at")
     private LocalDateTime subscriptionEndsAt;
 

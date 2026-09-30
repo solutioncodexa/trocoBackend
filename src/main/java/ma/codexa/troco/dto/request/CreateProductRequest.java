@@ -47,6 +47,14 @@ public class CreateProductRequest {
     @Size(max = 120)
     private String marque;
 
+    /** Titre SEO (optionnel, 200 caractères max). */
+    @Size(max = 200)
+    private String seoTitle;
+
+    /** Description SEO (optionnelle, 500 caractères max). */
+    @Size(max = 500)
+    private String seoDescription;
+
     /** Champs legacy optionnels (compat). */
     private List<String> availableSizes;
     private Double weight;

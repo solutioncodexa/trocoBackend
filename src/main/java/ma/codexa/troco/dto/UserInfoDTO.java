@@ -21,14 +21,22 @@ public class UserInfoDTO {
     private List<String> permissions = new ArrayList<>();
     /** true si le guide 1ère utilisation (version courante) a été terminé / ignoré */
     private Boolean adminGuideCompleted;
+    /** false tant que l'email d'un compte inscrit publiquement n'est pas confirmé. */
+    private Boolean emailVerified = true;
 
     public UserInfoDTO(Long id, String email, String role, String fullName,
                        Boolean active, List<String> permissions) {
-        this(id, email, role, fullName, active, null, permissions, false);
+        this(id, email, role, fullName, active, null, permissions, false, true);
     }
 
     public UserInfoDTO(Long id, String email, String role, String fullName,
                        Boolean active, Long fournisseurId, List<String> permissions) {
-        this(id, email, role, fullName, active, fournisseurId, permissions, false);
+        this(id, email, role, fullName, active, fournisseurId, permissions, false, true);
+    }
+
+    public UserInfoDTO(Long id, String email, String role, String fullName,
+                       Boolean active, Long fournisseurId, List<String> permissions,
+                       Boolean adminGuideCompleted) {
+        this(id, email, role, fullName, active, fournisseurId, permissions, adminGuideCompleted, true);
     }
 }

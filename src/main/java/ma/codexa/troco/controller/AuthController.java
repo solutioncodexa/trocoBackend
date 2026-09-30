@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final UserService userService;
+    private final ma.codexa.troco.service.EmailVerificationService emailVerificationService;
 
     @Operation(summary = "Connexion utilisateur")
     @PostMapping("/login")
@@ -63,6 +64,24 @@ public class AuthController {
         return user != null
                 ? ResponseEntity.ok(ApiResponse.success(user))
                 : ResponseEntity.status(404).body(ApiResponse.error("Utilisateur non trouvé", 404));
+    }
+
+    @Operation(summary = "Confirmer l'adresse email (lien reçu par email)")
+    @PostMapping("/verify-email")
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(@RequestBody java.util.Map<String, String> body) {
+        emailVerificationService.verify(body != null ? body.get("token") : null);
+        return ResponseEntity.ok(ApiResponse.success(null, "Adresse email confirmée"));
+    }
+
+    @Operation(summary = "Renvoyer l'email de vérification (utilisateur connecté)")
+    @PostMapping("/resend-verification")
+    public ResponseEntity<ApiResponse<Void>> resendVerification(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(401).body(ApiResponse.error("Non authentifié", 401));
+        }
+        emailVerificationService.resend(userDetails.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(null, "Email de vérification envoyé"));
     }
 
     @Operation(summary = "Marquer le guide 1ère utilisation admin (persisté en base)")

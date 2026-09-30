@@ -154,6 +154,8 @@ public class ProductService {
         product.setStock(productDetails.getStock() != null ? productDetails.getStock() : 0);
         product.setCategory(productDetails.getCategory());
         product.setMarque(productDetails.getMarque());
+        product.setSeoTitle(productDetails.getSeoTitle());
+        product.setSeoDescription(productDetails.getSeoDescription());
         product.setBadges(productDetails.getBadges());
         product.setAvailableSizes(productDetails.getAvailableSizes());
         product.setCustomizable(productDetails.isCustomizable());

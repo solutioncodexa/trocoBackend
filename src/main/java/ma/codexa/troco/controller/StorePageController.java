@@ -84,7 +84,13 @@ public class StorePageController {
                 Map.of("type", "video", "label", "Vidéo"),
                 Map.of("type", "testimonials", "label", "Témoignages"),
                 Map.of("type", "countdown", "label", "Compteur promo"),
-                Map.of("type", "instagram", "label", "Grille Instagram")
+                Map.of("type", "instagram", "label", "Grille Instagram"),
+                Map.of("type", "features", "label", "Avantages"),
+                Map.of("type", "newsletter", "label", "Newsletter"),
+                Map.of("type", "gallery", "label", "Galerie photos"),
+                Map.of("type", "split", "label", "Image + texte"),
+                Map.of("type", "blog_posts", "label", "Derniers articles"),
+                Map.of("type", "logos", "label", "Logos partenaires")
         )));
     }
 

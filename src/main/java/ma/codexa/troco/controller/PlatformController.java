@@ -72,7 +72,7 @@ public class PlatformController {
     }
 
     /**
-     * Inscription publique vendeur — boutique créée en PENDING (activation Super Admin).
+     * Inscription publique vendeur — boutique créée en TRIAL (essai gratuit, validation automatique).
      */
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<FournisseurDTO>> registerStore(
@@ -109,6 +109,17 @@ public class PlatformController {
             @RequestBody Map<String, String> body) {
         String status = body.get("status");
         return ResponseEntity.ok(ApiResponse.success(fournisseurService.updateStatus(id, status)));
+    }
+
+    /** Prolonge l'essai gratuit de N jours (body : {"days": 15}). */
+    @PostMapping("/fournisseurs/{id}/trial/extend")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<FournisseurDTO>> extendTrial(
+            @PathVariable Long id,
+            @RequestBody Map<String, Integer> body) {
+        Integer days = body != null ? body.get("days") : null;
+        return ResponseEntity.ok(ApiResponse.success(
+                fournisseurService.extendTrial(id, days != null ? days : 0)));
     }
 
     @PatchMapping("/fournisseurs/{id}/plan")

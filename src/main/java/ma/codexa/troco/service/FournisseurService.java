@@ -37,6 +37,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +65,16 @@ public class FournisseurService {
 
     @Value("${app.platform.domain:getstore.com}")
     private String platformDomain;
+
+    /** Durée de l'essai gratuit à l'inscription publique (0 = désactivé). */
+    @Value("${app.trial.days:30}")
+    private int trialDays;
+
+    @Value("${app.trial.reminder-days:3}")
+    private int trialReminderDays;
+
+    private final EmailService emailService;
+    private final EmailVerificationService emailVerificationService;
 
     /** Landing / inscription — DTO marketing (sans flag admin). */
     @Transactional(readOnly = true)
@@ -223,7 +234,9 @@ public class FournisseurService {
     }
 
     /**
-     * @param activateImmediately true si créé par Super Admin (ACTIVE), false si inscription (PENDING).
+     * @param activateImmediately true si créé par Super Admin (ACTIVE) ; false si inscription publique :
+     *                            essai gratuit (TRIAL, validation automatique jusqu'à la fin de l'essai),
+     *                            ou PENDING si {@code app.trial.days} vaut 0.
      */
     @Transactional
     public FournisseurDTO create(CreateFournisseurRequest request, boolean activateImmediately) {
@@ -252,7 +265,14 @@ public class FournisseurService {
             f.setEmail(request.getEmail() != null ? request.getEmail().trim() : request.getAdminEmail().trim());
             f.setPhone(request.getPhone());
             f.setPlan(plan);
-            f.setStatus(activateImmediately ? FournisseurStatus.ACTIVE : FournisseurStatus.PENDING);
+            if (activateImmediately) {
+                f.setStatus(FournisseurStatus.ACTIVE);
+            } else if (trialDays > 0) {
+                f.setStatus(FournisseurStatus.TRIAL);
+                f.setTrialEndsAt(LocalDateTime.now().plusDays(trialDays));
+            } else {
+                f.setStatus(FournisseurStatus.PENDING);
+            }
             f.setPrimaryColor("#0F766E");
             f.setSecondaryColor("#134E4A");
             f = fournisseurRepository.save(f);
@@ -264,7 +284,8 @@ public class FournisseurService {
             settings.setContactEmail(f.getEmail());
             settings.setHeroEnabled(true);
             settings.setCategoriesEnabled(true);
-            settings.setSurMesureEnabled(true);
+            // Sur-mesure / devis : offre spécifique, à activer volontairement par le marchand.
+            settings.setSurMesureEnabled(false);
             settings.setThemeKey(StoreTheme.CLASSIC.getKey());
             storeSettingsRepository.save(settings);
 
@@ -280,6 +301,10 @@ public class FournisseurService {
                     ? request.getAdminFullName().trim()
                     : "Administrateur");
             userRepository.save(admin);
+            if (!activateImmediately) {
+                // Inscription publique : email à confirmer (souple, n'empêche ni connexion ni essai).
+                emailVerificationService.issueAndSend(admin, f.getName());
+            }
 
             log.info("fournisseur_created id={} slug={} admin={}", f.getId(), f.getSlug(), admin.getEmail());
             return toDto(f);
@@ -333,7 +358,79 @@ public class FournisseurService {
             } catch (IllegalArgumentException ex) {
                 throw new BusinessException(ex.getMessage(), HttpStatus.BAD_REQUEST);
             }
+            if (FournisseurStatus.ACTIVE.equals(f.getStatus())) {
+                // Passage au plan payant : l'essai est terminé.
+                f.setTrialEndsAt(null);
+                f.setTrialReminderSentAt(null);
+            } else if (FournisseurStatus.TRIAL.equals(f.getStatus())
+                    && (f.getTrialEndsAt() == null || f.getTrialEndsAt().isBefore(LocalDateTime.now()))) {
+                f.setTrialEndsAt(LocalDateTime.now().plusDays(Math.max(trialDays, 1)));
+                f.setTrialReminderSentAt(null);
+            }
             return toDto(fournisseurRepository.save(f));
+        } finally {
+            TenantContext.setBypass(false);
+        }
+    }
+
+    /** Super Admin : prolonge l'essai de {@code days} jours (repart de la fin actuelle si encore en cours). */
+    @Transactional
+    public FournisseurDTO extendTrial(Long id, int days) {
+        if (days < 1 || days > 365) {
+            throw new BusinessException("Durée de prolongation invalide (1 à 365 jours)", HttpStatus.BAD_REQUEST);
+        }
+        TenantContext.setBypass(true);
+        try {
+            Fournisseur f = fournisseurRepository.findById(id)
+                    .orElseThrow(() -> new BusinessException("Fournisseur introuvable", HttpStatus.NOT_FOUND));
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime base = f.getTrialEndsAt() != null && f.getTrialEndsAt().isAfter(now) ? f.getTrialEndsAt() : now;
+            f.setTrialEndsAt(base.plusDays(days));
+            f.setTrialReminderSentAt(null);
+            f.setStatus(FournisseurStatus.TRIAL);
+            return toDto(fournisseurRepository.save(f));
+        } finally {
+            TenantContext.setBypass(false);
+        }
+    }
+
+    /**
+     * Fin d'essai : TRIAL échu → PENDING (vitrine fermée, admin accessible pour choisir un plan).
+     * Le Super Admin passe ensuite la boutique en ACTIVE (plan payant).
+     */
+    @Transactional
+    public int expireTrials() {
+        TenantContext.setBypass(true);
+        try {
+            List<Fournisseur> due = fournisseurRepository
+                    .findByStatusIgnoreCaseAndTrialEndsAtBefore(FournisseurStatus.TRIAL, LocalDateTime.now());
+            for (Fournisseur f : due) {
+                f.setStatus(FournisseurStatus.PENDING);
+                fournisseurRepository.save(f);
+                log.info("trial_expired fournisseurId={} slug={}", f.getId(), f.getSlug());
+                emailService.sendTrialEnded(f.getEmail(), f.getName());
+            }
+            return due.size();
+        } finally {
+            TenantContext.setBypass(false);
+        }
+    }
+
+    /** Rappel unique {@code app.trial.reminder-days} jours avant la fin de l'essai. */
+    @Transactional
+    public int sendTrialReminders() {
+        if (trialReminderDays < 1) return 0;
+        TenantContext.setBypass(true);
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            List<Fournisseur> soon = fournisseurRepository.findTrialsToRemind(now, now.plusDays(trialReminderDays));
+            for (Fournisseur f : soon) {
+                long left = Math.max(1, java.time.Duration.between(now, f.getTrialEndsAt()).toDays());
+                emailService.sendTrialEndingSoon(f.getEmail(), f.getName(), left);
+                f.setTrialReminderSentAt(now);
+                fournisseurRepository.save(f);
+            }
+            return soon.size();
         } finally {
             TenantContext.setBypass(false);
         }
@@ -393,9 +490,15 @@ public class FournisseurService {
     private Fournisseur resolveAccessibleFournisseur(String slugOrNull) {
         Fournisseur f = resolveFournisseur(slugOrNull);
         if (!FournisseurStatus.isStorefrontAccessible(f.getStatus())) {
-            String msg = FournisseurStatus.PENDING.equalsIgnoreCase(f.getStatus())
-                    ? "Boutique en attente d'activation par Get STORE"
-                    : "Boutique temporairement indisponible";
+            String msg;
+            if (FournisseurStatus.PENDING.equalsIgnoreCase(f.getStatus())) {
+                // Message visible des clients de la boutique : neutre (l'état de l'essai reste côté marchand).
+                msg = f.getTrialEndsAt() != null
+                        ? "Boutique temporairement indisponible"
+                        : "Cette boutique ouvre bientôt";
+            } else {
+                msg = "Boutique temporairement indisponible";
+            }
             throw new BusinessException(msg, HttpStatus.FORBIDDEN);
         }
         return f;
@@ -783,7 +886,8 @@ public class FournisseurService {
                 p != null ? p.getName() : null,
                 p != null ? p.getPriceMad() : null,
                 f.getCreatedAt(),
-                f.getSubscriptionEndsAt()
+                f.getSubscriptionEndsAt(),
+                f.getTrialEndsAt()
         );
     }
 
@@ -897,7 +1001,8 @@ public class FournisseurService {
                 p != null ? p.getCode() : null,
                 p != null ? p.getName() : null,
                 s.getDefaultLocale() != null ? s.getDefaultLocale() : "fr",
-                s.getSupportedLocales() != null ? s.getSupportedLocales() : "fr,ar,en"
+                s.getSupportedLocales() != null ? s.getSupportedLocales() : "fr,ar,en",
+                f.getTrialEndsAt()
         );
     }
 

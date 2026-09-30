@@ -59,6 +59,7 @@ public class OrderService {
     private final StoreSettingsRepository storeSettingsRepository;
     private final PlanEntitlementService planEntitlementService;
     private final StorePaymentGatewayService storePaymentGatewayService;
+    private final CustomerNotificationService customerNotificationService;
 
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
@@ -168,6 +169,9 @@ public class OrderService {
                 id, saved.getOrderNumber(), previous, newStatus);
         auditLog.record(AuditLogService.Action.ORDER_UPDATE_STATUS, "ORDER", String.valueOf(id),
                 "Commande " + saved.getOrderNumber() + ": " + previous + " → " + newStatus);
+        if (newStatus != null && !newStatus.equalsIgnoreCase(previous)) {
+            customerNotificationService.orderStatusChanged(saved, newStatus);
+        }
         return toOrderDto(saved);
     }
 
@@ -310,6 +314,7 @@ public class OrderService {
         log.info("Order created orderId={} orderNumber={} customerEmail={} totalAmount={}",
                 savedOrder.getId(), savedOrder.getOrderNumber(), customer.getEmail(), savedOrder.getTotalAmount());
         notificationService.notifyNewOrder(savedOrder);
+        customerNotificationService.orderPlaced(savedOrder);
         try {
             java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
             payload.put("orderId", savedOrder.getId());
@@ -341,7 +346,11 @@ public class OrderService {
             ShippingCarrier carrier = shippingCarrierService.requireEnabled(order.getCarrierCode());
             order.setTrackingUrl(shippingCarrierService.buildTrackingUrl(carrier, trackingNumber));
         }
-        return toOrderDto(orderRepository.save(order));
+        Order saved = orderRepository.save(order);
+        if (trackingNumber != null && !trackingNumber.isBlank()) {
+            customerNotificationService.orderShipped(saved);
+        }
+        return toOrderDto(saved);
     }
 
     private static String normalizePaymentMethod(String raw) {

@@ -5,6 +5,10 @@ import ma.codexa.troco.dto.request.CreateFournisseurRequest;
 import ma.codexa.troco.support.IntegrationTestBase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import ma.codexa.troco.repository.FournisseurRepository;
+import ma.codexa.troco.service.FournisseurService;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.util.Map;
 
@@ -16,6 +20,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @DisplayName("Intégration — plateforme Matjarona")
 class PlatformIntegrationTest extends IntegrationTestBase {
+
+    @Autowired
+    private FournisseurService fournisseurService;
+
+    @Autowired
+    private FournisseurRepository fournisseurRepository;
 
     @Test
     @DisplayName("GET /platform/plans retourne au moins le plan Basic/Starter")
@@ -36,8 +46,8 @@ class PlatformIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("Inscription publique → PENDING ; activation Super Admin → store public OK")
-    void registerStore_pending_thenActivate() throws Exception {
+    @DisplayName("Inscription publique → TRIAL (validation auto) ; ACTIVE par Super Admin efface l'essai")
+    void registerStore_trial_thenActivate() throws Exception {
         String slug = uniqueSlug("boutique");
         String email = uniqueEmail("vendeur");
         CreateFournisseurRequest req = newStoreRequest("Boutique Test", slug, email, "Password123!");
@@ -45,11 +55,15 @@ class PlatformIntegrationTest extends IntegrationTestBase {
         JsonNode created = registerStore(req);
         assertThat(created.path("slug").asText()).isEqualTo(slug);
         assertThat(created.path("name").asText()).isEqualTo("Boutique Test");
-        assertThat(created.path("status").asText()).isEqualTo("PENDING");
+        assertThat(created.path("status").asText()).isEqualTo("TRIAL");
+        assertThat(created.path("trialEndsAt").isNull()).isFalse();
         long id = created.path("id").asLong();
 
+        // Vitrine accessible immédiatement pendant l'essai
         mockMvc.perform(get("/platform/store").param("slug", slug))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.siteName").value("Boutique Test"))
+                .andExpect(jsonPath("$.data.themeKey").value("classic"));
 
         String token = login(email, "Password123!");
         assertThat(token).isNotBlank();
@@ -60,14 +74,39 @@ class PlatformIntegrationTest extends IntegrationTestBase {
                         .contentType("application/json")
                         .content(json(Map.of("status", "ACTIVE"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.trialEndsAt").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    @DisplayName("Fin d'essai → PENDING (vitrine fermée, admin OK) ; prolongation Super Admin → TRIAL")
+    void trial_expires_thenExtend() throws Exception {
+        String slug = uniqueSlug("expire");
+        String email = uniqueEmail("exp");
+        JsonNode created = registerStore(newStoreRequest("Essai Fini", slug, email, "Password123!"));
+        long id = created.path("id").asLong();
+
+        var f = fournisseurRepository.findById(id).orElseThrow();
+        f.setTrialEndsAt(java.time.LocalDateTime.now().minusMinutes(5));
+        fournisseurRepository.save(f);
+
+        assertThat(fournisseurService.expireTrials()).isGreaterThanOrEqualTo(1);
 
         mockMvc.perform(get("/platform/store").param("slug", slug))
+                .andExpect(status().isForbidden());
+        assertThat(login(email, "Password123!")).isNotBlank();
+
+        String saToken = login("superadmin@matjarona.ma", "SuperAdmin1234");
+        mockMvc.perform(post("/platform/fournisseurs/" + id + "/trial/extend")
+                        .header("Authorization", "Bearer " + saToken)
+                        .contentType("application/json")
+                        .content(json(Map.of("days", 15))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.siteName").value("Boutique Test"))
-                .andExpect(jsonPath("$.data.slug").value(slug))
-                .andExpect(jsonPath("$.data.themeKey").value("classic"));
+                .andExpect(jsonPath("$.data.status").value("TRIAL"))
+                .andExpect(jsonPath("$.data.trialEndsAt").exists());
+
+        mockMvc.perform(get("/platform/store").param("slug", slug))
+                .andExpect(status().isOk());
     }
 
     @Test

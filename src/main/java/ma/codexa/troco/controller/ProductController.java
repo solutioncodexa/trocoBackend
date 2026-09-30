@@ -530,6 +530,10 @@ public class ProductController {
         return productService.getAllProducts(pageable);
     }
 
+    private static String blankToNull(String v) {
+        return v == null || v.isBlank() ? null : v.trim();
+    }
+
     private ProductDetailDTO convertToDetailDTO(CreateProductRequest request) {
         ProductDetailDTO dto = new ProductDetailDTO();
         dto.setName(request.getName());
@@ -540,6 +544,8 @@ public class ProductController {
         dto.setCategory(request.getCategory());
         dto.setSku(request.getSku());
         dto.setMarque(request.getMarque());
+        dto.setSeoTitle(blankToNull(request.getSeoTitle()));
+        dto.setSeoDescription(blankToNull(request.getSeoDescription()));
         dto.setAvailableSizes(request.getAvailableSizes());
         dto.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 0);
         dto.setMarginGain(request.getMarginGain());

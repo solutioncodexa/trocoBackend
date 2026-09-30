@@ -27,6 +27,9 @@ public class ProductDetailDTO {
     private List<ProductVariantDTO> variants;
     /** Marque / label produit (optionnel). */
     private String marque;
+    /** SEO personnalisé (optionnel). */
+    private String seoTitle;
+    private String seoDescription;
     private List<String> availableSizes;
     private Double weight;
     private Double marginGain;

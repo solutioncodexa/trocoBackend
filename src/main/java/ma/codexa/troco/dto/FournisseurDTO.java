@@ -19,5 +19,6 @@ public record FournisseurDTO(
         String planName,
         BigDecimal planPriceMad,
         LocalDateTime createdAt,
-        LocalDateTime subscriptionEndsAt
+        LocalDateTime subscriptionEndsAt,
+        LocalDateTime trialEndsAt
 ) {}

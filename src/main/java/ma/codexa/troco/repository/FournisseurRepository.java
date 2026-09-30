@@ -18,4 +18,9 @@ public interface FournisseurRepository extends JpaRepository<Fournisseur, Long> 
     boolean existsByCustomDomainIgnoreCase(String customDomain);
 
     List<Fournisseur> findAllByOrderByCreatedAtDesc();
+
+    List<Fournisseur> findByStatusIgnoreCaseAndTrialEndsAtBefore(String status, java.time.LocalDateTime before);
+
+    @Query("SELECT f FROM Fournisseur f WHERE UPPER(f.status) = 'TRIAL' AND f.trialEndsAt > :from AND f.trialEndsAt <= :to AND f.trialReminderSentAt IS NULL")
+    List<Fournisseur> findTrialsToRemind(@Param("from") java.time.LocalDateTime from, @Param("to") java.time.LocalDateTime to);
 }

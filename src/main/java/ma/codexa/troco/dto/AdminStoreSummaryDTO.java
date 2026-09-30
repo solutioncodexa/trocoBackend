@@ -22,5 +22,6 @@ public record AdminStoreSummaryDTO(
         String planCode,
         String planName,
         String defaultLocale,
-        String supportedLocales
+        String supportedLocales,
+        java.time.LocalDateTime trialEndsAt
 ) {}
