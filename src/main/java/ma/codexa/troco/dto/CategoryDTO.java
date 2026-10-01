@@ -14,6 +14,8 @@ public class CategoryDTO {
     private String name;
     private String slug;
     private String description;
+    private String seoTitle;
+    private String seoDescription;
     private Long parentId;
     private String parentName;
     private String heroImageUrl;

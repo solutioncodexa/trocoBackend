@@ -17,6 +17,12 @@ public class UpdateCategoryRequest {
 
     private String description;
 
+    @Size(max = 200)
+    private String seoTitle;
+
+    @Size(max = 500)
+    private String seoDescription;
+
     /** null = racine ; omit vs clear handled via clearParent */
     private Long parentId;
 

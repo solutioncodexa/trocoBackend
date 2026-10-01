@@ -160,6 +160,8 @@ public class CategoryService {
         category.setName(request.getName().trim());
         category.setSlug(slug);
         category.setDescription(blankToNull(request.getDescription()));
+        category.setSeoTitle(blankToNull(request.getSeoTitle()));
+        category.setSeoDescription(blankToNull(request.getSeoDescription()));
         category.setParent(resolveParent(request.getParentId(), null));
         category.setShowOnHero(false);
         category.setActive(true);
@@ -195,6 +197,8 @@ public class CategoryService {
 
         category.setName(request.getName().trim());
         category.setDescription(blankToNull(request.getDescription()));
+        category.setSeoTitle(blankToNull(request.getSeoTitle()));
+        category.setSeoDescription(blankToNull(request.getSeoDescription()));
         category.setSlug(slug);
 
         if (Boolean.TRUE.equals(request.getClearParent())) {
@@ -372,6 +376,8 @@ public class CategoryService {
                 .name(category.getName())
                 .slug(category.getSlug())
                 .description(category.getDescription())
+                .seoTitle(category.getSeoTitle())
+                .seoDescription(category.getSeoDescription())
                 .parentId(parentId)
                 .parentName(parentName)
                 .heroImageUrl(category.getHeroImageUrl())

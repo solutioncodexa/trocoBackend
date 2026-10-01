@@ -17,6 +17,12 @@ public class CreateCategoryRequest {
 
     private String description;
 
+    @Size(max = 200)
+    private String seoTitle;
+
+    @Size(max = 500)
+    private String seoDescription;
+
     /** Catégorie parente optionnelle */
     private Long parentId;
 }

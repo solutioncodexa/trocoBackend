@@ -44,7 +44,7 @@ Liens PR (à finaliser après `gh auth login`) :
 | WhatsApp Cloud API (option) | Actuel = click-to-chat `wa.me` uniquement |
 | Relance panier email fiable | Dépend SMTP prod + templates |
 | Webhooks retry / DLQ | Journal existe ; stratégie retry à formaliser |
-| Domaine custom SSL UX | Vérif DNS + certificat automatisé |
+| Domaine custom SSL UX | Assistant DNS (CNAME + copie) + vérif ; certificat auto Cloudflare / plateforme |
 | Import catalogue massif | Endpoint import présent ; UX admin à renforcer |
 
 ---
@@ -75,15 +75,18 @@ Liens PR (à finaliser après `gh auth login`) :
 
 | Item | Notes |
 |---|---|
-| Liens pages légales dans le pied de page | Mentions, confidentialité, CGV (`/page/…`) + retours CMS si pas de page `livraison-retours` |
-| Builder pour pages boutique | Fiche produit, liste, panier, checkout : réglages d’apparence seulement |
-| SEO catégories / blog | SEO personnalisé disponible pour produits et pages uniquement |
+| Builder pour pages boutique | Fiche produit, liste, panier, checkout : pas de builder de blocs (apparence globale seulement) |
 | Activation auto + paiement plan (CMI) | Volontairement non appliqué : fin d’essai → activation manuelle Super Admin |
-| Domaine custom guidé | Vérif DNS existante ; assistant pas à pas + SSL auto à faire |
 | Emails clients : templates HTML / personnalisation marchand | Textes simples actuellement |
+| Transporteurs temps réel | Barèmes + URL de suivi livrés ; APIs Amana/CTM/DHL live à brancher |
+| PSP boutique réel | Flags COD / CMI / BNPL + audit ; redirect CMI / PCI hors scope MVP |
 
 ## Déjà livré récemment
 
+- **Styles complets dans Paramètres → Apparence** (même grille que l’assistant : thème + couleurs + polices + arrondis + agencement). Changer de thème seul, plus bas, conserve les couleurs déjà enregistrées.
+- **SEO catégories** (admin + meta OG / canonical sur `/boutique?category=`) et **SEO blog** (liste + article : title, description, OG, canonical)
+- **Assistant domaine personnalisé** (saisie, CNAME à copier, HTTPS, vérifier DNS)
+- Liens pages légales dans le pied de page
 - **Aperçu du builder dans un iframe** (bureau 1100 / tablette 768 / mobile 390 : les media queries s’appliquent réellement), zoom auto-ajusté
 - **Essai gratuit 30 j**, vérification email, onboarding (secteur, produits démo, pages légales), 6 nouveaux blocs + 3 modèles, emails clients, SEO produit  
 

@@ -27,6 +27,12 @@ public class Category extends TenantScoped {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "seo_title", length = 200)
+    private String seoTitle;
+
+    @Column(name = "seo_description", length = 500)
+    private String seoDescription;
+
     /** Unique par fournisseur (index composite en migration V18). */
     @Column(nullable = false)
     private String slug;

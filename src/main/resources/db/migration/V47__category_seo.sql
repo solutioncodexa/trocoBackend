@@ -1,0 +1,2 @@
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS seo_title VARCHAR(200);
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS seo_description VARCHAR(500);
