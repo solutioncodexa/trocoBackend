@@ -29,6 +29,7 @@ public class StoreSeoService {
     private final StorePageRepository pageRepository;
     private final StoreBlogPostRepository blogRepository;
     private final ProductRepository productRepository;
+    private final ma.codexa.troco.repository.CategoryRepository categoryRepository;
 
     @Value("${app.platform.domain:getstore.com}")
     private String platformDomain;
@@ -53,6 +54,11 @@ public class StoreSeoService {
         for (StoreBlogPost post : blogRepository.findByPublishedTrueOrderByCreatedAtDesc()) {
             if (post.getPublishAt() != null && post.getPublishAt().isAfter(now)) continue;
             urls.add(new UrlEntry(base + "/blog/" + post.getSlug(), "0.6", "weekly"));
+        }
+
+        for (ma.codexa.troco.entity.Category c : categoryRepository.findAll()) {
+            if (Boolean.FALSE.equals(c.getActive()) || c.getSlug() == null || c.getSlug().isBlank()) continue;
+            urls.add(new UrlEntry(base + "/boutique?category=" + c.getSlug(), "0.7", "weekly"));
         }
 
         for (Long id : productRepository.findAllActiveIds()) {

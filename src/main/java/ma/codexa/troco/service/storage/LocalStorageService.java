@@ -80,6 +80,7 @@ public class LocalStorageService implements StorageService {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (IOException e) {
+            log.error("Échec écriture upload dans '{}' : {}", Paths.get(uploadDir).toAbsolutePath(), e.toString(), e);
             auditLog.log(AuditLogService.Action.FILE_UPLOAD, AuditLogService.Outcome.FAILURE,
                     file.getOriginalFilename(), e.getMessage());
             throw new RuntimeException("Erreur lors de l'enregistrement du fichier", e);

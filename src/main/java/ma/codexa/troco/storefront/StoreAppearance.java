@@ -129,6 +129,12 @@ public final class StoreAppearance {
         m.put("productInfoPosition", "right");
         m.put("productStickyBuyBox", true);
         m.put("productShowRelated", true);
+        m.put("productShowDescription", true);
+        m.put("productShowReviews", true);
+        m.put("productShowFrequentlyBought", true);
+        m.put("productShowShare", true);
+        m.put("productShowWhatsapp", true);
+        m.put("productBelowOrder", "frequently,reviews,related");
         m.put("productCtaLabel", "Commander");
         m.put("productShowTrust", true);
         m.put("headerSticky", true);
@@ -331,6 +337,14 @@ public final class StoreAppearance {
         putBool(out, in, "shopShowFilters");
         putBool(out, in, "productStickyBuyBox");
         putBool(out, in, "productShowRelated");
+        putBool(out, in, "productShowDescription");
+        putBool(out, in, "productShowReviews");
+        putBool(out, in, "productShowFrequentlyBought");
+        putBool(out, in, "productShowShare");
+        putBool(out, in, "productShowWhatsapp");
+        if (in.containsKey("productBelowOrder")) {
+            out.put("productBelowOrder", sanitizeBelowOrder(stringVal(in.get("productBelowOrder"))));
+        }
         putBool(out, in, "productShowTrust");
         putBool(out, in, "headerSticky");
         putBool(out, in, "cardShowQuickAdd");
@@ -385,6 +399,18 @@ public final class StoreAppearance {
         } catch (Exception e) {
             return Map.of();
         }
+    }
+
+    /** Ordre des sections sous la fiche produit : uniquement les clés connues, sans doublon, toutes présentes. */
+    private static String sanitizeBelowOrder(String raw) {
+        java.util.List<String> allowed = java.util.List.of("frequently", "reviews", "related");
+        java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
+        for (String k : raw.split(",")) {
+            String t = k.trim();
+            if (allowed.contains(t)) keys.add(t);
+        }
+        keys.addAll(allowed);
+        return String.join(",", keys);
     }
 
     private static void putEnum(Map<String, Object> out, Map<String, Object> in, String key, Set<String> allowed, String fallback) {

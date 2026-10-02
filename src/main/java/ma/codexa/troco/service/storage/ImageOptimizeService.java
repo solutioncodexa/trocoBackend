@@ -51,7 +51,14 @@ public class ImageOptimizeService {
         }
 
         byte[] original = file.getBytes();
-        BufferedImage src = ImageIO.read(new ByteArrayInputStream(original));
+        BufferedImage src;
+        try {
+            src = ImageIO.read(new ByteArrayInputStream(original));
+        } catch (IOException | RuntimeException e) {
+            // Image illisible par ImageIO (profil couleur exotique, fichier atypique) : on garde l'original.
+            log.warn("image_decode_failed ct={} detail={}", ct, e.getMessage());
+            src = null;
+        }
         if (src == null) {
             return new OptimizedImage(original, ct,
                     LocalStorageService.resolveExtension(file.getOriginalFilename()), false);
