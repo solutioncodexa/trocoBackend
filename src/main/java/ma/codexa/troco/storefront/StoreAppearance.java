@@ -135,6 +135,7 @@ public final class StoreAppearance {
         m.put("productShowShare", true);
         m.put("productShowWhatsapp", true);
         m.put("productBelowOrder", "frequently,reviews,related");
+        m.put("textOverrides", new java.util.LinkedHashMap<String, String>());
         m.put("productCtaLabel", "Commander");
         m.put("productShowTrust", true);
         m.put("headerSticky", true);
@@ -342,6 +343,9 @@ public final class StoreAppearance {
         putBool(out, in, "productShowFrequentlyBought");
         putBool(out, in, "productShowShare");
         putBool(out, in, "productShowWhatsapp");
+        if (in.containsKey("textOverrides")) {
+            out.put("textOverrides", sanitizeTextOverrides(in.get("textOverrides")));
+        }
         if (in.containsKey("productBelowOrder")) {
             out.put("productBelowOrder", sanitizeBelowOrder(stringVal(in.get("productBelowOrder"))));
         }
@@ -399,6 +403,21 @@ public final class StoreAppearance {
         } catch (Exception e) {
             return Map.of();
         }
+    }
+
+    /** Textes personnalisés par le marchand : « texte d'origine → nouveau texte » (300 entrées max). */
+    private static Map<String, String> sanitizeTextOverrides(Object raw) {
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        if (!(raw instanceof Map<?, ?> map)) return out;
+        for (Map.Entry<?, ?> e : map.entrySet()) {
+            if (out.size() >= 300) break;
+            if (e.getKey() == null || e.getValue() == null) continue;
+            String key = String.valueOf(e.getKey()).trim();
+            String value = String.valueOf(e.getValue()).trim();
+            if (key.isEmpty() || key.length() > 300 || value.isEmpty() || value.length() > 600) continue;
+            out.put(key, value);
+        }
+        return out;
     }
 
     /** Ordre des sections sous la fiche produit : uniquement les clés connues, sans doublon, toutes présentes. */
