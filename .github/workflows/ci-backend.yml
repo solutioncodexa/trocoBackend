@@ -2,7 +2,7 @@ name: Troco Backend Deploy
 
 on:
   push:
-    branches: [feature/shopify, shopify, main, master]
+    branches: [feature/shopify]
   workflow_dispatch:
 
 permissions:
