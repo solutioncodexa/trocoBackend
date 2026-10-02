@@ -120,10 +120,11 @@ services:
       troco-minio-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      # eclipse-temurin:21-jre n'embarque pas wget/curl : port ouvert = JVM up
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
       interval: 20s
       timeout: 5s
-      retries: 12
+      retries: 18
       start_period: 90s
     networks:
       - goldyara-net
