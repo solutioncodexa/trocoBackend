@@ -10,7 +10,9 @@ import java.util.List;
 public record AssistantChatRequest(
         @NotEmpty @Size(max = 40) List<@Valid Message> messages,
         /** Écran admin affiché (ex. /admin/reglages) — aide le modèle à répondre dans le contexte. */
-        @Size(max = 120) String route
+        @Size(max = 120) String route,
+        /** Langue de l'interface admin : fr | en | ar (défaut fr). */
+        @Size(max = 8) String locale
 ) {
     public record Message(
             @NotBlank @Size(max = 20) String role,

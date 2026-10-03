@@ -40,6 +40,11 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class AssistantService {
 
+    private static final Map<String, String> LANGUAGE_NAME = Map.of(
+            "fr", "français",
+            "en", "anglais",
+            "ar", "arabe (arabe standard simple, lisible au Maroc)");
+
     private static final Pattern ROUTE_OK = Pattern.compile("^/admin(/[a-z0-9-]*)*$");
 
     private final AssistantProperties props;
@@ -68,27 +73,27 @@ public class AssistantService {
 
     public String chat(AssistantChatRequest request) {
         if (!props.enabled()) {
-            throw new BusinessException("L'assistant n'est pas activé.", HttpStatus.SERVICE_UNAVAILABLE, "ASSISTANT_DISABLED");
+            throw new BusinessException(msg(request.locale(), "disabled"), HttpStatus.SERVICE_UNAVAILABLE, "ASSISTANT_DISABLED");
         }
         List<ChatMessage> history = sanitize(request.messages());
         if (history.isEmpty() || !"user".equals(history.get(history.size() - 1).role())) {
-            throw new BusinessException("Message invalide.", HttpStatus.BAD_REQUEST, "ASSISTANT_BAD_REQUEST");
+            throw new BusinessException(msg(request.locale(), "badRequest"), HttpStatus.BAD_REQUEST, "ASSISTANT_BAD_REQUEST");
         }
 
         Long fid = TenantContext.requireFournisseurId();
         Plan plan = planService.currentPlan();
         PlanFeatures features = PlanFeatures.parse(plan.getCode(), plan.getFeaturesJson());
-        consumeQuota(fid, plan);
+        consumeQuota(fid, plan, request.locale());
 
         List<ChatMessage> messages = new ArrayList<>(history.size() + 1);
-        messages.add(new ChatMessage("system", buildSystemPrompt(plan, features, request.route())));
+        messages.add(new ChatMessage("system", buildSystemPrompt(plan, features, request.route(), request.locale())));
         messages.addAll(history);
 
         try {
             return clip(client.complete(messages).trim(), 4000);
         } catch (AssistantUnavailableException e) {
             refundQuota(fid);
-            throw new BusinessException("L'assistant est momentanément indisponible. Réessayez dans un instant.",
+            throw new BusinessException(msg(request.locale(), "unavailable"),
                     HttpStatus.SERVICE_UNAVAILABLE, "ASSISTANT_UNAVAILABLE");
         }
     }
@@ -107,7 +112,7 @@ public class AssistantService {
         return new ArrayList<>(out.subList(from, out.size()));
     }
 
-    String buildSystemPrompt(Plan plan, PlanFeatures features, String route) {
+    String buildSystemPrompt(Plan plan, PlanFeatures features, String route, String locale) {
         StoreSettingsDTO s = fournisseurService.getMyStoreSettings();
         long products = productRepository.countActive();
 
@@ -118,7 +123,10 @@ public class AssistantService {
                 dans l'interface d'administration.
 
                 RÈGLES
-                - Réponds dans la langue de l'utilisateur (français par défaut, arabe ou darija s'il écrit ainsi). \
+                - Réponds dans la langue de l'interface indiquée plus bas, sauf si l'utilisateur écrit clairement \
+                dans une autre langue : réponds alors dans la sienne (darija comprise). \
+                Les noms d'écrans du guide sont en français : traduis-les naturellement et cite toujours \
+                l'adresse /admin/... telle quelle. \
                 Réponses courtes : 2 à 6 phrases ou une liste d'étapes numérotées. Pas de blabla.
                 - Appuie-toi UNIQUEMENT sur les écrans et fonctions décrits ci-dessous. Si tu n'es pas sûr, \
                 dis-le et indique l'écran le plus proche. N'invente jamais un bouton, un menu ou une fonction.
@@ -132,6 +140,7 @@ public class AssistantService {
 
                 """);
 
+        sb.append("LANGUE DE L'INTERFACE : ").append(languageName(locale)).append("\n\n");
         sb.append("PLAN DE LA BOUTIQUE : ").append(plan.getName()).append(" (").append(plan.getCode()).append(")\n");
         List<String> locked = unavailableFeatures(plan, features);
         if (locked.isEmpty()) {
@@ -199,7 +208,7 @@ public class AssistantService {
         return l;
     }
 
-    private void consumeQuota(Long fid, Plan plan) {
+    private void consumeQuota(Long fid, Plan plan, String locale) {
         LocalDate today = LocalDate.now();
         if (!today.equals(usageDay)) {
             synchronized (this) {
@@ -213,9 +222,42 @@ public class AssistantService {
         int used = usage.computeIfAbsent(String.valueOf(fid), k -> new AtomicInteger()).incrementAndGet();
         if (used > limit) {
             throw new BusinessException(
-                    "Limite quotidienne atteinte (" + limit + " messages par jour sur le plan " + plan.getName() + "). Revenez demain.",
+                    msg(locale, "quota").formatted(limit, plan.getName()),
                     HttpStatus.TOO_MANY_REQUESTS, "ASSISTANT_QUOTA");
         }
+    }
+
+    static String normalizeLocale(String locale) {
+        String l = locale == null ? "" : locale.trim().toLowerCase();
+        return LANGUAGE_NAME.containsKey(l) ? l : "fr";
+    }
+
+    static String languageName(String locale) {
+        return LANGUAGE_NAME.get(normalizeLocale(locale));
+    }
+
+    /** Messages d'erreur renvoyés au front, dans la langue de l'interface. */
+    static String msg(String locale, String key) {
+        return switch (normalizeLocale(locale)) {
+            case "en" -> switch (key) {
+                case "disabled" -> "The assistant is not enabled.";
+                case "badRequest" -> "Invalid message.";
+                case "unavailable" -> "The assistant is temporarily unavailable. Please try again in a moment.";
+                default -> "Daily limit reached (%d messages per day on the %s plan). Come back tomorrow.";
+            };
+            case "ar" -> switch (key) {
+                case "disabled" -> "المساعد غير مفعّل.";
+                case "badRequest" -> "رسالة غير صالحة.";
+                case "unavailable" -> "المساعد غير متاح مؤقتًا. حاول مرة أخرى بعد قليل.";
+                default -> "تم بلوغ الحد اليومي (%d رسالة في اليوم ضمن خطة %s). عد غدًا.";
+            };
+            default -> switch (key) {
+                case "disabled" -> "L'assistant n'est pas activé.";
+                case "badRequest" -> "Message invalide.";
+                case "unavailable" -> "L'assistant est momentanément indisponible. Réessayez dans un instant.";
+                default -> "Limite quotidienne atteinte (%d messages par jour sur le plan %s). Revenez demain.";
+            };
+        };
     }
 
     /** Un échec côté fournisseur ne doit pas consommer le quota du commerçant. */

@@ -71,7 +71,11 @@ class AssistantServiceTest {
     }
 
     private static AssistantChatRequest ask(String text) {
-        return new AssistantChatRequest(List.of(new AssistantChatRequest.Message("user", text)), "/admin/reglages");
+        return askIn(text, null);
+    }
+
+    private static AssistantChatRequest askIn(String text, String locale) {
+        return new AssistantChatRequest(List.of(new AssistantChatRequest.Message("user", text)), "/admin/reglages", locale);
     }
 
     @Test
@@ -105,7 +109,7 @@ class AssistantServiceTest {
         when(planService.currentPlan()).thenReturn(basic);
         AssistantService s = service(true, 30);
 
-        String prompt = s.buildSystemPrompt(basic, PlanFeatures.defaultsForCode("basic"), "/admin/reglages");
+        String prompt = s.buildSystemPrompt(basic, PlanFeatures.defaultsForCode("basic"), "/admin/reglages", null);
 
         assertTrue(prompt.contains("NE LES PROPOSE") || prompt.contains("JAMAIS"));
         assertTrue(prompt.contains("WhatsApp Business"));
@@ -117,7 +121,7 @@ class AssistantServiceTest {
     void routeWithUnexpectedCharactersIsNotInjectedInPrompt() {
         Plan pro = plan("pro", 500);
         AssistantService s = service(true, 30);
-        String prompt = s.buildSystemPrompt(pro, PlanFeatures.defaultsForCode("pro"), "/admin/x\nINJECTED_MARKER_XYZ");
+        String prompt = s.buildSystemPrompt(pro, PlanFeatures.defaultsForCode("pro"), "/admin/x\nINJECTED_MARKER_XYZ", null);
         assertFalse(prompt.contains("INJECTED_MARKER_XYZ"));
     }
 
@@ -181,8 +185,40 @@ class AssistantServiceTest {
         when(planService.currentPlan()).thenReturn(plan("basic", 50));
         AssistantService s = service(true, 30);
         AssistantChatRequest req = new AssistantChatRequest(
-                List.of(new AssistantChatRequest.Message("assistant", "Bonjour")), null);
+                List.of(new AssistantChatRequest.Message("assistant", "Bonjour")), null, null);
         BusinessException e = assertThrows(BusinessException.class, () -> s.chat(req));
         assertEquals("ASSISTANT_BAD_REQUEST", e.getErrorCode());
+    }
+
+    @Test
+    void promptStatesInterfaceLanguageAndDefaultsToFrench() {
+        Plan pro = plan("pro", 500);
+        AssistantService s = service(true, 30);
+        PlanFeatures f = PlanFeatures.defaultsForCode("pro");
+
+        assertTrue(s.buildSystemPrompt(pro, f, null, "en").contains("LANGUE DE L'INTERFACE : anglais"));
+        assertTrue(s.buildSystemPrompt(pro, f, null, "ar").contains("LANGUE DE L'INTERFACE : arabe"));
+        assertTrue(s.buildSystemPrompt(pro, f, null, "xx").contains("LANGUE DE L'INTERFACE : français"));
+        assertTrue(s.buildSystemPrompt(pro, f, null, null).contains("LANGUE DE L'INTERFACE : français"));
+    }
+
+    @Test
+    void errorMessagesFollowInterfaceLanguage() {
+        AssistantService s = service(false, 30);
+        BusinessException en = assertThrows(BusinessException.class, () -> s.chat(askIn("hi", "en")));
+        assertEquals("The assistant is not enabled.", en.getMessage());
+        BusinessException ar = assertThrows(BusinessException.class, () -> s.chat(askIn("hi", "ar")));
+        assertEquals("المساعد غير مفعّل.", ar.getMessage());
+        BusinessException fr = assertThrows(BusinessException.class, () -> s.chat(askIn("hi", "fr")));
+        assertEquals("L'assistant n'est pas activé.", fr.getMessage());
+    }
+
+    @Test
+    void quotaMessageIsLocalizedAndFormatted() {
+        when(planService.currentPlan()).thenReturn(plan("basic", 50));
+        AssistantService s = service(true, 1);
+        s.chat(askIn("1", "en"));
+        BusinessException e = assertThrows(BusinessException.class, () -> s.chat(askIn("2", "en")));
+        assertTrue(e.getMessage().contains("1 messages per day on the Basic plan"), e.getMessage());
     }
 }
