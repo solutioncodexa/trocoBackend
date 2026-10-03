@@ -162,6 +162,8 @@ services:
       OLLAMA_KEEP_ALIVE: ${TROCO_OLLAMA_KEEP_ALIVE:-10m}
       OLLAMA_MAX_LOADED_MODELS: "1"
       OLLAMA_NUM_PARALLEL: ${TROCO_OLLAMA_NUM_PARALLEL:-1}
+      # Le prompt (règles + guide + contexte) dépasse le contexte par défaut : sans ceci Ollama le tronque en silence.
+      OLLAMA_CONTEXT_LENGTH: ${TROCO_OLLAMA_CONTEXT_LENGTH:-8192}
     volumes:
       - troco_ollama_data:/root/.ollama
     mem_limit: ${TROCO_OLLAMA_MEM_LIMIT:-8g}

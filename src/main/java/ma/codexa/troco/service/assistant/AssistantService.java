@@ -140,6 +140,10 @@ public class AssistantService {
 
                 """);
 
+        // Partie identique pour toutes les boutiques d'abord (règles + guide) : Ollama réutilise le cache de
+        // préfixe, seul le contexte propre à la boutique ci-dessous est à recalculer à chaque requête.
+        sb.append("GUIDE DES ÉCRANS ET RECETTES\n").append(knowledge);
+        sb.append("\n--- CONTEXTE DE CETTE BOUTIQUE ---\n");
         sb.append("LANGUE DE L'INTERFACE : ").append(languageName(locale)).append("\n\n");
         sb.append("PLAN DE LA BOUTIQUE : ").append(plan.getName()).append(" (").append(plan.getCode()).append(")\n");
         List<String> locked = unavailableFeatures(plan, features);
@@ -183,7 +187,6 @@ public class AssistantService {
         if (route != null && ROUTE_OK.matcher(route).matches()) {
             sb.append("\nÉCRAN ACTUELLEMENT OUVERT PAR L'UTILISATEUR : ").append(route).append('\n');
         }
-        sb.append("\nGUIDE DES ÉCRANS ET RECETTES\n").append(knowledge);
         return sb.toString();
     }
 

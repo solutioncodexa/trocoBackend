@@ -25,8 +25,8 @@ public record AssistantProperties(
     public AssistantProperties {
         if (baseUrl == null || baseUrl.isBlank()) baseUrl = "http://ollama:11434/v1";
         if (model == null || model.isBlank()) model = "qwen2.5:7b-instruct";
-        if (timeoutSeconds <= 0) timeoutSeconds = 90;
-        if (maxHistory <= 0) maxHistory = 10;
+        if (timeoutSeconds <= 0) timeoutSeconds = 120;
+        if (maxHistory <= 0) maxHistory = 6;
         if (maxInputChars <= 0) maxInputChars = 1000;
         if (maxOutputTokens <= 0) maxOutputTokens = 500;
         if (temperature <= 0) temperature = 0.3;

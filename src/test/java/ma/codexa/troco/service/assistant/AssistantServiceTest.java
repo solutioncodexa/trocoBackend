@@ -134,7 +134,7 @@ class AssistantServiceTest {
             raw.add(new AssistantChatRequest.Message(i % 2 == 0 ? "user" : "assistant", "m" + i));
         }
         List<ChatMessage> out = s.sanitize(raw);
-        assertEquals(10, out.size());
+        assertEquals(6, out.size());
         assertTrue(out.stream().noneMatch(m -> m.role().equals("system")));
         assertEquals("m14", out.get(out.size() - 1).content());
     }
