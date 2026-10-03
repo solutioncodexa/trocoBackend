@@ -45,6 +45,20 @@ public class AssistantService {
             "en", "anglais",
             "ar", "arabe (arabe standard simple, lisible au Maroc)");
 
+    /**
+     * Clés et jetons (Stripe, AWS, JWT, « Bearer… », longues chaînes sans séparateur) : masqués avant tout envoi au
+     * fournisseur LLM externe, même si le front les a laissés passer.
+     */
+    private static final Pattern SECRET = Pattern.compile(
+            "\\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{8,}\\b"
+                    + "|\\bAKIA[0-9A-Z]{16}\\b"
+                    + "|\\bBearer\\s+[A-Za-z0-9._~+/=-]{20,}"
+                    + "|\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\b"
+                    + "|(?<![A-Za-z0-9/._-])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9/._-])",
+            Pattern.CASE_INSENSITIVE);
+
+    static final String REDACTED = "[clé masquée]";
+
     private static final Pattern STEP_OK = Pattern.compile("^[a-zA-Z]{1,24}$");
 
     private static final Pattern ROUTE_OK = Pattern.compile("^/admin(/[a-z0-9-]*)*$");
@@ -108,6 +122,7 @@ public class AssistantService {
             if (!role.equals("user") && !role.equals("assistant")) continue;
             String content = m.content() == null ? "" : m.content().trim();
             if (content.isEmpty()) continue;
+            content = SECRET.matcher(content).replaceAll(REDACTED);
             out.add(new ChatMessage(role, clip(content, props.maxInputChars())));
         }
         int from = Math.max(0, out.size() - props.maxHistory());
