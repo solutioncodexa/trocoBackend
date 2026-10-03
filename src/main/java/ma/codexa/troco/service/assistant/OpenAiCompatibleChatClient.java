@@ -1,0 +1,72 @@
+package ma.codexa.troco.service.assistant;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import ma.codexa.troco.config.AssistantProperties;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Client pour toute API compatible OpenAI ({@code POST {baseUrl}/chat/completions}) :
+ * Ollama ({@code http://ollama:11434/v1}), OpenAI, Mistral, Groq, etc.
+ */
+@Slf4j
+@Component
+public class OpenAiCompatibleChatClient implements ChatModelClient {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private final AssistantProperties props;
+    private final RestClient http;
+
+    public OpenAiCompatibleChatClient(AssistantProperties props) {
+        this.props = props;
+        HttpClient jdk = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(jdk);
+        factory.setReadTimeout(Duration.ofSeconds(props.timeoutSeconds()));
+        this.http = RestClient.builder().requestFactory(factory).build();
+    }
+
+    @Override
+    public String complete(List<ChatMessage> messages) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", props.model());
+        body.put("messages", messages.stream()
+                .map(m -> Map.of("role", m.role(), "content", m.content()))
+                .toList());
+        body.put("temperature", props.temperature());
+        body.put("max_tokens", props.maxOutputTokens());
+        body.put("stream", false);
+
+        String url = props.baseUrl().replaceAll("/+$", "") + "/chat/completions";
+        try {
+            RestClient.RequestBodySpec req = http.post()
+                    .uri(url)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.APPLICATION_JSON);
+            if (props.apiKey() != null && !props.apiKey().isBlank()) {
+                req = req.header("Authorization", "Bearer " + props.apiKey());
+            }
+            String raw = req.body(MAPPER.writeValueAsString(body)).retrieve().body(String.class);
+            JsonNode content = MAPPER.readTree(raw).path("choices").path(0).path("message").path("content");
+            if (content.isMissingNode() || content.asText().isBlank()) {
+                throw new AssistantUnavailableException("Réponse vide du modèle");
+            }
+            return content.asText();
+        } catch (AssistantUnavailableException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Assistant LLM indisponible ({}): {}", url, e.toString());
+            throw new AssistantUnavailableException("Assistant indisponible", e);
+        }
+    }
+}

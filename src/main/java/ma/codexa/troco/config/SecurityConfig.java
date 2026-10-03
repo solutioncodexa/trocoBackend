@@ -237,6 +237,7 @@ public class SecurityConfig {
                     auth.requestMatchers("/store-global-sections", "/store-global-sections/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers("/store-webhooks", "/store-webhooks/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers("/ai-copy", "/ai-copy/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
+                    auth.requestMatchers("/assistant", "/assistant/**").hasAnyRole("ADMIN", "STAFF");
                     auth.requestMatchers("/api-keys", "/api-keys/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers("/privacy", "/privacy/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers("/payment-audit", "/payment-audit/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
