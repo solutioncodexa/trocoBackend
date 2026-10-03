@@ -3,6 +3,7 @@ package ma.codexa.troco.dto.request;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -12,7 +13,9 @@ public record AssistantChatRequest(
         /** Écran admin affiché (ex. /admin/reglages) — aide le modèle à répondre dans le contexte. */
         @Size(max = 120) String route,
         /** Langue de l'interface admin : fr | en | ar (défaut fr). */
-        @Size(max = 8) String locale
+        @Size(max = 8) String locale,
+        /** Étape de la configuration guidée en cours (ex. logo) : lettres uniquement. */
+        @Pattern(regexp = "^[a-zA-Z]{0,24}$") String step
 ) {
     public record Message(
             @NotBlank @Size(max = 20) String role,

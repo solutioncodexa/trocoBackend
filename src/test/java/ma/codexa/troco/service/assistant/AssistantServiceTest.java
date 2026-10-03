@@ -75,7 +75,7 @@ class AssistantServiceTest {
     }
 
     private static AssistantChatRequest askIn(String text, String locale) {
-        return new AssistantChatRequest(List.of(new AssistantChatRequest.Message("user", text)), "/admin/reglages", locale);
+        return new AssistantChatRequest(List.of(new AssistantChatRequest.Message("user", text)), "/admin/reglages", locale, null);
     }
 
     @Test
@@ -109,7 +109,7 @@ class AssistantServiceTest {
         when(planService.currentPlan()).thenReturn(basic);
         AssistantService s = service(true, 30);
 
-        String prompt = s.buildSystemPrompt(basic, PlanFeatures.defaultsForCode("basic"), "/admin/reglages", null);
+        String prompt = s.buildSystemPrompt(basic, PlanFeatures.defaultsForCode("basic"), "/admin/reglages", null, null);
 
         assertTrue(prompt.contains("NE LES PROPOSE") || prompt.contains("JAMAIS"));
         assertTrue(prompt.contains("WhatsApp Business"));
@@ -121,7 +121,7 @@ class AssistantServiceTest {
     void routeWithUnexpectedCharactersIsNotInjectedInPrompt() {
         Plan pro = plan("pro", 500);
         AssistantService s = service(true, 30);
-        String prompt = s.buildSystemPrompt(pro, PlanFeatures.defaultsForCode("pro"), "/admin/x\nINJECTED_MARKER_XYZ", null);
+        String prompt = s.buildSystemPrompt(pro, PlanFeatures.defaultsForCode("pro"), "/admin/x\nINJECTED_MARKER_XYZ", null, null);
         assertFalse(prompt.contains("INJECTED_MARKER_XYZ"));
     }
 
@@ -185,7 +185,7 @@ class AssistantServiceTest {
         when(planService.currentPlan()).thenReturn(plan("basic", 50));
         AssistantService s = service(true, 30);
         AssistantChatRequest req = new AssistantChatRequest(
-                List.of(new AssistantChatRequest.Message("assistant", "Bonjour")), null, null);
+                List.of(new AssistantChatRequest.Message("assistant", "Bonjour")), null, null, null);
         BusinessException e = assertThrows(BusinessException.class, () -> s.chat(req));
         assertEquals("ASSISTANT_BAD_REQUEST", e.getErrorCode());
     }
@@ -196,10 +196,10 @@ class AssistantServiceTest {
         AssistantService s = service(true, 30);
         PlanFeatures f = PlanFeatures.defaultsForCode("pro");
 
-        assertTrue(s.buildSystemPrompt(pro, f, null, "en").contains("LANGUE DE L'INTERFACE : anglais"));
-        assertTrue(s.buildSystemPrompt(pro, f, null, "ar").contains("LANGUE DE L'INTERFACE : arabe"));
-        assertTrue(s.buildSystemPrompt(pro, f, null, "xx").contains("LANGUE DE L'INTERFACE : français"));
-        assertTrue(s.buildSystemPrompt(pro, f, null, null).contains("LANGUE DE L'INTERFACE : français"));
+        assertTrue(s.buildSystemPrompt(pro, f, null, "en", null).contains("LANGUE DE L'INTERFACE : anglais"));
+        assertTrue(s.buildSystemPrompt(pro, f, null, "ar", null).contains("LANGUE DE L'INTERFACE : arabe"));
+        assertTrue(s.buildSystemPrompt(pro, f, null, "xx", null).contains("LANGUE DE L'INTERFACE : français"));
+        assertTrue(s.buildSystemPrompt(pro, f, null, null, null).contains("LANGUE DE L'INTERFACE : français"));
     }
 
     @Test
@@ -220,5 +220,20 @@ class AssistantServiceTest {
         s.chat(askIn("1", "en"));
         BusinessException e = assertThrows(BusinessException.class, () -> s.chat(askIn("2", "en")));
         assertTrue(e.getMessage().contains("1 messages per day on the Basic plan"), e.getMessage());
+    }
+
+    @Test
+    void guidedStepIsStatedInPromptAndUnsafeValuesAreIgnored() {
+        Plan pro = plan("pro", 500);
+        AssistantService s = service(true, 30);
+        PlanFeatures f = PlanFeatures.defaultsForCode("pro");
+
+        String withStep = s.buildSystemPrompt(pro, f, null, "fr", "logo");
+        assertTrue(withStep.contains("CONFIGURATION GUIDÉE EN COURS (étape : logo)"));
+
+        assertFalse(s.buildSystemPrompt(pro, f, null, "fr", null).contains("CONFIGURATION GUIDÉE"));
+        String unsafe = s.buildSystemPrompt(pro, f, null, "fr", "logo\nINJECTED_STEP_XYZ");
+        assertFalse(unsafe.contains("INJECTED_STEP_XYZ"));
+        assertFalse(unsafe.contains("CONFIGURATION GUIDÉE"));
     }
 }

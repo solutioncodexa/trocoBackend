@@ -45,6 +45,8 @@ public class AssistantService {
             "en", "anglais",
             "ar", "arabe (arabe standard simple, lisible au Maroc)");
 
+    private static final Pattern STEP_OK = Pattern.compile("^[a-zA-Z]{1,24}$");
+
     private static final Pattern ROUTE_OK = Pattern.compile("^/admin(/[a-z0-9-]*)*$");
 
     private final AssistantProperties props;
@@ -86,7 +88,7 @@ public class AssistantService {
         consumeQuota(fid, plan, request.locale());
 
         List<ChatMessage> messages = new ArrayList<>(history.size() + 1);
-        messages.add(new ChatMessage("system", buildSystemPrompt(plan, features, request.route(), request.locale())));
+        messages.add(new ChatMessage("system", buildSystemPrompt(plan, features, request.route(), request.locale(), request.step())));
         messages.addAll(history);
 
         try {
@@ -112,7 +114,7 @@ public class AssistantService {
         return new ArrayList<>(out.subList(from, out.size()));
     }
 
-    String buildSystemPrompt(Plan plan, PlanFeatures features, String route, String locale) {
+    String buildSystemPrompt(Plan plan, PlanFeatures features, String route, String locale, String step) {
         StoreSettingsDTO s = fournisseurService.getMyStoreSettings();
         long products = productRepository.countActive();
 
@@ -145,6 +147,11 @@ public class AssistantService {
         sb.append("GUIDE DES ÉCRANS ET RECETTES\n").append(knowledge);
         sb.append("\n--- CONTEXTE DE CETTE BOUTIQUE ---\n");
         sb.append("LANGUE DE L'INTERFACE : ").append(languageName(locale)).append("\n\n");
+        if (step != null && STEP_OK.matcher(step).matches()) {
+            sb.append("CONFIGURATION GUIDÉE EN COURS (étape : ").append(step).append(") : l'interface pose elle-même les questions de configuration et affiche les outils. ")
+                    .append("Réponds brièvement à la question du commerçant, puis invite-le à poursuivre avec l'étape affichée dans le chat. ")
+                    .append("Ne pose pas toi-même la question suivante.\n\n");
+        }
         sb.append("PLAN DE LA BOUTIQUE : ").append(plan.getName()).append(" (").append(plan.getCode()).append(")\n");
         List<String> locked = unavailableFeatures(plan, features);
         if (locked.isEmpty()) {
