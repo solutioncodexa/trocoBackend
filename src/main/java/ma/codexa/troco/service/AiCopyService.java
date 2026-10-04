@@ -1,6 +1,8 @@
 package ma.codexa.troco.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import ma.codexa.troco.dto.request.AiCopyRequest;
+import ma.codexa.troco.service.assistant.AssistantCopyService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,6 +19,18 @@ import java.util.Map;
 @Service
 public class AiCopyService {
 
+    /** Absent quand le service est utilisé seul : les modèles de phrases suffisent. */
+    private final AssistantCopyService llm;
+
+    @Autowired
+    public AiCopyService(AssistantCopyService llm) {
+        this.llm = llm;
+    }
+
+    public AiCopyService() {
+        this(null);
+    }
+
     public Map<String, Object> generate(AiCopyRequest req) {
         String kind = req.getKind().trim().toLowerCase(Locale.ROOT);
         String topic = req.getTopic().trim();
@@ -24,7 +38,17 @@ public class AiCopyService {
                 ? req.getStoreName().trim() : "notre boutique";
         String tone = req.getTone() != null ? req.getTone().trim().toLowerCase(Locale.ROOT) : "friendly";
 
+        // Le modèle de l'assistant rédige les textes courts dans la langue demandée ; repli sur les modèles de phrases.
+        if (llm != null && AssistantCopyService.supports(kind)) {
+            var written = llm.generate(kind, topic, req.getStoreName(), tone, req.getLocale());
+            // « source » permet au client de n'utiliser que des textes rédigés dans la bonne langue.
+            if (written.isPresent()) return Map.of("text", written.get(), "source", "llm");
+        }
+
         return switch (kind) {
+            case "tagline" -> Map.of("text", clip(topic + " — livraison partout au Maroc", 80));
+            case "about" -> Map.of("text", clip(store + " : " + topic + ". Nous sélectionnons nos produits avec soin et livrons partout au Maroc.", 400));
+            case "product_description" -> Map.of("text", clip(topic + " proposé par " + store + ". Livraison partout au Maroc.", 300));
             case "seo_title" -> Map.of("text", clip(seoTitle(topic, store, tone), 60));
             case "seo_description" -> Map.of("text", clip(seoDescription(topic, store, tone), 155));
             case "hero" -> Map.of(

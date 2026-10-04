@@ -20,4 +20,8 @@ public class AiCopyRequest {
 
     @Size(max = 80)
     private String tone; // pro | friendly | luxury
+
+    /** Langue du texte : fr | en | ar (défaut fr). */
+    @jakarta.validation.constraints.Pattern(regexp = "^(fr|en|ar)?$")
+    private String locale;
 }

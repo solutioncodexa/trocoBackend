@@ -11,13 +11,14 @@ import org.springframework.web.client.RestClient;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Client pour toute API compatible OpenAI ({@code POST {baseUrl}/chat/completions}) :
- * Ollama ({@code http://ollama:11434/v1}), OpenAI, Mistral, Groq, etc.
+ * Gemini ({@code .../v1beta/openai}), Ollama ({@code http://ollama:11434/v1}), OpenAI, Mistral, Groq, etc.
  */
 @Slf4j
 @Component
@@ -38,14 +39,47 @@ public class OpenAiCompatibleChatClient implements ChatModelClient {
 
     @Override
     public String complete(List<ChatMessage> messages) {
+        List<Map<String, Object>> plain = messages.stream()
+                .<Map<String, Object>>map(m -> Map.of("role", m.role(), "content", m.content()))
+                .toList();
+        JsonNode message = post(plain, null).path("choices").path(0).path("message");
+        JsonNode content = message.path("content");
+        if (content.isMissingNode() || content.asText().isBlank()) {
+            throw new AssistantUnavailableException("Réponse vide du modèle");
+        }
+        return content.asText();
+    }
+
+    @Override
+    public ModelTurn completeWithTools(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
+        JsonNode message = post(messages, tools).path("choices").path(0).path("message");
+        if (message.isMissingNode() || message.isNull()) {
+            throw new AssistantUnavailableException("Réponse vide du modèle");
+        }
+        List<ToolCall> calls = new ArrayList<>();
+        for (JsonNode c : message.path("tool_calls")) {
+            String name = c.path("function").path("name").asText("");
+            if (name.isBlank()) continue;
+            calls.add(new ToolCall(c.path("id").asText(""), name, c.path("function").path("arguments").asText("{}")));
+        }
+        String text = message.path("content").isNull() ? "" : message.path("content").asText("");
+        if (calls.isEmpty() && text.isBlank()) {
+            throw new AssistantUnavailableException("Réponse vide du modèle");
+        }
+        return new ModelTurn(text, message, calls);
+    }
+
+    private JsonNode post(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", props.model());
-        body.put("messages", messages.stream()
-                .map(m -> Map.of("role", m.role(), "content", m.content()))
-                .toList());
+        body.put("messages", messages);
         body.put("temperature", props.temperature());
         body.put("max_tokens", props.maxOutputTokens());
         body.put("stream", false);
+        if (tools != null && !tools.isEmpty()) {
+            body.put("tools", tools);
+            body.put("tool_choice", "auto");
+        }
 
         String url = props.baseUrl().replaceAll("/+$", "") + "/chat/completions";
         try {
@@ -57,13 +91,7 @@ public class OpenAiCompatibleChatClient implements ChatModelClient {
                 req = req.header("Authorization", "Bearer " + props.apiKey());
             }
             String raw = req.body(MAPPER.writeValueAsString(body)).retrieve().body(String.class);
-            JsonNode content = MAPPER.readTree(raw).path("choices").path(0).path("message").path("content");
-            if (content.isMissingNode() || content.asText().isBlank()) {
-                throw new AssistantUnavailableException("Réponse vide du modèle");
-            }
-            return content.asText();
-        } catch (AssistantUnavailableException e) {
-            throw e;
+            return MAPPER.readTree(raw);
         } catch (Exception e) {
             log.warn("Assistant LLM indisponible ({}): {}", url, e.toString());
             throw new AssistantUnavailableException("Assistant indisponible", e);
