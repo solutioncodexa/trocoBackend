@@ -52,6 +52,10 @@ public class Fournisseur {
     @Column(name = "domain_verified", nullable = false)
     private boolean domainVerified = false;
 
+    /** false : boutique pas encore lancée, invisible des clients (prévisualisation par clé d'aperçu). */
+    @Column(name = "storefront_live", nullable = false)
+    private boolean storefrontLive = true;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "plan_id")
     private Plan plan;

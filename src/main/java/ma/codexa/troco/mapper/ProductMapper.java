@@ -57,16 +57,20 @@ public interface ProductMapper {
         return category != null ? category.getSlug() : null;
     }
 
+    /** Image affichée pour un produit sans photo (fichier statique de la vitrine). */
+    String PLACEHOLDER_IMAGE = "/placeholder.svg";
+
     @Named("imagesToList")
     default List<String> imagesToList(List<ma.codexa.troco.entity.Image> images) {
-        return MapperUtils.imagesToList(images);
+        List<String> urls = MapperUtils.imagesToList(images);
+        return urls.isEmpty() ? List.of(PLACEHOLDER_IMAGE) : urls;
     }
 
     /** Listes catalogue : 1 image max (aperçu). */
     @Named("imagesToListFirst")
     default List<String> imagesToListFirst(List<ma.codexa.troco.entity.Image> images) {
         String first = MapperUtils.firstImageUrlSorted(images);
-        return first != null ? List.of(first) : List.of();
+        return List.of(first != null ? first : PLACEHOLDER_IMAGE);
     }
 
     @Named("stringToList")

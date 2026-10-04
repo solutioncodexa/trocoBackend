@@ -39,6 +39,14 @@ public class StoreSettingsController {
         return ResponseEntity.ok(ApiResponse.success(fournisseurService.updateMyStoreSettings(request)));
     }
 
+    /** Lance la boutique (visible des clients) ou la remet en préparation. Corps : {"live": true}. */
+    @PutMapping("/me/launch")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<AdminStoreSummaryDTO>> launch(@RequestBody java.util.Map<String, Boolean> body) {
+        boolean live = Boolean.TRUE.equals(body.get("live"));
+        return ResponseEntity.ok(ApiResponse.success(fournisseurService.setStorefrontLive(live)));
+    }
+
     @PostMapping("/me/verify-domain")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<StoreSettingsDTO>> verifyDomain() {

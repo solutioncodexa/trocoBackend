@@ -23,5 +23,9 @@ public record AdminStoreSummaryDTO(
         String planName,
         String defaultLocale,
         String supportedLocales,
-        java.time.LocalDateTime trialEndsAt
+        java.time.LocalDateTime trialEndsAt,
+        /** false : boutique pas encore lancée, seulement visible avec la clé d'aperçu. */
+        boolean storefrontLive,
+        /** Clé à ajouter à l'adresse de la boutique (?preview=…) pour la voir avant son lancement. */
+        String previewKey
 ) {}

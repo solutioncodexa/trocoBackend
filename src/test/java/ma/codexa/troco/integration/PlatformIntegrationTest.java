@@ -59,14 +59,24 @@ class PlatformIntegrationTest extends IntegrationTestBase {
         assertThat(created.path("trialEndsAt").isNull()).isFalse();
         long id = created.path("id").asLong();
 
-        // Vitrine accessible immédiatement pendant l'essai
+        // Boutique créée par inscription publique : invisible des clients tant qu'elle n'est pas lancée
+        mockMvc.perform(get("/platform/store").param("slug", slug))
+                .andExpect(status().isForbidden());
+
+        String token = login(email, "Password123!");
+        assertThat(token).isNotBlank();
+
+        // Le marchand la lance : la vitrine est alors accessible pendant l'essai
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/store-settings/me/launch")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content(json(Map.of("live", true))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.storefrontLive").value(true));
         mockMvc.perform(get("/platform/store").param("slug", slug))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.siteName").value("Boutique Test"))
                 .andExpect(jsonPath("$.data.themeKey").value("classic"));
-
-        String token = login(email, "Password123!");
-        assertThat(token).isNotBlank();
 
         String saToken = login("superadmin@matjarona.ma", "SuperAdmin1234");
         mockMvc.perform(patch("/platform/fournisseurs/" + id + "/status")
@@ -88,6 +98,7 @@ class PlatformIntegrationTest extends IntegrationTestBase {
 
         var f = fournisseurRepository.findById(id).orElseThrow();
         f.setTrialEndsAt(java.time.LocalDateTime.now().minusMinutes(5));
+        f.setStorefrontLive(true); // lancée : seul l'essai échu ferme la vitrine ici
         fournisseurRepository.save(f);
 
         assertThat(fournisseurService.expireTrials()).isGreaterThanOrEqualTo(1);

@@ -384,11 +384,9 @@ public class ProductController {
         log.info("Création d'un nouveau produit: {}", request.getName());
 
         // Upload des images
+        // Une photo n'est pas obligatoire : le produit peut être créé tout de suite et illustré plus tard.
+        // Sans photo, les réponses de l'API renvoient une image par défaut (voir ProductDtoMapper).
         List<String> imageUrls = fileStorageService.storeFiles(images);
-        if (imageUrls.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Au moins une image est requise", 400));
-        }
 
         Product product = productMapper.toEntity(convertToDetailDTO(request));
         product.setCategory(categoryService.getCategoryBySlug(request.getCategory())

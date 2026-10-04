@@ -78,6 +78,10 @@ public class FournisseurService {
     @Value("${app.trial.reminder-days:3}")
     private int trialReminderDays;
 
+    /** Secret de signature des clés d'aperçu de boutique non lancée (même secret que les jetons). */
+    @Value("${app.jwt.secret}")
+    private String previewSecret;
+
     private final EmailService emailService;
     private final EmailVerificationService emailVerificationService;
 
@@ -312,6 +316,8 @@ public class FournisseurService {
             } else {
                 f.setStatus(FournisseurStatus.PENDING);
             }
+            // Inscription publique : la boutique reste invisible des clients jusqu'à son lancement.
+            f.setStorefrontLive(activateImmediately);
             f.setPrimaryColor("#0F766E");
             f.setSecondaryColor("#134E4A");
             f = fournisseurRepository.save(f);
@@ -540,7 +546,51 @@ public class FournisseurService {
             }
             throw new BusinessException(msg, HttpStatus.FORBIDDEN);
         }
+        if (!f.isStorefrontLive() && !previewAllowed(f)) {
+            throw new BusinessException("Cette boutique ouvre bientôt", HttpStatus.FORBIDDEN);
+        }
         return f;
+    }
+
+    /** Clé d'aperçu d'une boutique non lancée : signature (HMAC) de son identifiant, stable et non devinable. */
+    String previewKey(Fournisseur f) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(previewSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] sig = mac.doFinal(("storefront-preview:" + f.getId()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 16; i++) sb.append(String.format("%02x", sig[i]));
+            return sb.toString();
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException("Clé d'aperçu indisponible", e);
+        }
+    }
+
+    /** Visible malgré le non-lancement : clé d'aperçu valide (en-tête X-Preview-Key) ou administrateur de cette boutique. */
+    private boolean previewAllowed(Fournisseur f) {
+        var attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
+            String given = sra.getRequest().getHeader("X-Preview-Key");
+            if (given != null && java.security.MessageDigest.isEqual(
+                    given.trim().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    previewKey(f).getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+                return true;
+            }
+        }
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getPrincipal() instanceof ma.codexa.troco.security.UserDetailsImpl u
+                && f.getId().equals(u.getFournisseurId());
+    }
+
+    /** Lance (ou remet en préparation) la boutique du marchand connecté. */
+    @Transactional
+    public AdminStoreSummaryDTO setStorefrontLive(boolean live) {
+        Long fid = TenantContext.requireFournisseurId();
+        Fournisseur f = fournisseurRepository.findById(fid)
+                .orElseThrow(() -> new BusinessException("Fournisseur introuvable", HttpStatus.NOT_FOUND));
+        f.setStorefrontLive(live);
+        fournisseurRepository.save(f);
+        return getMyStoreSummary();
     }
 
     @Transactional
@@ -1041,7 +1091,9 @@ public class FournisseurService {
                 p != null ? p.getName() : null,
                 s.getDefaultLocale() != null ? s.getDefaultLocale() : "fr",
                 s.getSupportedLocales() != null ? s.getSupportedLocales() : "fr,ar,en",
-                f.getTrialEndsAt()
+                f.getTrialEndsAt(),
+                f.isStorefrontLive(),
+                previewKey(f)
         );
     }
 
