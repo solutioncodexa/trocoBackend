@@ -72,6 +72,12 @@ class StoreSettingsIntegrationTest extends IntegrationTestBase {
         assertThat(updated.path("contactWhatsapp").asText()).isEqualTo("+212612345678");
         assertThat(updated.path("whatsappOrderTemplate").asText()).contains("{productName}");
 
+        mockMvc.perform(put("/store-settings/me/launch")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content(json(Map.of("live", true))))
+                .andExpect(status().isOk());
+
         mockMvc.perform(get("/platform/store").param("slug", slug))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.siteName").value("Settings Shop Pro"))

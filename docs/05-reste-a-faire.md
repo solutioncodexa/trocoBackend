@@ -2,6 +2,45 @@
 
 Priorisation indicative (P0 = bloquant / risque, P1 = fort impact, P2 = nice-to-have).
 
+## Lot en cours — vérifié dans le code
+
+| Item | État |
+|---|---|
+| Tests d'intégration 403 « boutique ouvre bientôt » | Corrigé : `EmailVerification` et `StoreSettings` lancent la boutique avant l'appel public |
+| Doublons sous-catégories (saisie multiple) | Ignorés comme l'ajout rapide |
+| Confirmation AdminCategories | Même `useConfirm` que les produits |
+| Emails HTML | Commande (client + admin), essai, panier abandonné |
+| WebSocket | Abonnement STOMP limité à `/topic/store.{id}` de la boutique connectée |
+| Variantes panier « 10 » / « 20 » | Le libellé part dans la commande et le résumé checkout (pas seulement la taille) |
+| Packs marocains | Noms/descriptions arabes si l'admin est en arabe ; prix MAD inchangés |
+| Suppression produits d'exemple | L'erreur serveur est remontée dans le toast (cause exacte à lire si ça échoue encore) |
+
+## Tests à ajouter pour ce lot
+
+- Intégration : commande avec deux variantes du même produit (libellés 10 et 20) → deux lignes
+- Intégration : `GET /platform/store` avant lancement → 403, après lancement → 200
+- WebSocket : abonnement à `/topic/store.{autre}` refusé
+- Frontend : saisie multiple de sous-catégories ignore les doublons
+- Playwright : création boutique, commande COD, publication de page
+- Les 210 cas manuels documentés restent à exécuter (non automatisés ici)
+
+## Priorité marché marocain
+
+Livré dans le code (migration V49, page admin Marché, checkout) :
+
+- Statuts commande : appel client, injoignable, retour (le retour remet le stock). Le COD est mis en avant au checkout.
+- Frais par ville pour Amana, Chronodiali et Glovo
+- WhatsApp de confirmation en français, darija latine et darija arabe
+- PayZone et virement comme drapeaux (commande en attente, pas un PSP réel). CMI reste un flag côté passerelle.
+- RTL du bandeau boutique quand la langue est l’arabe
+- Catalogue Meta : `GET /api/catalog/meta.csv`
+- Campagnes Ramadan, Aïd et rentrée
+- Parrainage, export CSV des commandes, demande `/retours` et remboursement admin
+- Playwright : `e2e/market-morocco.spec.ts`
+- Sauvegardes : `deployment/backup-postgres.ps1` et `backup-postgres.sh`
+
+Toujours hors de ce lot : téléphone normalisé partout, push vendeur, dashboard mobile dédié, supervision prod, APIs transporteurs.
+
 ---
 
 ## P0 — Sécurité & prod
@@ -44,7 +83,7 @@ Liens PR (à finaliser après `gh auth login`) :
 | WhatsApp Cloud API (option) | Actuel = click-to-chat `wa.me` uniquement |
 | Relance panier email fiable | Dépend SMTP prod + templates |
 | Webhooks retry / DLQ | Journal existe ; stratégie retry à formaliser |
-| Domaine custom SSL UX | Assistant DNS (CNAME + copie) + vérif ; certificat auto Cloudflare / plateforme |
+| Domaine custom SSL UX | Vérif DNS + certificat automatisé |
 | Import catalogue massif | Endpoint import présent ; UX admin à renforcer |
 
 ---
@@ -75,18 +114,15 @@ Liens PR (à finaliser après `gh auth login`) :
 
 | Item | Notes |
 |---|---|
-| Builder pour pages boutique | Fiche produit, liste, panier, checkout : pas de builder de blocs (apparence globale seulement) |
+| Liens pages légales dans le pied de page | Mentions, confidentialité, CGV (`/page/…`) + retours CMS si pas de page `livraison-retours` |
+| Builder pour pages boutique | Fiche produit, liste, panier, checkout : réglages d’apparence seulement |
+| SEO catégories / blog | SEO personnalisé disponible pour produits et pages uniquement |
 | Activation auto + paiement plan (CMI) | Volontairement non appliqué : fin d’essai → activation manuelle Super Admin |
+| Domaine custom guidé | Vérif DNS existante ; assistant pas à pas + SSL auto à faire |
 | Emails clients : templates HTML / personnalisation marchand | Textes simples actuellement |
-| Transporteurs temps réel | Barèmes + URL de suivi livrés ; APIs Amana/CTM/DHL live à brancher |
-| PSP boutique réel | Flags COD / CMI / BNPL + audit ; redirect CMI / PCI hors scope MVP |
 
 ## Déjà livré récemment
 
-- **Styles complets dans Paramètres → Apparence** (même grille que l’assistant : thème + couleurs + polices + arrondis + agencement). Changer de thème seul, plus bas, conserve les couleurs déjà enregistrées.
-- **SEO catégories** (admin + meta OG / canonical sur `/boutique?category=`) et **SEO blog** (liste + article : title, description, OG, canonical)
-- **Assistant domaine personnalisé** (saisie, CNAME à copier, HTTPS, vérifier DNS)
-- Liens pages légales dans le pied de page
 - **Aperçu du builder dans un iframe** (bureau 1100 / tablette 768 / mobile 390 : les media queries s’appliquent réellement), zoom auto-ajusté
 - **Essai gratuit 30 j**, vérification email, onboarding (secteur, produits démo, pages légales), 6 nouveaux blocs + 3 modèles, emails clients, SEO produit  
 

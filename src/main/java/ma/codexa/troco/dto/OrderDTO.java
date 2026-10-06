@@ -26,4 +26,6 @@ public class OrderDTO {
     private Integer loyaltyPointsEarned;
     private Integer loyaltyPointsRedeemed;
     private Integer loyaltyPointsToRedeem;
+    private String referralCode;
+    private String seasonalCode;
 }

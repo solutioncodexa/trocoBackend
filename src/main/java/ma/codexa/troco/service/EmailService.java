@@ -44,7 +44,7 @@ public class EmailService {
                 "Connectez-vous à l'interface admin pour plus de détails.",
                 customerName, orderNumber, totalAmount != null ? totalAmount : 0.0
         );
-        sendToAdmins(adminEmails, SUBJECT_ORDER, text);
+        sendHtmlToMany(adminEmails, SUBJECT_ORDER, text);
     }
 
     @Async
@@ -103,12 +103,9 @@ public class EmailService {
                 recoveryPath
         );
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromHeader());
-            message.setTo(customerEmail.trim());
-            message.setSubject("Votre panier vous attend — " + (storeName != null ? storeName : "Boutique"));
-            message.setText(text);
-            mailSender.send(message);
+            sendHtml(customerEmail.trim(),
+                    "Votre panier vous attend — " + (storeName != null ? storeName : "Boutique"),
+                    text);
             log.info("abandoned_cart_email_sent to={}", customerEmail);
         } catch (Exception e) {
             log.error("Failed to send abandoned cart email: {}", e.getMessage());
@@ -117,7 +114,7 @@ public class EmailService {
 
     @Async
     public void sendTrialEndingSoon(String to, String storeName, long daysLeft) {
-        sendPlain(to, "Votre essai gratuit Get STORE se termine bientôt",
+        sendHtml(to, "Votre essai gratuit Get STORE se termine bientôt",
                 String.format("Bonjour,\n\nL'essai gratuit de votre boutique « %s » se termine dans %d jour(s).\n\n"
                         + "Pour garder votre boutique en ligne, contactez-nous afin de choisir votre plan.\n\n"
                         + "L'équipe Get STORE", storeName, daysLeft));
@@ -125,7 +122,7 @@ public class EmailService {
 
     @Async
     public void sendTrialEnded(String to, String storeName) {
-        sendPlain(to, "Votre essai gratuit Get STORE est terminé",
+        sendHtml(to, "Votre essai gratuit Get STORE est terminé",
                 String.format("Bonjour,\n\nL'essai gratuit de votre boutique « %s » est terminé : la vitrine est "
                         + "temporairement fermée. Vos données sont conservées.\n\n"
                         + "Connectez-vous à votre espace admin ou contactez-nous pour choisir votre plan et réactiver la boutique.\n\n"
@@ -201,6 +198,11 @@ public class EmailService {
         sendHtml(to, subject, text, html);
     }
 
+    private void sendHtml(String to, String subject, String text) {
+        if (to == null || to.isBlank()) return;
+        sendHtml(to, subject, text, layout(subject, paragraphs(text)));
+    }
+
     private void sendHtml(String to, String subject, String text, String html) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -222,6 +224,42 @@ public class EmailService {
                 .replace("\"", "&quot;").replace("'", "&#39;");
     }
 
+    private static String paragraphs(String text) {
+        String[] blocks = (text == null ? "" : text).split("\\n\\n");
+        StringBuilder sb = new StringBuilder();
+        for (String block : blocks) {
+            if (block.isBlank()) continue;
+            sb.append("<p style=\"margin:0 0 16px;font-size:16px;line-height:1.6;\">")
+                    .append(escapeHtml(block).replace("\n", "<br>"))
+                    .append("</p>");
+        }
+        return sb.toString();
+    }
+
+    private static String layout(String title, String innerHtml) {
+        return """
+                <!DOCTYPE html>
+                <html lang="fr">
+                <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>%1$s</title></head>
+                <body style="margin:0;padding:0;background-color:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2937;">
+                <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f5f7;">
+                  <tr><td align="center" style="padding:32px 16px;">
+                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;">
+                      <tr><td align="center" style="padding-bottom:24px;">
+                        <span style="font-size:24px;font-weight:800;letter-spacing:-0.5px;color:#111827;">Get <span style="color:#4f46e5;">STORE</span></span>
+                      </td></tr>
+                      <tr><td style="background-color:#ffffff;border-radius:16px;padding:40px 32px;">
+                        <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;font-weight:700;color:#111827;">%1$s</h1>
+                        %2$s
+                      </td></tr>
+                      <tr><td align="center" style="padding:24px 16px 0;font-size:12px;line-height:1.6;color:#9ca3af;">L'équipe Get STORE</td></tr>
+                    </table>
+                  </td></tr>
+                </table>
+                </body></html>
+                """.formatted(escapeHtml(title), innerHtml);
+    }
+
     /**
      * Email transactionnel à un client de boutique : expéditeur au nom de la boutique
      * (adresse SMTP de la plateforme), réponses dirigées vers l'email de contact de la boutique.
@@ -230,18 +268,35 @@ public class EmailService {
     public void sendCustomerMail(String to, String subject, String text, String storeName, String replyTo) {
         if (to == null || to.isBlank()) return;
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
             String display = storeName != null && !storeName.isBlank() ? storeName.trim() : senderDisplayName.trim();
             String address = mailUsername != null && !mailUsername.isBlank() ? mailUsername.trim() : "noreply@localhost";
-            message.setFrom(String.format("%s <%s>", display, address));
-            if (replyTo != null && !replyTo.isBlank()) message.setReplyTo(replyTo.trim());
-            message.setTo(to.trim());
-            message.setSubject(subject);
-            message.setText(text);
+            helper.setFrom(String.format("%s <%s>", display, address));
+            if (replyTo != null && !replyTo.isBlank()) helper.setReplyTo(replyTo.trim());
+            helper.setTo(to.trim());
+            helper.setSubject(subject);
+            helper.setText(text, layout(subject, paragraphs(text)));
             mailSender.send(message);
             log.info("customer_email_sent subject={} to={}", subject, to);
         } catch (Exception e) {
             log.error("Failed to send customer email '{}': {}", subject, e.getMessage());
+        }
+    }
+
+    private void sendHtmlToMany(List<String> emails, String subject, String text) {
+        if (emails == null || emails.isEmpty()) return;
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+            helper.setFrom(fromHeader());
+            helper.setTo(emails.toArray(new String[0]));
+            helper.setSubject(subject);
+            helper.setText(text, layout(subject, paragraphs(text)));
+            mailSender.send(message);
+            log.info("notification_email_sent adminCount={} fromUser={}", emails.size(), mailUsername);
+        } catch (Exception e) {
+            log.error("Failed to send notification email: {}", e.getMessage());
         }
     }
 

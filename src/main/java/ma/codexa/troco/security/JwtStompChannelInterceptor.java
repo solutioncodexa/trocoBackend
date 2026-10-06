@@ -38,14 +38,43 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
             String email = jwtUtil.getEmailFromToken(token);
             UserDetails user = userDetailsService.loadUserByUsername(email);
             String principalName = email;
-            if (user instanceof UserDetailsImpl udi && udi.getId() != null) {
-                principalName = String.valueOf(udi.getId());
+            Long fournisseurId = null;
+            if (user instanceof UserDetailsImpl udi) {
+                if (udi.getId() != null) principalName = String.valueOf(udi.getId());
+                fournisseurId = udi.getFournisseurId();
+            }
+            if (accessor.getSessionAttributes() != null) {
+                accessor.getSessionAttributes().put("fournisseurId", fournisseurId);
             }
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(principalName, null, user.getAuthorities());
             accessor.setUser(auth);
         }
+        if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+            assertStoreTopic(accessor);
+        }
         return message;
+    }
+
+    /**
+     * Un client ne s'abonne qu'aux topics de sa boutique
+     * ({@code /topic/store.{id}} et {@code /topic/store.{id}.revenue}).
+     */
+    private static void assertStoreTopic(StompHeaderAccessor accessor) {
+        String dest = accessor.getDestination();
+        if (dest == null || dest.isBlank()) {
+            throw new IllegalArgumentException("Abonnement WebSocket sans destination");
+        }
+        if (dest.startsWith("/user/")) return;
+        Map<String, Object> attrs = accessor.getSessionAttributes();
+        Object fid = attrs != null ? attrs.get("fournisseurId") : null;
+        if (!(fid instanceof Long id)) {
+            throw new IllegalArgumentException("Abonnement WebSocket sans boutique");
+        }
+        String own = "/topic/store." + id;
+        if (dest.equals(own) || dest.startsWith(own + ".")) return;
+        log.warn("websocket_subscribe_denied dest={} store={}", dest, id);
+        throw new IllegalArgumentException("Abonnement WebSocket refusé pour cette boutique");
     }
 
     private String resolveToken(StompHeaderAccessor accessor) {

@@ -3,7 +3,10 @@ package ma.codexa.troco.service;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.dto.ShippingCarrierDTO;
 import ma.codexa.troco.entity.ShippingCarrier;
+import ma.codexa.troco.entity.ShippingCityRate;
+import ma.codexa.troco.market.CityKey;
 import ma.codexa.troco.repository.ShippingCarrierRepository;
+import ma.codexa.troco.repository.ShippingCityRateRepository;
 import ma.codexa.troco.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,12 +22,18 @@ import java.util.Locale;
 public class ShippingCarrierService {
 
     private final ShippingCarrierRepository shippingCarrierRepository;
+    private final ShippingCityRateRepository shippingCityRateRepository;
 
     @Transactional(readOnly = true)
     public List<ShippingCarrierDTO> listPublic(BigDecimal cartSubtotal) {
+        return listPublic(cartSubtotal, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ShippingCarrierDTO> listPublic(BigDecimal cartSubtotal, String city) {
         Long fid = TenantContext.requireFournisseurId();
         return shippingCarrierRepository.findByFournisseurIdAndEnabledTrueOrderBySortOrderAsc(fid).stream()
-                .map(c -> toDto(c, quoteFee(c, cartSubtotal)))
+                .map(c -> toDto(c, quoteFee(c, cartSubtotal, city)))
                 .toList();
     }
 
@@ -63,13 +72,18 @@ public class ShippingCarrierService {
 
     @Transactional(readOnly = true)
     public BigDecimal quote(String carrierCode, BigDecimal cartSubtotal) {
+        return quote(carrierCode, cartSubtotal, null);
+    }
+
+    @Transactional(readOnly = true)
+    public BigDecimal quote(String carrierCode, BigDecimal cartSubtotal, String city) {
         Long fid = TenantContext.requireFournisseurId();
         ShippingCarrier c = shippingCarrierRepository.findByFournisseurIdAndCodeIgnoreCase(fid, carrierCode)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transporteur introuvable"));
         if (!c.isEnabled()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transporteur désactivé");
         }
-        return quoteFee(c, cartSubtotal);
+        return quoteFee(c, cartSubtotal, city);
     }
 
     public String buildTrackingUrl(ShippingCarrier carrier, String trackingNumber) {
@@ -87,10 +101,17 @@ public class ShippingCarrierService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transporteur invalide"));
     }
 
-    private BigDecimal quoteFee(ShippingCarrier c, BigDecimal cartSubtotal) {
+    private BigDecimal quoteFee(ShippingCarrier c, BigDecimal cartSubtotal, String city) {
         BigDecimal sub = cartSubtotal != null ? cartSubtotal : BigDecimal.ZERO;
         if (c.getFreeAbove() != null && sub.compareTo(c.getFreeAbove()) >= 0) {
             return BigDecimal.ZERO;
+        }
+        String key = CityKey.of(city);
+        if (!key.isBlank() && c.getFournisseurId() != null) {
+            return shippingCityRateRepository
+                    .findByFournisseurIdAndCarrierCodeIgnoreCaseAndCityKey(c.getFournisseurId(), c.getCode(), key)
+                    .map(ShippingCityRate::getFee)
+                    .orElse(c.getBaseFee() != null ? c.getBaseFee() : BigDecimal.ZERO);
         }
         return c.getBaseFee() != null ? c.getBaseFee() : BigDecimal.ZERO;
     }

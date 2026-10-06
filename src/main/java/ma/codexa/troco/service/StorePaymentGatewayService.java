@@ -404,6 +404,12 @@ public class StorePaymentGatewayService {
         if (("card_cmi".equals(m) || "online".equals(m)) && !isCmiReady(settings)) {
             throw new BusinessException("CMI n'est pas activé pour cette boutique", HttpStatus.BAD_REQUEST);
         }
+        if ("payzone".equals(m) && !Boolean.TRUE.equals(settings.getPaymentPayzoneEnabled())) {
+            throw new BusinessException("PayZone n'est pas activé pour cette boutique", HttpStatus.BAD_REQUEST);
+        }
+        if ("bank_transfer".equals(m) && !Boolean.TRUE.equals(settings.getPaymentTransferEnabled())) {
+            throw new BusinessException("Le virement n'est pas activé pour cette boutique", HttpStatus.BAD_REQUEST);
+        }
     }
 
     private StoreSettings requireReadyStoreSettings(String gateway) {

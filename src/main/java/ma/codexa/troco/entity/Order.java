@@ -38,7 +38,13 @@ public class Order extends TenantScoped {
     private Double totalAmount;
 
     @Column(nullable = false)
-    private String status = "NEW"; // NEW, CONFIRMED, DELIVERED, CANCELLED
+    private String status = "NEW"; // NEW, CALLING, UNREACHABLE, CONFIRMED, DELIVERED, RETURNED, CANCELLED
+
+    @Column(name = "referral_code", length = 40)
+    private String referralCode;
+
+    @Column(name = "seasonal_code", length = 40)
+    private String seasonalCode;
 
     @Column(name = "payment_method")
     private String paymentMethod = "cash_on_delivery"; // cash_on_delivery, online, card_cmi, bnpl

@@ -13,6 +13,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -91,8 +92,15 @@ class EmailVerificationIntegrationTest extends IntegrationTestBase {
     @DisplayName("Nouvelle boutique : sur-mesure désactivé par défaut")
     void newStore_surMesureDisabledByDefault() throws Exception {
         String slug = uniqueSlug("sm");
-        JsonNode created = registerStore(newStoreRequest("Boutique SM", slug, uniqueEmail("sm"), "Password123!"));
+        String email = uniqueEmail("sm");
+        JsonNode created = registerStore(newStoreRequest("Boutique SM", slug, email, "Password123!"));
         assertThat(created.path("status").asText()).isEqualTo("TRIAL");
+        String token = login(email, "Password123!");
+        mockMvc.perform(put("/store-settings/me/launch")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content(json(Map.of("live", true))))
+                .andExpect(status().isOk());
 
         mockMvc.perform(get("/platform/store").param("slug", slug))
                 .andExpect(status().isOk())

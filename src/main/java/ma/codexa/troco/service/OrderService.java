@@ -17,6 +17,8 @@ import ma.codexa.troco.entity.Product;
 import ma.codexa.troco.entity.PromoCode;
 import ma.codexa.troco.entity.ShippingCarrier;
 import ma.codexa.troco.entity.StoreSettings;
+import ma.codexa.troco.market.MarketService;
+import ma.codexa.troco.market.OrderStatuses;
 import ma.codexa.troco.repository.CustomerRepository;
 import ma.codexa.troco.repository.OrderRepository;
 import ma.codexa.troco.repository.PromoCodeRepository;
@@ -61,6 +63,7 @@ public class OrderService {
     private final StoreEventPublisher storeEventPublisher;
     private final StorePaymentGatewayService storePaymentGatewayService;
     private final CustomerNotificationService customerNotificationService;
+    private final MarketService marketService;
 
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
@@ -160,10 +163,10 @@ public class OrderService {
         Order order = orderRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Commande", id));
         String previous = order.getStatus();
-        String newStatus = status != null ? status.toUpperCase() : status;
+        String newStatus = OrderStatuses.normalize(status);
         order.setStatus(newStatus);
         Order saved = orderRepository.save(order);
-        if ("CANCELLED".equalsIgnoreCase(newStatus) && !"CANCELLED".equalsIgnoreCase(previous)) {
+        if (OrderStatuses.restoresStock(newStatus) && !OrderStatuses.restoresStock(previous)) {
             stockService.restoreForOrder(saved);
         }
         log.info("Order status updated orderId={} orderNumber={} previous={} newStatus={}",
@@ -277,10 +280,29 @@ public class OrderService {
             });
         }
 
-        // Shipping quote
+        if (orderDTO.getSeasonalCode() != null && !orderDTO.getSeasonalCode().isBlank()) {
+            double seasonal = marketService.seasonalDiscount(orderDTO.getSeasonalCode(), order.getTotalAmount());
+            if (seasonal > 0) {
+                order.setSeasonalCode(orderDTO.getSeasonalCode().trim().toUpperCase());
+                order.setDiscountAmount((order.getDiscountAmount() != null ? order.getDiscountAmount() : 0) + seasonal);
+                order.setTotalAmount(Math.max(0, order.getTotalAmount() - seasonal));
+            }
+        }
+        if (orderDTO.getReferralCode() != null && !orderDTO.getReferralCode().isBlank()) {
+            double referral = marketService.consumeReferral(orderDTO.getReferralCode(), order.getTotalAmount());
+            if (referral > 0) {
+                order.setReferralCode(orderDTO.getReferralCode().trim().toUpperCase());
+                order.setDiscountAmount((order.getDiscountAmount() != null ? order.getDiscountAmount() : 0) + referral);
+                order.setTotalAmount(Math.max(0, order.getTotalAmount() - referral));
+            }
+        }
+
+        // Shipping quote (barème ville si la ville du client est connue)
         if (order.getCarrierCode() != null) {
             BigDecimal fee = shippingCarrierService.quote(
-                    order.getCarrierCode(), BigDecimal.valueOf(order.getTotalAmount()));
+                    order.getCarrierCode(),
+                    BigDecimal.valueOf(order.getTotalAmount()),
+                    customer.getCity());
             order.setShippingFee(fee.doubleValue());
             order.setTotalAmount(order.getTotalAmount() + fee.doubleValue());
         } else {
@@ -363,7 +385,7 @@ public class OrderService {
         if (raw == null || raw.isBlank()) return "cash_on_delivery";
         String m = raw.trim().toLowerCase();
         return switch (m) {
-            case "online", "card_cmi", "bnpl", "cash_on_delivery", "card_stripe", "stripe", "paypal" ->
+            case "online", "card_cmi", "bnpl", "cash_on_delivery", "card_stripe", "stripe", "paypal", "payzone", "bank_transfer" ->
                     "stripe".equals(m) ? "card_stripe" : m;
             default -> "cash_on_delivery";
         };
@@ -384,6 +406,8 @@ public class OrderService {
             case "card_stripe" -> "STRIPE";
             case "paypal" -> "PAYPAL";
             case "bnpl" -> "BNPL";
+            case "payzone" -> "PAYZONE";
+            case "bank_transfer" -> "VIREMENT";
             default -> "COD";
         };
     }

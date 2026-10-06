@@ -159,6 +159,9 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/abandoned-carts/public/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/store-global-sections/public").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/shipping-carriers/public", "/shipping-carriers/public/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/market/public/**").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/market/public/returns").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/catalog/meta.csv").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/loyalty/public/**").permitAll();
                     auth.requestMatchers("/headless/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/sitemap.xml", "/seo/sitemap.xml").permitAll();

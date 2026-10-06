@@ -129,6 +129,17 @@ public class StoreSettings extends TenantScoped {
     @Column(name = "payment_bnpl_enabled")
     private Boolean paymentBnplEnabled = false;
 
+    /** PayZone : flag checkout (pas un PSP hébergé). */
+    @Column(name = "payment_payzone_enabled")
+    private Boolean paymentPayzoneEnabled = false;
+
+    /** Virement bancaire : instructions affichées au checkout. */
+    @Column(name = "payment_transfer_enabled")
+    private Boolean paymentTransferEnabled = false;
+
+    @Column(name = "transfer_instructions", columnDefinition = "TEXT")
+    private String transferInstructions;
+
     @Column(name = "bnpl_provider", length = 40)
     private String bnplProvider = "manual";
 

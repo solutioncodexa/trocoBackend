@@ -22,15 +22,17 @@ public class ShippingCarrierController {
 
     @GetMapping("/public")
     public ResponseEntity<ApiResponse<List<ShippingCarrierDTO>>> listPublic(
-            @RequestParam(required = false) BigDecimal subtotal) {
-        return ResponseEntity.ok(ApiResponse.success(shippingCarrierService.listPublic(subtotal)));
+            @RequestParam(required = false) BigDecimal subtotal,
+            @RequestParam(required = false) String city) {
+        return ResponseEntity.ok(ApiResponse.success(shippingCarrierService.listPublic(subtotal, city)));
     }
 
     @GetMapping("/public/quote")
     public ResponseEntity<ApiResponse<Map<String, Object>>> quote(
             @RequestParam String carrierCode,
-            @RequestParam BigDecimal subtotal) {
-        BigDecimal fee = shippingCarrierService.quote(carrierCode, subtotal);
+            @RequestParam BigDecimal subtotal,
+            @RequestParam(required = false) String city) {
+        BigDecimal fee = shippingCarrierService.quote(carrierCode, subtotal, city);
         return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "carrierCode", carrierCode,
                 "subtotal", subtotal,
