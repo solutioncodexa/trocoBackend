@@ -59,6 +59,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     long countByStatus(String status);
 
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status = :status")
+    Double sumTotalByStatus(@Param("status") String status);
+
     @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status = :status AND o.createdAt >= :from AND o.createdAt < :to")
     Double sumTotalByStatusAndCreatedBetween(
             @Param("status") String status,

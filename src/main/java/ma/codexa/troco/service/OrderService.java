@@ -58,6 +58,7 @@ public class OrderService {
     private final PaymentAuditService paymentAuditService;
     private final StoreSettingsRepository storeSettingsRepository;
     private final PlanEntitlementService planEntitlementService;
+    private final StoreEventPublisher storeEventPublisher;
     private final StorePaymentGatewayService storePaymentGatewayService;
     private final CustomerNotificationService customerNotificationService;
 
@@ -171,6 +172,8 @@ public class OrderService {
                 "Commande " + saved.getOrderNumber() + ": " + previous + " → " + newStatus);
         if (newStatus != null && !newStatus.equalsIgnoreCase(previous)) {
             customerNotificationService.orderStatusChanged(saved, newStatus);
+            storeEventPublisher.publishRevenueChanged(
+                    saved.getFournisseurId(), "ORDER_STATUS_CHANGED", saved.getId(), newStatus);
         }
         return toOrderDto(saved);
     }
@@ -179,7 +182,9 @@ public class OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Commande", id));
         String num = order.getOrderNumber();
+        Long deletedFid = order.getFournisseurId();
         orderRepository.delete(order);
+        storeEventPublisher.publishRevenueChanged(deletedFid, "ORDER_DELETED", id, null);
         auditLog.record(AuditLogService.Action.ORDER_DELETE, "ORDER", String.valueOf(id),
                 "Suppression commande " + num);
     }
@@ -315,6 +320,7 @@ public class OrderService {
                 savedOrder.getId(), savedOrder.getOrderNumber(), customer.getEmail(), savedOrder.getTotalAmount());
         notificationService.notifyNewOrder(savedOrder);
         customerNotificationService.orderPlaced(savedOrder);
+        storeEventPublisher.publishRevenueChanged(fid, "ORDER_CREATED", savedOrder.getId(), savedOrder.getStatus());
         try {
             java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
             payload.put("orderId", savedOrder.getId());

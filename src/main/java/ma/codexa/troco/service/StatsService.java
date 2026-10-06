@@ -34,6 +34,8 @@ public class StatsService {
         long newOrders = orderRepository.countByStatusAndCreatedBetween("NEW", fromDt, toDt);
         long cancelledOrders = orderRepository.countByStatusAndCreatedBetween("CANCELLED", fromDt, toDt);
         long totalOrders = orderRepository.countByCreatedBetween(fromDt, toDt);
+        long pendingOrders = orderRepository.countByStatus("NEW");
+        double pendingAmount = nz(orderRepository.sumTotalByStatus("NEW"));
         double averageBasket = deliveredOrders > 0 ? deliveredRevenue / deliveredOrders : 0;
         double cancellationRate = totalOrders > 0 ? (cancelledOrders * 100.0) / totalOrders : 0;
 
@@ -63,6 +65,8 @@ public class StatsService {
                 .deliveredOrders(deliveredOrders)
                 .confirmedOrders(confirmedOrders)
                 .newOrders(newOrders)
+                .pendingOrders(pendingOrders)
+                .pendingAmount(round2(pendingAmount))
                 .cancelledOrders(cancelledOrders)
                 .totalOrders(totalOrders)
                 .averageBasket(round2(averageBasket))

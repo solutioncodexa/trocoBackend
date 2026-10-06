@@ -17,6 +17,10 @@ public class RevenueStatsDTO {
     private long deliveredOrders;
     private long confirmedOrders;
     private long newOrders;
+    /** Commandes en attente de traitement (statut NEW), toutes périodes confondues. */
+    private long pendingOrders;
+    /** Montant cumulé des commandes en attente (pas encore du chiffre d’affaires). */
+    private double pendingAmount;
     private long cancelledOrders;
     private long totalOrders;
     private double averageBasket;

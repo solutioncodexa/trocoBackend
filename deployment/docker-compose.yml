@@ -109,7 +109,7 @@ services:
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      MAIL_SENDER_NAME: ${MAIL_SENDER_NAME:-Troco}
+      MAIL_SENDER_NAME: ${MAIL_SENDER_NAME:-Get STORE}
       OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
     volumes:
       - backend_logs:/app/logs
