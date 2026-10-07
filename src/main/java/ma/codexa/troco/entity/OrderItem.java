@@ -36,6 +36,10 @@ public class OrderItem {
     @Column(name = "selected_variant_id")
     private Long selectedVariantId;
 
+    /** Libellé de la variante choisie (ex. « Quantité : 10 »). */
+    @Column(name = "variant_label")
+    private String variantLabel;
+
     @Column(name = "selected_weight")
     private Double selectedWeight;
 

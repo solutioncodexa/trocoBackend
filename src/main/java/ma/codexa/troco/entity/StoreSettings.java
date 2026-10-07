@@ -140,6 +140,14 @@ public class StoreSettings extends TenantScoped {
     @Column(name = "transfer_instructions", columnDefinition = "TEXT")
     private String transferInstructions;
 
+    /** Message du marchand ajouté aux emails clients ({client}, {boutique}, {commande} remplacés). */
+    @Column(name = "customer_email_note", columnDefinition = "TEXT")
+    private String customerEmailNote;
+
+    /** Signature des emails clients (remplace la signature automatique si renseignée). */
+    @Column(name = "customer_email_signature", columnDefinition = "TEXT")
+    private String customerEmailSignature;
+
     @Column(name = "bnpl_provider", length = 40)
     private String bnplProvider = "manual";
 

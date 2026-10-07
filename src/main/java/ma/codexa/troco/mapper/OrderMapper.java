@@ -74,6 +74,7 @@ public interface OrderMapper {
                         }
                         cartItemDTO.setQuantity(item.getQuantity());
                         cartItemDTO.setSelectedSize(item.getSelectedSize());
+                        cartItemDTO.setVariantLabel(item.getVariantLabel());
                         cartItemDTO.setSelectedGoldType(item.getSelectedGoldType());
                         cartItemDTO.setCustomLogoUrl(item.getCustomLogoUrl());
                         if (item.getSelectedVariantId() != null) {

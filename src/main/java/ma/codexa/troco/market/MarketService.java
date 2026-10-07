@@ -66,6 +66,41 @@ public class MarketService {
         return publicConfig();
     }
 
+    public static final int EMAIL_NOTE_MAX = 1000;
+    public static final int EMAIL_SIGNATURE_MAX = 500;
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> emailTemplates() {
+        StoreSettings s = requireSettings();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("note", s.getCustomerEmailNote());
+        body.put("signature", s.getCustomerEmailSignature());
+        return body;
+    }
+
+    @Transactional
+    public Map<String, Object> updateEmailTemplates(Map<String, Object> body) {
+        StoreSettings s = requireSettings();
+        if (body.containsKey("note")) {
+            s.setCustomerEmailNote(cleanText(body.get("note"), EMAIL_NOTE_MAX, "Le message"));
+        }
+        if (body.containsKey("signature")) {
+            s.setCustomerEmailSignature(cleanText(body.get("signature"), EMAIL_SIGNATURE_MAX, "La signature"));
+        }
+        storeSettingsRepository.save(s);
+        return emailTemplates();
+    }
+
+    private static String cleanText(Object raw, int max, String label) {
+        if (raw == null) return null;
+        String v = String.valueOf(raw).replace("\r\n", "\n").trim();
+        if (v.isEmpty()) return null;
+        if (v.length() > max) {
+            throw new BusinessException(label + " est trop long (" + max + " caractères maximum)", HttpStatus.BAD_REQUEST);
+        }
+        return v;
+    }
+
     @Transactional(readOnly = true)
     public List<ShippingCityRate> listCityRates() {
         return shippingCityRateRepository.findByFournisseurIdOrderByCarrierCodeAscCityAsc(requireFid());

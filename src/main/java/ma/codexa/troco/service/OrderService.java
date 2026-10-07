@@ -78,6 +78,10 @@ public class OrderService {
         String s = (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) ? status.toUpperCase() : null;
         boolean applyKeywordFilter = keyword != null && !keyword.isBlank();
         String keywordPattern = applyKeywordFilter ? "%" + keyword.trim().toLowerCase() + "%" : "%";
+        if (applyKeywordFilter && ma.codexa.troco.util.PhoneUtil.looksLikePhone(keyword)) {
+            // Recherche par téléphone : tolère 06…, +212…, espaces (anciennes commandes comprises).
+            keywordPattern = "%" + ma.codexa.troco.util.PhoneUtil.searchDigits(keyword) + "%";
+        }
         Page<Order> page = orderRepository.findWithFilters(s, applyKeywordFilter, keywordPattern, pageable);
         hydrateProductGraphs(page.getContent());
         return page;
@@ -211,7 +215,7 @@ public class OrderService {
         Customer customer = new Customer();
         customer.setFournisseurId(fid);
         customer.setFullName(customerDTO.getFullName());
-        customer.setPhone(customerDTO.getPhone());
+        customer.setPhone(ma.codexa.troco.util.PhoneUtil.normalize(customerDTO.getPhone()));
         customer.setAddress(customerDTO.getAddress());
         customer.setCity(customerDTO.getCity());
         customer.setEmail(customerDTO.getEmail());
@@ -253,6 +257,17 @@ public class OrderService {
                 } catch (NumberFormatException ignored) {
                     orderItem.setSelectedVariantId(null);
                 }
+            }
+            String variantLabel = cartItem.getVariantLabel() != null ? cartItem.getVariantLabel().trim() : "";
+            if (variantLabel.isEmpty() && orderItem.getSelectedVariantId() != null) {
+                // Libellé de repli : celui de la variante en base (jamais fié au seul client).
+                variantLabel = product.getVariants() == null ? "" : product.getVariants().stream()
+                        .filter(v -> orderItem.getSelectedVariantId().equals(v.getId()) && v.getLabel() != null)
+                        .map(v -> v.getLabel().trim())
+                        .findFirst().orElse("");
+            }
+            if (!variantLabel.isEmpty()) {
+                orderItem.setVariantLabel(variantLabel.length() > 255 ? variantLabel.substring(0, 255) : variantLabel);
             }
             if (cartItem.getProduct() != null && cartItem.getProduct().getWeight() != null) {
                 orderItem.setSelectedWeight(cartItem.getProduct().getWeight());

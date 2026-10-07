@@ -13,6 +13,8 @@ public class CartItemDTO {
     private Integer quantity;
     private String selectedSize;
     private String selectedVariantId;
+    /** Libellé lisible de la variante (ex. « Quantité : 10 »). */
+    private String variantLabel;
     private String selectedGoldType;
     /** Logo client pour emballage personnalisé */
     private String customLogoUrl;

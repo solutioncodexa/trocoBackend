@@ -92,10 +92,13 @@ public class CustomerNotificationService {
             String to = order.getCustomer() != null ? order.getCustomer().getEmail() : null;
             if (to == null || to.isBlank()) return;
             StoreInfo store = storeInfo(order.getFournisseurId());
-            String signature = "\n\n— " + store.name()
+            String note = store.note() != null ? "\n\n" + fill(store.note(), order, store) : "";
+            String signature = store.signature() != null
+                    ? "\n\n" + fill(store.signature(), order, store)
+                    : "\n\n— " + store.name()
                     + (store.contactPhone() != null ? "\nTél. : " + store.contactPhone() : "")
                     + (store.contactEmail() != null ? "\nEmail : " + store.contactEmail() : "");
-            emailService.sendCustomerMail(to, subject, body.apply(store) + signature, store.name(), store.contactEmail());
+            emailService.sendCustomerMail(to, subject, body.apply(store) + note + signature, store.name(), store.contactEmail());
         } catch (Exception e) {
             log.warn("customer_email_failed orderId={} subject={} error={}", order.getId(), subject, e.getMessage());
         }
@@ -108,7 +111,9 @@ public class CustomerNotificationService {
         String name = s != null && s.getSiteName() != null && !s.getSiteName().isBlank() ? s.getSiteName().trim() : "Notre boutique";
         String currency = s != null && s.getCurrency() != null ? s.getCurrency() : "MAD";
         return new StoreInfo(name, currency, blankToNull(s != null ? s.getContactEmail() : null),
-                blankToNull(s != null ? s.getContactPhone() : null));
+                blankToNull(s != null ? s.getContactPhone() : null),
+                blankToNull(s != null ? s.getCustomerEmailNote() : null),
+                blankToNull(s != null ? s.getCustomerEmailSignature() : null));
     }
 
     private static String customerName(Order order) {
@@ -134,5 +139,13 @@ public class CustomerNotificationService {
         };
     }
 
-    private record StoreInfo(String name, String currency, String contactEmail, String contactPhone) {}
+    /** Variables disponibles dans le message et la signature du marchand. */
+    static String fill(String template, Order order, StoreInfo store) {
+        return template
+                .replace("{client}", customerName(order))
+                .replace("{boutique}", store.name())
+                .replace("{commande}", order.getOrderNumber() != null ? order.getOrderNumber() : "");
+    }
+
+    record StoreInfo(String name, String currency, String contactEmail, String contactPhone, String note, String signature) {}
 }

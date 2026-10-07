@@ -36,6 +36,18 @@ public class MarketController {
         return ResponseEntity.ok(ApiResponse.success(marketService.updateConfig(body)));
     }
 
+    @GetMapping("/market/email-templates")
+    @RequirePermission(AppPermissions.ORDERS_VIEW)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> emailTemplates() {
+        return ResponseEntity.ok(ApiResponse.success(marketService.emailTemplates()));
+    }
+
+    @PutMapping("/market/email-templates")
+    @RequirePermission(AppPermissions.ORDERS_UPDATE)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updateEmailTemplates(@RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(ApiResponse.success(marketService.updateEmailTemplates(body)));
+    }
+
     @GetMapping("/market/city-rates")
     @RequirePermission(AppPermissions.ORDERS_VIEW)
     public ResponseEntity<ApiResponse<List<ShippingCityRate>>> cityRates() {

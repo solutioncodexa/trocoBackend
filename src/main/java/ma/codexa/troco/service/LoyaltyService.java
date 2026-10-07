@@ -37,7 +37,7 @@ public class LoyaltyService {
             out.put("points", 0);
             return out;
         }
-        int points = loyaltyAccountRepository.findByFournisseurIdAndPhone(fid, normalizePhone(phone))
+        int points = findAccount(fid, phone)
                 .map(LoyaltyAccount::getPointsBalance)
                 .orElse(0);
         out.put("points", points);
@@ -89,7 +89,7 @@ public class LoyaltyService {
 
     private LoyaltyAccount getOrCreate(Long fid, String phone, String email) {
         String p = normalizePhone(phone);
-        return loyaltyAccountRepository.findByFournisseurIdAndPhone(fid, p).orElseGet(() -> {
+        return findAccount(fid, phone).orElseGet(() -> {
             LoyaltyAccount a = new LoyaltyAccount();
             a.setFournisseurId(fid);
             a.setPhone(p);
@@ -105,6 +105,25 @@ public class LoyaltyService {
     }
 
     private String normalizePhone(String phone) {
-        return phone.replaceAll("[^0-9+]", "").toLowerCase(Locale.ROOT);
+        String p = ma.codexa.troco.util.PhoneUtil.normalize(phone);
+        return p != null ? p : ma.codexa.troco.util.PhoneUtil.legacyKey(phone);
+    }
+
+    /**
+     * Compte par numéro normalisé ; à défaut, par l'ancienne clé (comptes créés avant la normalisation),
+     * qu'on migre alors vers la forme canonique pour ne perdre aucun point.
+     */
+    private java.util.Optional<LoyaltyAccount> findAccount(Long fid, String phone) {
+        String canonical = normalizePhone(phone);
+        java.util.Optional<LoyaltyAccount> found = loyaltyAccountRepository.findByFournisseurIdAndPhone(fid, canonical);
+        if (found.isPresent()) return found;
+        String legacy = ma.codexa.troco.util.PhoneUtil.legacyKey(phone);
+        if (legacy == null || legacy.equals(canonical)) return found;
+        java.util.Optional<LoyaltyAccount> old = loyaltyAccountRepository.findByFournisseurIdAndPhone(fid, legacy);
+        old.ifPresent(a -> {
+            a.setPhone(canonical);
+            loyaltyAccountRepository.save(a);
+        });
+        return old;
     }
 }
