@@ -362,6 +362,9 @@ public class StockService {
             return;
         }
         for (OrderItem item : order.getOrderItems()) {
+            if (item.getRentalStart() != null) {
+                continue; // location : réservation par dates, jamais de sortie de stock
+            }
             ProductVariant variant = resolveVariant(item);
             int qty = item.getQuantity() != null ? item.getQuantity() : 0;
             if (qty <= 0) {
@@ -434,6 +437,9 @@ public class StockService {
             return;
         }
         for (OrderItem item : order.getOrderItems()) {
+            if (item.getRentalStart() != null) {
+                continue; // location : rien à restituer
+            }
             int qty = item.getQuantity() != null ? item.getQuantity() : 0;
             if (qty <= 0) {
                 continue;

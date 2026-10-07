@@ -159,6 +159,11 @@ public class ProductService {
         product.setBadges(productDetails.getBadges());
         product.setAvailableSizes(productDetails.getAvailableSizes());
         product.setCustomizable(productDetails.isCustomizable());
+        product.setRentalEnabled(productDetails.isRentalEnabled());
+        product.setRentalUnit(productDetails.getRentalUnit());
+        product.setRentalDeposit(productDetails.getRentalDeposit());
+        product.setRentalMinUnits(productDetails.getRentalMinUnits());
+        product.setRentalMaxUnits(productDetails.getRentalMaxUnits());
 
         // Remplacer les images par celles du DTO (nouvelles entités Image à persister)
         product.getImages().clear();

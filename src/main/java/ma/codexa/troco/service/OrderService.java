@@ -61,6 +61,7 @@ public class OrderService {
     private final StoreSettingsRepository storeSettingsRepository;
     private final PlanEntitlementService planEntitlementService;
     private final StoreEventPublisher storeEventPublisher;
+    private final ma.codexa.troco.rental.RentalService rentalService;
     private final StorePaymentGatewayService storePaymentGatewayService;
     private final CustomerNotificationService customerNotificationService;
     private final MarketService marketService;
@@ -269,6 +270,8 @@ public class OrderService {
             if (!variantLabel.isEmpty()) {
                 orderItem.setVariantLabel(variantLabel.length() > 255 ? variantLabel.substring(0, 255) : variantLabel);
             }
+            // Location : dates, disponibilité et prix recalculés côté serveur (le stock n'est pas décrémenté).
+            rentalService.applyToOrderItem(orderItem, product, cartItem);
             if (cartItem.getProduct() != null && cartItem.getProduct().getWeight() != null) {
                 orderItem.setSelectedWeight(cartItem.getProduct().getWeight());
             }

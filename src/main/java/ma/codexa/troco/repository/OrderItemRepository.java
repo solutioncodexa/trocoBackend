@@ -12,6 +12,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 
     List<OrderItem> findByOrderId(Long orderId);
 
+    /** Lignes de location actives dont la période recoupe [from, to] (commandes annulées / retournées exclues). */
+    @Query("SELECT i FROM OrderItem i WHERE i.product.id = :productId AND i.rentalStart IS NOT NULL "
+            + "AND i.rentalStart <= :to AND i.rentalEnd >= :from AND i.order.status NOT IN ('CANCELLED', 'RETURNED')")
+    List<OrderItem> findActiveRentalOverlaps(
+            @Param("productId") Long productId,
+            @Param("from") java.time.LocalDate from,
+            @Param("to") java.time.LocalDate to);
+
     /** Produits souvent achetés avec productId (co-occurrence dans les commandes). */
     @Query(value = """
             SELECT oi2.product_id, COUNT(*) AS cnt

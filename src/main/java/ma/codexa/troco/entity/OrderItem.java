@@ -36,6 +36,20 @@ public class OrderItem {
     @Column(name = "selected_variant_id")
     private Long selectedVariantId;
 
+    /** Location : premier et dernier jour (inclus) de la période réservée. */
+    @Column(name = "rental_start")
+    private java.time.LocalDate rentalStart;
+
+    @Column(name = "rental_end")
+    private java.time.LocalDate rentalEnd;
+
+    /** Nombre d'unités facturées (jours, ou semaines selon l'unité du produit). */
+    @Column(name = "rental_units")
+    private Integer rentalUnits;
+
+    @Column(name = "rental_deposit")
+    private Double rentalDeposit;
+
     /** Libellé de la variante choisie (ex. « Quantité : 10 »). */
     @Column(name = "variant_label")
     private String variantLabel;

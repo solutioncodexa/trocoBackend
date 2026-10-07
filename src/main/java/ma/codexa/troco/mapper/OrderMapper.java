@@ -75,6 +75,10 @@ public interface OrderMapper {
                         cartItemDTO.setQuantity(item.getQuantity());
                         cartItemDTO.setSelectedSize(item.getSelectedSize());
                         cartItemDTO.setVariantLabel(item.getVariantLabel());
+                        cartItemDTO.setRentalStart(item.getRentalStart());
+                        cartItemDTO.setRentalEnd(item.getRentalEnd());
+                        cartItemDTO.setRentalUnits(item.getRentalUnits());
+                        cartItemDTO.setRentalDeposit(item.getRentalDeposit());
                         cartItemDTO.setSelectedGoldType(item.getSelectedGoldType());
                         cartItemDTO.setCustomLogoUrl(item.getCustomLogoUrl());
                         if (item.getSelectedVariantId() != null) {

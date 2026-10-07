@@ -396,6 +396,7 @@ public class ProductController {
         product.setMarque(request.getMarque() != null && !request.getMarque().isBlank()
                 ? request.getMarque().trim() : null);
         product.setCustomizable(Boolean.TRUE.equals(request.getCustomizable()));
+        applyRental(product, request);
         setProductImages(product, imageUrls);
         Product createdProduct = productService.createProduct(product, request.getVariants());
 
@@ -445,6 +446,7 @@ public class ProductController {
         updatedProduct.setMarque(request.getMarque() != null && !request.getMarque().isBlank()
                 ? request.getMarque().trim() : null);
         updatedProduct.setCustomizable(Boolean.TRUE.equals(request.getCustomizable()));
+        applyRental(updatedProduct, request);
         setProductImages(updatedProduct, imageUrls);
         Product savedProduct = productService.updateProduct(id, updatedProduct, request.getVariants());
 
@@ -550,6 +552,11 @@ public class ProductController {
         dto.setWeight(request.getWeight());
         dto.setBadges(request.getBadges());
         dto.setCustomizable(Boolean.TRUE.equals(request.getCustomizable()));
+        dto.setRentalEnabled(Boolean.TRUE.equals(request.getRentalEnabled()));
+        dto.setRentalUnit(ma.codexa.troco.rental.RentalRules.normalizeUnit(request.getRentalUnit()));
+        dto.setRentalDeposit(request.getRentalDeposit());
+        dto.setRentalMinUnits(request.getRentalMinUnits());
+        dto.setRentalMaxUnits(request.getRentalMaxUnits());
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
             dto.setVariants(request.getVariants().stream().map(v -> {
                 ma.codexa.troco.dto.ProductVariantDTO vd = new ma.codexa.troco.dto.ProductVariantDTO();
@@ -599,5 +606,18 @@ public class ProductController {
             images.add(img);
         }
         product.setImages(images);
+    }
+
+    /** Paramètres de location d'un produit (valeurs invalides ramenées à des valeurs sûres). */
+    private static void applyRental(Product product, CreateProductRequest request) {
+        boolean enabled = Boolean.TRUE.equals(request.getRentalEnabled());
+        product.setRentalEnabled(enabled);
+        product.setRentalUnit(ma.codexa.troco.rental.RentalRules.normalizeUnit(request.getRentalUnit()));
+        Double deposit = request.getRentalDeposit();
+        product.setRentalDeposit(deposit != null && deposit > 0 ? deposit : null);
+        int min = request.getRentalMinUnits() != null && request.getRentalMinUnits() > 0 ? request.getRentalMinUnits() : 1;
+        Integer max = request.getRentalMaxUnits() != null && request.getRentalMaxUnits() >= min ? request.getRentalMaxUnits() : null;
+        product.setRentalMinUnits(min);
+        product.setRentalMaxUnits(max);
     }
 }

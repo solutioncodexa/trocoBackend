@@ -93,6 +93,24 @@ public class Product extends TenantScoped {
     @Column(name = "customizable", nullable = false)
     private boolean customizable = false;
 
+    /** Produit à louer (matériel de fête, voiture, électronique…). Le prix du produit est alors le tarif par unité de location. */
+    @Column(name = "rental_enabled", nullable = false)
+    private boolean rentalEnabled = false;
+
+    /** Unité de facturation : DAY (par défaut) ou WEEK. */
+    @Column(name = "rental_unit", nullable = false, length = 10)
+    private String rentalUnit = "DAY";
+
+    /** Caution par exemplaire (non incluse dans le total, à régler à la remise). */
+    @Column(name = "rental_deposit")
+    private Double rentalDeposit;
+
+    @Column(name = "rental_min_units", nullable = false)
+    private Integer rentalMinUnits = 1;
+
+    @Column(name = "rental_max_units")
+    private Integer rentalMaxUnits;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

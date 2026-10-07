@@ -35,4 +35,10 @@ public class ProductDetailDTO {
     private Double marginGain;
     /** Produit personnalisable : upload logo client sur la boutique. */
     private Boolean customizable;
+    /** Location : produit louable, unité (DAY / WEEK), caution, durées min / max en unités. */
+    private Boolean rentalEnabled;
+    private String rentalUnit;
+    private Double rentalDeposit;
+    private Integer rentalMinUnits;
+    private Integer rentalMaxUnits;
 }
