@@ -95,10 +95,15 @@ public class StorePageService {
     @Transactional
     public StorePageDTO create(UpsertStorePageRequest req) {
         Long fid = TenantContext.requireFournisseurId();
-        String slug = normalizeSlug(req.getSlug() != null && !req.getSlug().isBlank()
+        String baseSlug = normalizeSlug(req.getSlug() != null && !req.getSlug().isBlank()
                 ? req.getSlug()
                 : req.getTitle());
-        assertSlugAvailable(slug, null);
+        // Même logique que clone : si le slug est pris, on suffixe (-2, -3…) au lieu d’un 409.
+        if (RESERVED_SLUGS.contains(baseSlug)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Ce slug est réservé par la plateforme (" + baseSlug + ")");
+        }
+        String slug = uniqueSlug(baseSlug);
 
         StorePage page = new StorePage();
         page.setFournisseurId(fid);
