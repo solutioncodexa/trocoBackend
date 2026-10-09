@@ -5,7 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import ma.codexa.troco.common.exception.BusinessException;
 import ma.codexa.troco.config.InstagramOAuthProperties;
 import ma.codexa.troco.entity.InstagramConnection;
+import ma.codexa.troco.entity.InstagramImportDraft;
 import ma.codexa.troco.repository.InstagramConnectionRepository;
+import ma.codexa.troco.repository.InstagramImportDraftRepository;
 import ma.codexa.troco.service.instagram.InstagramGraphClient.LongToken;
 import ma.codexa.troco.service.instagram.InstagramGraphClient.MediaPage;
 import ma.codexa.troco.tenant.TenantContext;
@@ -20,6 +22,8 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -40,6 +44,7 @@ public class InstagramOAuthService {
     private final InstagramGraphClient graph;
     private final InstagramTokenCipher cipher;
     private final InstagramConnectionRepository connections;
+    private final InstagramImportDraftRepository drafts;
 
     @Value("${app.frontend.base-url:http://localhost:4200}")
     private String frontendBaseUrl;
@@ -102,6 +107,66 @@ public class InstagramOAuthService {
 
     public void disconnect() {
         connections.findByFournisseurId(TenantContext.requireFournisseurId()).ifPresent(connections::delete);
+    }
+
+    // ───────────────────────── Rappels de Meta ─────────────────────────
+
+    /** Désautorisation (l'utilisateur retire l'app dans Instagram) : le jeton est effacé. */
+    public boolean deauthorize(String signedRequest) {
+        String userId = signedUserId(signedRequest);
+        if (userId == null) return false;
+        erase(userId, false);
+        return true;
+    }
+
+    /**
+     * Demande de suppression des données : jeton, nom d'utilisateur et brouillons non publiés issus du compte sont
+     * effacés. Les produits déjà publiés appartiennent au marchand et restent.
+     *
+     * @return l'adresse de suivi à renvoyer à Meta, ou {@code null} si la requête n'est pas authentique
+     */
+    public Optional<String[]> deleteData(String signedRequest) {
+        String userId = signedUserId(signedRequest);
+        if (userId == null) return Optional.empty();
+        erase(userId, true);
+        byte[] raw = new byte[8];
+        RANDOM.nextBytes(raw);
+        String code = HexFormat.of().formatHex(raw);
+        String url = frontendBaseUrl.replaceAll("/+$", "") + "/confidentialite?suppression=" + code;
+        return Optional.of(new String[]{url, code});
+    }
+
+    private void erase(String igUserId, boolean withDrafts) {
+        for (InstagramConnection c : connections.findByIgUserId(igUserId)) {
+            if (withDrafts) {
+                List<InstagramImportDraft> pending = drafts.findByFournisseurIdAndSourceTypeAndStatus(
+                        c.getFournisseurId(), "API", InstagramImportDraft.PENDING);
+                drafts.deleteAll(pending);
+            }
+            connections.delete(c);
+            log.info("instagram_data_erased tenant={} drafts={}", c.getFournisseurId(), withDrafts);
+        }
+    }
+
+    /** Lit le {@code signed_request} de Meta : signature HMAC-SHA256 avec le secret de l'app, sinon rejet. */
+    private String signedUserId(String signedRequest) {
+        try {
+            if (!props.configured() || signedRequest == null) return null;
+            int dot = signedRequest.indexOf('.');
+            if (dot < 1) return null;
+            String payload = signedRequest.substring(dot + 1);
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(props.clientSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] expected = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            byte[] given = Base64.getUrlDecoder().decode(signedRequest.substring(0, dot));
+            if (!java.security.MessageDigest.isEqual(expected, given)) return null;
+            var json = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readTree(Base64.getUrlDecoder().decode(payload));
+            String id = json.path("user_id").asText(null);
+            return id == null || id.isBlank() ? null : id;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public MediaPage listMedia(String after) {

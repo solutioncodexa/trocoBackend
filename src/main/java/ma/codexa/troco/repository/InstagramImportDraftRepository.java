@@ -23,4 +23,6 @@ public interface InstagramImportDraftRepository extends JpaRepository<InstagramI
             Long fournisseurId, String sourceKey, String status);
 
     Optional<InstagramImportDraft> findByIdAndFournisseurId(Long id, Long fournisseurId);
+
+    List<InstagramImportDraft> findByFournisseurIdAndSourceTypeAndStatus(Long fournisseurId, String sourceType, String status);
 }

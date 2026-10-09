@@ -11,6 +11,7 @@ import ma.codexa.troco.security.annotations.RequirePermission;
 import ma.codexa.troco.service.instagram.InstagramImportService;
 import ma.codexa.troco.service.instagram.InstagramOAuthService;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -50,6 +51,20 @@ public class InstagramOAuthController {
                 .header(HttpHeaders.LOCATION, oauth.handleCallback(code, state, error))
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .build();
+    }
+
+    @Operation(summary = "Rappel Meta : l'utilisateur a retiré l'app (public, signed_request vérifié)")
+    @PostMapping(value = "/deauthorize", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<Void> deauthorize(@RequestParam(value = "signed_request", required = false) String signedRequest) {
+        return oauth.deauthorize(signedRequest) ? ResponseEntity.ok().build() : ResponseEntity.badRequest().build();
+    }
+
+    @Operation(summary = "Rappel Meta : demande de suppression des données (public, signed_request vérifié)")
+    @PostMapping(value = "/data-deletion", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<Map<String, String>> dataDeletion(@RequestParam(value = "signed_request", required = false) String signedRequest) {
+        return oauth.deleteData(signedRequest)
+                .map(r -> ResponseEntity.ok(Map.of("url", r[0], "confirmation_code", r[1])))
+                .orElseGet(() -> ResponseEntity.badRequest().build());
     }
 
     @Operation(summary = "Déconnecter le compte Instagram")
