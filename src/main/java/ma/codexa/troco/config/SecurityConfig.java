@@ -214,6 +214,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.DELETE, "/featured-products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Catalogue : écriture back-office ────────────────────
+                    auth.requestMatchers("/instagram-import/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers(HttpMethod.POST, "/products", "/products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers(HttpMethod.PUT, "/products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers(HttpMethod.PATCH, "/products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");

@@ -36,11 +36,27 @@ public class CustomerNotificationService {
                             .append(item.getProduct() != null ? item.getProduct().getName() : "Article")
                             .append(" × ").append(item.getQuantity() != null ? item.getQuantity() : 1)
                             .append('\n');
+                    if (item.getVariantLabel() != null && !item.getVariantLabel().isBlank()) {
+                        sb.append("      ").append(item.getVariantLabel()).append('\n');
+                    }
+                    if (item.getRentalStart() != null && item.getRentalEnd() != null) {
+                        sb.append("      Location du ").append(frDate(item.getRentalStart()))
+                                .append(" au ").append(frDate(item.getRentalEnd())).append(" inclus");
+                        if (item.getRentalDeposit() != null && item.getRentalDeposit() > 0) {
+                            sb.append(String.format(Locale.FRANCE, " — caution %.2f %s à la remise",
+                                    item.getRentalDeposit() * (item.getQuantity() != null ? item.getQuantity() : 1), store.currency()));
+                        }
+                        sb.append('\n');
+                    }
                 }
             }
             sb.append(String.format(Locale.FRANCE, "Total : %.2f %s%n", safe(order.getTotalAmount()), store.currency()));
             sb.append("Paiement : ").append(paymentLabel(order.getPaymentMethod())).append("\n\n");
-            sb.append("Nous vous préviendrons dès l'expédition de votre colis.");
+            boolean hasRental = order.getOrderItems() != null
+                    && order.getOrderItems().stream().anyMatch(i -> i.getRentalStart() != null);
+            sb.append(hasRental
+                    ? "Nous vous contacterons pour convenir de la remise du matériel et de sa restitution à la fin de la location."
+                    : "Nous vous préviendrons dès l'expédition de votre colis.");
             return sb.toString();
         });
     }
@@ -119,6 +135,10 @@ public class CustomerNotificationService {
     private static String customerName(Order order) {
         String n = order.getCustomer() != null ? order.getCustomer().getFullName() : null;
         return n != null && !n.isBlank() ? n.trim() : "";
+    }
+
+    private static String frDate(java.time.LocalDate d) {
+        return d.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
     }
 
     private static double safe(Double v) {
