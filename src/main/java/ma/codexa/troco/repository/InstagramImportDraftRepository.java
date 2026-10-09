@@ -7,13 +7,20 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Toutes les requêtes portent explicitement le fournisseur : le service n'est pas transactionnel (appels réseau),
+ * donc le filtre Hibernate multi-boutique n'y est pas actif.
+ */
 @Repository
 public interface InstagramImportDraftRepository extends JpaRepository<InstagramImportDraft, Long> {
 
-    long countByStatus(String status);
+    long countByFournisseurIdAndStatus(Long fournisseurId, String status);
 
-    List<InstagramImportDraft> findByStatusOrderByCreatedAtDescIdDesc(String status);
+    List<InstagramImportDraft> findByFournisseurIdAndStatusOrderByCreatedAtDescIdDesc(Long fournisseurId, String status);
 
     /** Anti-doublon : un brouillon en attente ou déjà publié pour ce post. */
-    Optional<InstagramImportDraft> findFirstBySourceKeyAndStatusNotOrderByIdDesc(String sourceKey, String status);
+    Optional<InstagramImportDraft> findFirstByFournisseurIdAndSourceKeyAndStatusNotOrderByIdDesc(
+            Long fournisseurId, String sourceKey, String status);
+
+    Optional<InstagramImportDraft> findByIdAndFournisseurId(Long id, Long fournisseurId);
 }

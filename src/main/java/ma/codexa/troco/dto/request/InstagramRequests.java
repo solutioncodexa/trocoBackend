@@ -13,6 +13,9 @@ public final class InstagramRequests {
 
     public record Links(@NotEmpty @Size(max = 20, message = "20 liens maximum par envoi") List<@Size(max = 500) String> urls) {}
 
+    public record AccountImport(
+            @NotEmpty @Size(max = 24, message = "24 posts maximum par envoi") List<@Size(max = 40) String> ids) {}
+
     /** Champs modifiables à la relecture ; un champ absent reste inchangé. */
     public record DraftUpdate(
             @Size(max = 200) String name,

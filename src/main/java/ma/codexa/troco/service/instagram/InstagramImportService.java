@@ -15,6 +15,7 @@ import ma.codexa.troco.service.assistant.InstagramCaptionLlm;
 import ma.codexa.troco.service.instagram.InstagramCaptionParser.CategoryChoice;
 import ma.codexa.troco.service.instagram.InstagramCaptionParser.Parsed;
 import ma.codexa.troco.service.storage.StorageService;
+import ma.codexa.troco.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -46,6 +47,12 @@ public class InstagramImportService {
     /** Résultat d'un lien ou d'un envoi : CREATED, DUPLICATE ou INVALID. */
     public record Item(String source, String result, String message, InstagramDraftDTO draft) {}
 
+    /** Un post du compte connecté, avec l'indication « déjà importé ». */
+    public record AccountPost(String id, String caption, String mediaType, String imageUrl, String permalink,
+                              String timestamp, boolean imported) {}
+
+    public record AccountPage(List<AccountPost> items, String nextCursor) {}
+
     public record PublishItem(Long id, boolean published, String message, Long productId) {}
 
     private final InstagramImportDraftRepository drafts;
@@ -55,13 +62,14 @@ public class InstagramImportService {
     private final CategoryService categoryService;
     private final ProductService productService;
     private final InstagramImportGuard guard;
+    private final InstagramOAuthService oauth;
 
     // ───────────────────────── Import ─────────────────────────
 
     public List<Item> importLinks(List<String> urls) {
         List<String> unique = new ArrayList<>(new LinkedHashSet<>(urls.stream().filter(u -> u != null && !u.isBlank()).map(String::trim).toList()));
         guard.checkLinks(unique.size());
-        guard.checkPendingRoom(drafts.countByStatus(InstagramImportDraft.PENDING), unique.size());
+        guard.checkPendingRoom(drafts.countByFournisseurIdAndStatus(fid(), InstagramImportDraft.PENDING), unique.size());
         List<CategoryChoice> categories = categoryChoices();
         List<Item> out = new ArrayList<>();
         for (String url : unique) {
@@ -97,6 +105,55 @@ public class InstagramImportService {
         return out;
     }
 
+    // ───────────────────────── Compte connecté (OAuth) ─────────────────────────
+
+    public AccountPage accountPosts(String after) {
+        InstagramGraphClient.MediaPage page = oauth.listMedia(after);
+        List<AccountPost> items = page.items().stream()
+                .map(m -> new AccountPost(m.id(), m.caption(), m.mediaType(), m.imageUrl(), m.permalink(), m.timestamp(),
+                        duplicateOf(m.id()).isPresent()))
+                .toList();
+        return new AccountPage(items, page.nextCursor());
+    }
+
+    /** Crée un brouillon par post choisi ; les photos viennent de l'API officielle (carrousel : jusqu'à 10 photos). */
+    public List<Item> importAccountPosts(List<String> mediaIds) {
+        List<String> unique = new ArrayList<>(new LinkedHashSet<>(
+                mediaIds.stream().filter(i -> i != null && !i.isBlank()).map(String::trim).toList()));
+        guard.checkLinks(unique.size());
+        guard.checkPendingRoom(drafts.countByFournisseurIdAndStatus(fid(), InstagramImportDraft.PENDING), unique.size());
+        List<CategoryChoice> categories = categoryChoices();
+        List<Item> out = new ArrayList<>();
+        for (String id : unique) {
+            Optional<InstagramImportDraft> existing = duplicateOf(id);
+            if (existing.isPresent()) {
+                out.add(new Item(id, "DUPLICATE", duplicateMessage(existing.get()), toDto(existing.get())));
+                continue;
+            }
+            try {
+                InstagramGraphClient.Media m = oauth.media(id);
+                List<String> sources = !m.childImageUrls().isEmpty() ? m.childImageUrls()
+                        : (m.imageUrl() == null ? List.of() : List.of(m.imageUrl()));
+                List<String> images = new ArrayList<>();
+                for (String src : sources.stream().limit(MAX_PHOTOS_PER_POST).toList()) {
+                    InstagramFetcher.Downloaded img = fetcher.downloadImage(src);
+                    if (img != null) {
+                        images.add(storage.store(new BytesMultipartFile(
+                                id + "-" + images.size() + extensionOf(img.contentType()), img.contentType(), img.bytes())));
+                    }
+                }
+                InstagramImportDraft d = newDraft("API", m.permalink(), id, m.caption(), images, categories);
+                out.add(new Item(id, "CREATED", null, toDto(drafts.save(d))));
+            } catch (BusinessException e) {
+                out.add(new Item(id, "INVALID", e.getMessage(), null));
+            } catch (RuntimeException e) {
+                log.warn("instagram_import_account_failed id={} detail={}", id, e.getMessage());
+                out.add(new Item(id, "INVALID", "Import impossible pour ce post. Réessayez.", null));
+            }
+        }
+        return out;
+    }
+
     /** Un envoi = un post (plusieurs photos pour un carrousel) + une légende collée. */
     public Item importUpload(MultipartFile[] files, String caption) {
         List<MultipartFile> photos = Arrays.stream(files == null ? new MultipartFile[0] : files)
@@ -105,7 +162,7 @@ public class InstagramImportService {
             return new Item("upload", "INVALID", "Ajoutez au moins une photo.", null);
         }
         guard.checkUpload();
-        guard.checkPendingRoom(drafts.countByStatus(InstagramImportDraft.PENDING), 1);
+        guard.checkPendingRoom(drafts.countByFournisseurIdAndStatus(fid(), InstagramImportDraft.PENDING), 1);
         if (caption != null && caption.length() > InstagramImportGuard.MAX_CAPTION_CHARS) {
             caption = caption.substring(0, InstagramImportGuard.MAX_CAPTION_CHARS);
         }
@@ -130,7 +187,7 @@ public class InstagramImportService {
     // ───────────────────────── Relecture ─────────────────────────
 
     public List<InstagramDraftDTO> pending() {
-        return drafts.findByStatusOrderByCreatedAtDescIdDesc(InstagramImportDraft.PENDING).stream().map(this::toDto).toList();
+        return drafts.findByFournisseurIdAndStatusOrderByCreatedAtDescIdDesc(fid(), InstagramImportDraft.PENDING).stream().map(this::toDto).toList();
     }
 
     public InstagramDraftDTO update(Long id, InstagramRequests.DraftUpdate req) {
@@ -208,6 +265,7 @@ public class InstagramImportService {
             ai = true;
         }
         InstagramImportDraft d = new InstagramImportDraft();
+        d.setFournisseurId(fid());
         d.setSourceType(type);
         d.setSourceUrl(url);
         d.setSourceKey(key);
@@ -248,8 +306,12 @@ public class InstagramImportService {
         return p;
     }
 
+    private static Long fid() {
+        return TenantContext.requireFournisseurId();
+    }
+
     private InstagramImportDraft pendingDraft(Long id) {
-        InstagramImportDraft d = drafts.findById(id)
+        InstagramImportDraft d = drafts.findByIdAndFournisseurId(id, fid())
                 .orElseThrow(() -> new BusinessException("Brouillon introuvable", HttpStatus.NOT_FOUND));
         if (!InstagramImportDraft.PENDING.equals(d.getStatus())) {
             throw new BusinessException("Ce brouillon n'est plus en attente", HttpStatus.CONFLICT);
@@ -258,7 +320,7 @@ public class InstagramImportService {
     }
 
     private Optional<InstagramImportDraft> duplicateOf(String key) {
-        return drafts.findFirstBySourceKeyAndStatusNotOrderByIdDesc(key, InstagramImportDraft.DISCARDED);
+        return drafts.findFirstByFournisseurIdAndSourceKeyAndStatusNotOrderByIdDesc(fid(), key, InstagramImportDraft.DISCARDED);
     }
 
     private static String duplicateMessage(InstagramImportDraft d) {

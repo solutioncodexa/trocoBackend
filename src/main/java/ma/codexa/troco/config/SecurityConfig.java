@@ -214,6 +214,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.DELETE, "/featured-products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
 
                     // ─── Catalogue : écriture back-office ────────────────────
+                    // Retour d'Instagram : le navigateur arrive sans session, l'identité vient du state signé.
+                    auth.requestMatchers(HttpMethod.GET, "/instagram-import/oauth/callback").permitAll();
                     auth.requestMatchers("/instagram-import/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers(HttpMethod.POST, "/products", "/products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
                     auth.requestMatchers(HttpMethod.PUT, "/products/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "STAFF");
