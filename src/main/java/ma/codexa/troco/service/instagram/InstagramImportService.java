@@ -54,13 +54,17 @@ public class InstagramImportService {
     private final StorageService storage;
     private final CategoryService categoryService;
     private final ProductService productService;
+    private final InstagramImportGuard guard;
 
     // ───────────────────────── Import ─────────────────────────
 
     public List<Item> importLinks(List<String> urls) {
+        List<String> unique = new ArrayList<>(new LinkedHashSet<>(urls.stream().filter(u -> u != null && !u.isBlank()).map(String::trim).toList()));
+        guard.checkLinks(unique.size());
+        guard.checkPendingRoom(drafts.countByStatus(InstagramImportDraft.PENDING), unique.size());
         List<CategoryChoice> categories = categoryChoices();
         List<Item> out = new ArrayList<>();
-        for (String url : new LinkedHashSet<>(urls.stream().filter(u -> u != null && !u.isBlank()).map(String::trim).toList())) {
+        for (String url : unique) {
             Optional<String> code = InstagramFetcher.shortcodeOf(url);
             if (code.isEmpty()) {
                 out.add(new Item(url, "INVALID", "Ce n'est pas un lien de post Instagram (instagram.com/p/… ou /reel/…).", null));
@@ -99,6 +103,11 @@ public class InstagramImportService {
                 .filter(f -> f != null && !f.isEmpty()).limit(MAX_PHOTOS_PER_POST).toList();
         if (photos.isEmpty()) {
             return new Item("upload", "INVALID", "Ajoutez au moins une photo.", null);
+        }
+        guard.checkUpload();
+        guard.checkPendingRoom(drafts.countByStatus(InstagramImportDraft.PENDING), 1);
+        if (caption != null && caption.length() > InstagramImportGuard.MAX_CAPTION_CHARS) {
+            caption = caption.substring(0, InstagramImportGuard.MAX_CAPTION_CHARS);
         }
         try {
             String key = sha256(photos.get(0).getBytes());

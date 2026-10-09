@@ -10,6 +10,8 @@ import java.util.Optional;
 @Repository
 public interface InstagramImportDraftRepository extends JpaRepository<InstagramImportDraft, Long> {
 
+    long countByStatus(String status);
+
     List<InstagramImportDraft> findByStatusOrderByCreatedAtDescIdDesc(String status);
 
     /** Anti-doublon : un brouillon en attente ou déjà publié pour ce post. */
