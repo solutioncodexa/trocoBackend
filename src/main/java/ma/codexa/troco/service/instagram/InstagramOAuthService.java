@@ -75,9 +75,9 @@ public class InstagramOAuthService {
      */
     public String handleCallback(String code, String state, String error) {
         String[] parts = verifiedState(state);
-        if (parts == null) return fallbackUrl("error");
+        if (parts == null) return donePage(fallbackAdminUrl(), "error");
         String back = parts[3];
-        if (error != null || code == null || code.isBlank()) return withResult(back, "denied");
+        if (error != null || code == null || code.isBlank()) return donePage(back, "denied");
         Long previous = TenantContext.getFournisseurId();
         try {
             TenantContext.setFournisseurId(Long.parseLong(parts[0]));
@@ -95,10 +95,10 @@ public class InstagramOAuthService {
             c.setUsername(me.username());
             store(c, lt);
             log.info("instagram_connected tenant={} user={}", c.getFournisseurId(), me.username());
-            return withResult(back, "connected");
+            return donePage(back, "connected");
         } catch (RuntimeException e) {
             log.warn("instagram_oauth_failed detail={}", e.getMessage());
-            return withResult(back, "error");
+            return donePage(back, "error");
         } finally {
             if (previous == null) TenantContext.setFournisseurId(null);
             else TenantContext.setFournisseurId(previous);
@@ -243,12 +243,28 @@ public class InstagramOAuthService {
         return frontendBaseUrl.replaceAll("/+$", "") + "/admin/produits/instagram";
     }
 
-    private String fallbackUrl(String result) {
-        return withResult(frontendBaseUrl.replaceAll("/+$", "") + "/admin/produits/instagram", result);
+    private String fallbackAdminUrl() {
+        return frontendBaseUrl.replaceAll("/+$", "") + "/admin/produits/instagram";
     }
 
-    private static String withResult(String url, String result) {
-        return UriComponentsBuilder.fromUriString(url).replaceQueryParam("instagram", result).build().toUriString();
+    /**
+     * Page statique (pas l'admin) : elle prévient l'onglet d'origine puis se ferme.
+     * L'admin ne se recharge pas, donc la session du marchand reste en place.
+     */
+    private String donePage(String back, String result) {
+        String origin;
+        try {
+            URI u = URI.create(back);
+            origin = u.getScheme() + "://" + u.getRawAuthority();
+        } catch (RuntimeException e) {
+            URI u = URI.create(fallbackAdminUrl());
+            origin = u.getScheme() + "://" + u.getRawAuthority();
+        }
+        return UriComponentsBuilder.fromUriString(origin + "/instagram-oauth-return.html")
+                .queryParam("instagram", result)
+                .queryParam("next", "/admin/produits/instagram")
+                .build()
+                .toUriString();
     }
 
     private static String nonce() {
