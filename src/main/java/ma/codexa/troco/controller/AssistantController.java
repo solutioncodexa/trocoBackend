@@ -1,5 +1,6 @@
 package ma.codexa.troco.controller;
 
+import ma.codexa.troco.service.assistant.AiUsageSummaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.codexa.troco.common.ApiResponse;
@@ -25,12 +26,34 @@ public class AssistantController {
 
     private final AssistantService assistantService;
     private final AssistantAgentService agentService;
+    private final AiUsageSummaryService usageSummary;
 
     /** Permet au front de masquer le bouton de chat quand l'assistant est désactivé. */
     @GetMapping("/status")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> status() {
         return ResponseEntity.ok(ApiResponse.success(Map.of("enabled", assistantService.isEnabled())));
+    }
+
+    /** Consommation IA du jour (messages, tokens, images) face aux limites du plan, et les 7 derniers jours. */
+    @GetMapping("/usage")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> usage() {
+        return ResponseEntity.ok(ApiResponse.success(usageSummary.summary()));
+    }
+
+    /** Recharge de tokens IA pour une boutique (super-admin). Un nombre négatif retire des tokens. */
+    @PostMapping("/topup")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> topup(@RequestBody Map<String, Number> body) {
+        Number fid = body.get("fournisseurId");
+        Number tokens = body.get("tokens");
+        if (fid == null || tokens == null || Math.abs(tokens.longValue()) > 100_000_000L) {
+            throw new ma.codexa.troco.common.exception.BusinessException(
+                    "fournisseurId et tokens (max 100 000 000) requis", org.springframework.http.HttpStatus.BAD_REQUEST, "BAD_REQUEST");
+        }
+        long balance = usageSummary.grantTopup(fid.longValue(), tokens.longValue());
+        return ResponseEntity.ok(ApiResponse.success(Map.of("fournisseurId", fid.longValue(), "balance", balance)));
     }
 
     /** Réponse texte, plus les actions exécutées ou à confirmer lorsque les outils sont activés. */

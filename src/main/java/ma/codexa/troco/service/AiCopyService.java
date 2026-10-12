@@ -47,6 +47,7 @@ public class AiCopyService {
 
         return switch (kind) {
             case "tagline" -> Map.of("text", clip(topic + " — livraison partout au Maroc", 80));
+            case "ad_headline" -> Map.of("text", clip(topic + " — livraison partout au Maroc", 60));
             case "about" -> Map.of("text", clip(store + " : " + topic + ". Nous sélectionnons nos produits avec soin et livrons partout au Maroc.", 400));
             case "product_description" -> Map.of("text", clip(topic + " proposé par " + store + ". Livraison partout au Maroc.", 300));
             case "seo_title" -> Map.of("text", clip(seoTitle(topic, store, tone), 60));

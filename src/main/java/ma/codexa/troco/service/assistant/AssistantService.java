@@ -69,8 +69,7 @@ public class AssistantService {
     private final PlanEntitlementService planService;
     private final ProductRepository productRepository;
 
-    private final Map<String, AtomicInteger> usage = new ConcurrentHashMap<>();
-    private volatile LocalDate usageDay = LocalDate.now();
+    private final AiUsageService usage;
     private String knowledge = "";
 
     @PostConstruct
@@ -267,20 +266,15 @@ public class AssistantService {
     }
 
     void consumeQuota(Long fid, Plan plan, String locale) {
-        LocalDate today = LocalDate.now();
-        if (!today.equals(usageDay)) {
-            synchronized (this) {
-                if (!today.equals(usageDay)) {
-                    usage.clear();
-                    usageDay = today;
-                }
-            }
-        }
         int limit = props.dailyLimitFor(plan.getCode());
-        int used = usage.computeIfAbsent(String.valueOf(fid), k -> new AtomicInteger()).incrementAndGet();
-        if (used > limit) {
+        if (!usage.tryReserve(fid, AiUsageService.CHAT, limit)) {
             throw new BusinessException(
                     msg(locale, "quota").formatted(limit, plan.getName()),
+                    HttpStatus.TOO_MANY_REQUESTS, "ASSISTANT_QUOTA");
+        }
+        if (usage.tokensUsed(fid) >= usage.tokenBudgetFor(plan.getCode()) && usage.topupBalance(fid) <= 0) {
+            usage.release(fid, AiUsageService.CHAT);
+            throw new BusinessException(msg(locale, "tokenQuota").formatted(plan.getName()),
                     HttpStatus.TOO_MANY_REQUESTS, "ASSISTANT_QUOTA");
         }
     }
@@ -303,6 +297,7 @@ public class AssistantService {
                 case "unavailable" -> "The assistant is temporarily unavailable. Please try again in a moment.";
                 case "confirmPending" -> "Please confirm the action below.";
                 case "actionsDone" -> "Done.";
+                case "tokenQuota" -> "Daily AI usage budget reached on the %s plan. Come back tomorrow.";
                 default -> "Daily limit reached (%d messages per day on the %s plan). Come back tomorrow.";
             };
             case "ar" -> switch (key) {
@@ -311,6 +306,7 @@ public class AssistantService {
                 case "unavailable" -> "المساعد غير متاح مؤقتًا. حاول مرة أخرى بعد قليل.";
                 case "confirmPending" -> "يرجى تأكيد الإجراء أدناه.";
                 case "actionsDone" -> "تم.";
+                case "tokenQuota" -> "تم بلوغ حصة الاستخدام اليومية للذكاء الاصطناعي ضمن خطة %s. عد غدًا.";
                 default -> "تم بلوغ الحد اليومي (%d رسالة في اليوم ضمن خطة %s). عد غدًا.";
             };
             default -> switch (key) {
@@ -319,6 +315,7 @@ public class AssistantService {
                 case "unavailable" -> "L'assistant est momentanément indisponible. Réessayez dans un instant.";
                 case "confirmPending" -> "Confirmez l'action ci-dessous.";
                 case "actionsDone" -> "C'est fait.";
+                case "tokenQuota" -> "Budget d'utilisation IA du jour atteint sur le plan %s. Revenez demain.";
                 default -> "Limite quotidienne atteinte (%d messages par jour sur le plan %s). Revenez demain.";
             };
         };
@@ -326,8 +323,7 @@ public class AssistantService {
 
     /** Un échec côté fournisseur ne doit pas consommer le quota du commerçant. */
     void refundQuota(Long fid) {
-        AtomicInteger c = usage.get(String.valueOf(fid));
-        if (c != null) c.updateAndGet(v -> Math.max(0, v - 1));
+        usage.release(fid, AiUsageService.CHAT);
     }
 
     private static boolean notBlank(String s) {

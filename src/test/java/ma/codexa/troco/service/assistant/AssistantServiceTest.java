@@ -55,9 +55,35 @@ class AssistantServiceTest {
             sent.add(messages);
             return "  Ouvrez /admin/reglages.  ";
         };
-        AssistantService s = new AssistantService(props, client, fournisseurService, planService, productRepository);
+        AssistantService s = new AssistantService(props, client, fournisseurService, planService, productRepository, memoryUsage());
         s.loadKnowledge();
         return s;
+    }
+
+    /** Compteur en mémoire à la place de la base, pour garder ce test sans Spring ni Postgres. */
+    private static AiUsageService memoryUsage() {
+        java.util.Map<String, Integer> used = new java.util.HashMap<>();
+        return new AiUsageService(null) {
+            @Override
+            public boolean tryReserve(Long fid, String kind, int limit) {
+                int n = used.merge(fid + kind, 1, Integer::sum);
+                if (n > limit) {
+                    used.merge(fid + kind, -1, Integer::sum);
+                    return false;
+                }
+                return true;
+            }
+
+            @Override
+            public long tokensUsed(Long fid) {
+                return 0;
+            }
+
+            @Override
+            public void release(Long fid, String kind) {
+                used.computeIfPresent(fid + kind, (k, v) -> Math.max(0, v - 1));
+            }
+        };
     }
 
     private static Plan plan(String code, Integer maxProducts) {

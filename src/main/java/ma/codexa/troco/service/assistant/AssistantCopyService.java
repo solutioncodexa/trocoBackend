@@ -32,14 +32,16 @@ public class AssistantCopyService {
             "seo_description", 155,
             "tagline", 80,
             "about", 400,
-            "product_description", 300);
+            "product_description", 300,
+            "ad_headline", 60);
 
     private static final Map<String, String> BRIEF = Map.of(
             "seo_title", "un titre de page pour Google (60 caractères maximum), avec le nom du sujet",
             "seo_description", "une méta-description pour Google (155 caractères maximum) qui donne envie de cliquer",
             "tagline", "un slogan court et mémorable (80 caractères maximum)",
             "about", "une présentation chaleureuse de la boutique en 2 ou 3 phrases (400 caractères maximum)",
-            "product_description", "une description de produit en 2 ou 3 phrases (300 caractères maximum)");
+            "product_description", "une description de produit en 2 ou 3 phrases (300 caractères maximum)",
+            "ad_headline", "un titre publicitaire accrocheur pour une affiche ou une pub Facebook/Instagram (60 caractères maximum, sans prix ni promotion inventés)");
 
     private static final Map<String, String> LANGUAGE = Map.of(
             "fr", "français",

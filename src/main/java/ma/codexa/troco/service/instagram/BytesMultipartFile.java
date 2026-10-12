@@ -9,13 +9,13 @@ import java.io.InputStream;
 import java.nio.file.Files;
 
 /** Image déjà en mémoire (téléchargée depuis Instagram) présentée au stockage comme un fichier envoyé. */
-final class BytesMultipartFile implements MultipartFile {
+public final class BytesMultipartFile implements MultipartFile {
 
     private final String filename;
     private final String contentType;
     private final byte[] bytes;
 
-    BytesMultipartFile(String filename, String contentType, byte[] bytes) {
+    public BytesMultipartFile(String filename, String contentType, byte[] bytes) {
         this.filename = filename;
         this.contentType = contentType;
         this.bytes = bytes;

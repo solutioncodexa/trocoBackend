@@ -28,9 +28,11 @@ public class OpenAiCompatibleChatClient implements ChatModelClient {
 
     private final AssistantProperties props;
     private final RestClient http;
+    private final AiUsageService usage;
 
-    public OpenAiCompatibleChatClient(AssistantProperties props) {
+    public OpenAiCompatibleChatClient(AssistantProperties props, AiUsageService usage) {
         this.props = props;
+        this.usage = usage;
         HttpClient jdk = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(jdk);
         factory.setReadTimeout(Duration.ofSeconds(props.timeoutSeconds()));
@@ -69,6 +71,17 @@ public class OpenAiCompatibleChatClient implements ChatModelClient {
         return new ModelTurn(text, message, calls);
     }
 
+    /** Tokens facturés par le fournisseur ; ne doit jamais faire échouer la réponse déjà obtenue. */
+    private void recordTokens(JsonNode response) {
+        try {
+            Long fid = ma.codexa.troco.tenant.TenantContext.getFournisseurId();
+            long total = response.path("usage").path("total_tokens").asLong(0);
+            if (fid != null && total > 0) usage.addTokens(fid, total);
+        } catch (RuntimeException e) {
+            log.warn("token_usage_not_recorded detail={}", e.getMessage());
+        }
+    }
+
     private JsonNode post(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", props.model());
@@ -91,7 +104,9 @@ public class OpenAiCompatibleChatClient implements ChatModelClient {
                 req = req.header("Authorization", "Bearer " + props.apiKey());
             }
             String raw = req.body(MAPPER.writeValueAsString(body)).retrieve().body(String.class);
-            return MAPPER.readTree(raw);
+            JsonNode tree = MAPPER.readTree(raw);
+            recordTokens(tree);
+            return tree;
         } catch (Exception e) {
             log.warn("Assistant LLM indisponible ({}): {}", url, e.toString());
             throw new AssistantUnavailableException("Assistant indisponible", e);
