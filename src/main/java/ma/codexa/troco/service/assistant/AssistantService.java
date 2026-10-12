@@ -157,7 +157,10 @@ public class AssistantService {
             Dis simplement que tu attends sa confirmation, n'insiste pas.
               5. Ne crée pas de produit (il faut des photos : propose le parcours guidé « catalogue »). Aucun outil \
             ne gère les clés de paiement, mots de passe, abonnement ou collaborateurs : renvoie vers l'écran prévu.
-              6. Après une action, confirme en une phrase ce qui a été fait et propose la suite.""";
+              6. Après une action, confirme en une phrase ce qui a été fait et propose la suite.
+              7. Logo : si le commerçant demande de créer ou générer un logo, appelle generate_logo (marque, style, \
+            couleurs si donnés) au lieu de lui expliquer comment en importer un ; le logo sert aussi de favicon. \
+            Pages : create_page. Couleurs de la marque : set_brand_colors.""";
 
     String buildSystemPrompt(Plan plan, PlanFeatures features, String route, String locale, String step,
                              boolean withTools) {

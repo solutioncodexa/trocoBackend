@@ -27,6 +27,7 @@ public class AssistantController {
     private final AssistantService assistantService;
     private final AssistantAgentService agentService;
     private final AiUsageSummaryService usageSummary;
+    private final ma.codexa.troco.service.assistant.LogoGenerationService logoGeneration;
 
     /** Permet au front de masquer le bouton de chat quand l'assistant est désactivé. */
     @GetMapping("/status")
@@ -54,6 +55,15 @@ public class AssistantController {
         }
         long balance = usageSummary.grantTopup(fid.longValue(), tokens.longValue());
         return ResponseEntity.ok(ApiResponse.success(Map.of("fournisseurId", fid.longValue(), "balance", balance)));
+    }
+
+    /** Parcours guidé du chat : génère un logo et un favicon sans les appliquer (le commerçant valide ensuite). */
+    @PostMapping("/logo")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> logo(@RequestBody Map<String, String> body) {
+        ma.codexa.troco.service.assistant.LogoGenerationService.Result r = logoGeneration.generate(
+                body.get("brandName"), body.get("sector"), body.get("style"), body.get("symbol"), body.get("colors"));
+        return ResponseEntity.ok(ApiResponse.success(Map.of("logoUrl", r.logoUrl(), "faviconUrl", r.faviconUrl())));
     }
 
     /** Réponse texte, plus les actions exécutées ou à confirmer lorsque les outils sont activés. */

@@ -18,8 +18,6 @@ import ma.codexa.troco.dto.StorePageDTO;
 import ma.codexa.troco.dto.request.ReplaceStorePageBlocksRequest;
 import ma.codexa.troco.dto.request.UpsertStorePageRequest;
 import ma.codexa.troco.service.PromoCodeService;
-import ma.codexa.troco.service.instagram.BytesMultipartFile;
-import ma.codexa.troco.service.storage.StorageService;
 import ma.codexa.troco.service.StorePageService;
 import ma.codexa.troco.service.ProductService;
 import ma.codexa.troco.storefront.StoreTheme;
@@ -61,8 +59,7 @@ public class StoreAssistantTools {
     private final ProductRepository productRepository;
     private final PromoCodeService promoCodeService;
     private final StorePageService storePageService;
-    private final LogoImageClient logoImageClient;
-    private final StorageService storage;
+    private final LogoGenerationService logoGeneration;
 
     public List<AssistantTool> tools() {
         return List.of(
@@ -477,42 +474,23 @@ public class StoreAssistantTools {
                 a -> Map.of("brand", logoBrand(a), "style", text(a, "style", 50)),
                 a -> {
                     String brand = logoBrand(a);
-                    String style = text(a, "style", 50);
-                    String colors = text(a, "colors", 60);
-                    String prompt = "Logo design for the brand \"" + brand + "\". "
-                            + (style.isBlank() ? "Simple, modern. " : "Style: " + style + ". ")
-                            + (colors.isBlank() ? "" : "Colors: " + colors + ". ")
-                            + "Flat vector style, centered on a plain white background, no extra text besides the brand name, "
-                            + "no mockup, no watermark.";
-                    Long fid = ma.codexa.troco.tenant.TenantContext.requireFournisseurId();
-                    if (!logoImageClient.tryReserve(fid)) {
-                        throw new ToolFailure("Limite atteinte : " + logoImageClient.dailyLimit()
-                                + " logos générés par jour. Réessayez demain.");
-                    }
-                    byte[] raw;
+                    LogoGenerationService.Result generated;
                     try {
-                        raw = logoImageClient.generate(prompt);
-                    } catch (RuntimeException e) {
-                        logoImageClient.release(fid);
-                        if (!(e instanceof AssistantUnavailableException)) throw e;
-                        throw new ToolFailure("Génération du logo indisponible pour le moment");
+                        generated = logoGeneration.generate(brand, null, text(a, "style", 50), null, text(a, "colors", 60));
+                    } catch (BusinessException e) {
+                        throw new ToolFailure(e.getMessage());
                     }
-                    byte[] logo = toPng(raw, 1024);
-                    byte[] icon = toPng(raw, 512);
                     StoreSettingsDTO before = fournisseurService.getMyStoreSettings();
-                    String logoUrl = storage.store(new BytesMultipartFile("logo.png", "image/png", logo));
-                    String faviconUrl = storage.store(new BytesMultipartFile("favicon.png", "image/png", icon));
                     UpdateStoreSettingsRequest r = new UpdateStoreSettingsRequest();
-                    r.setLogoUrl(logoUrl);
-                    r.setFaviconUrl(faviconUrl);
+                    r.setLogoUrl(generated.logoUrl());
+                    r.setFaviconUrl(generated.faviconUrl());
                     fournisseurService.updateMyStoreSettings(r);
                     Runnable undo = () -> {
                         UpdateStoreSettingsRequest back = new UpdateStoreSettingsRequest();
                         back.setLogoUrl(before.logoUrl() == null ? "" : before.logoUrl());
                         back.setFaviconUrl(before.faviconUrl() == null ? "" : before.faviconUrl());
                         fournisseurService.updateMyStoreSettings(back);
-                        storage.delete(logoUrl);
-                        storage.delete(faviconUrl);
+                        logoGeneration.discard(generated);
                     };
                     return ToolOutcome.of(Map.of("logoApplied", true, "faviconApplied", true),
                             Map.of("brand", brand), undo);
@@ -526,28 +504,6 @@ public class StoreAssistantTools {
         return b;
     }
 
-    /** Recadre au carré (centré) et redimensionne ; sortie PNG. */
-    private static byte[] toPng(byte[] source, int size) {
-        try {
-            java.awt.image.BufferedImage src = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(source));
-            if (src == null) throw new ToolFailure("Image générée illisible");
-            int side = Math.min(src.getWidth(), src.getHeight());
-            java.awt.image.BufferedImage square = src.getSubimage(
-                    (src.getWidth() - side) / 2, (src.getHeight() - side) / 2, side, side);
-            java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(
-                    size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-            java.awt.Graphics2D g = out.createGraphics();
-            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                    java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            g.drawImage(square, 0, 0, size, size, null);
-            g.dispose();
-            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-            javax.imageio.ImageIO.write(out, "png", bos);
-            return bos.toByteArray();
-        } catch (java.io.IOException e) {
-            throw new ToolFailure("Image générée illisible");
-        }
-    }
     private record PromoSpec(String code, String type, BigDecimal value, Integer maxUses) {
     }
 
